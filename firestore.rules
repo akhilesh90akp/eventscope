@@ -1,0 +1,26 @@
+// ============================================================
+// Bluebell App — Firestore Security Rules
+//
+// This file is NOT auto-deployed by this repo (Vite doesn't touch it) —
+// it must be pasted into Firebase Console → Firestore Database → Rules,
+// or deployed via `firebase deploy --only firestore:rules` if you use the
+// Firebase CLI. Keep it in sync with the paths used in
+// src/context/AppContext.jsx: users/{uid}/events/{eventId},
+// users/{uid}/config/settings, users/{uid}/config/categories.
+//
+// Without rules like these (or with the Firebase default of "deny all"),
+// every read/write from the app fails with a `permission-denied` error —
+// this is the most common cause of "my data isn't saving."
+// ============================================================
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Each signed-in user can only read/write their OWN data, under
+    // users/{their-own-uid}/... — never another user's uid.
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}

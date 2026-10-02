@@ -1,0 +1,80 @@
+/**
+ * Global Styles - Application-wide CSS
+ *
+ * Defines the Bluebell design system theme tokens via Tailwind CSS @theme,
+ * base body/html resets, native input fixes, and print-specific styles.
+ */
+
+/* === Tailwind Import === */
+@import "tailwindcss";
+
+/* === Theme Tokens === */
+/* Custom color palette for the Bluebell brand */
+@theme {
+  --color-bb-bg: #f3f4f6;
+  --color-bb-card: #ffffff;
+  --color-bb-card-hover: #f9fafb;
+  --color-bb-border: #e5e7eb;
+  --color-bb-accent: #7c3aed;
+  --color-bb-accent-hover: #6d28d9;
+  --color-bb-gold: #b8860b;
+  --color-bb-text: #1f2937;
+  --color-bb-muted: #6b7280;
+  --color-bb-input: #f9fafb;
+  --color-bb-sidebar: #331948;
+  --color-bb-sidebar-text: #f3e8ff;
+  --color-bb-sidebar-muted: #c4b5d0;
+  --color-bb-sidebar-border: #5a3a7a;
+  --color-bb-sidebar-active: rgba(168, 85, 247, 0.2);
+}
+
+/* === Base Resets === */
+/* Ensure full-height layout with no horizontal overflow */
+html, body, #root {
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: hidden;
+}
+
+body {
+  margin: 0;
+  background-color: #f3f4f6;
+  color: #1f2937;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  width: 100%;
+  max-width: 100vw;
+}
+
+/* === Native Input Fixes === */
+/* Remove default calendar icon styling on WebKit browsers */
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: none;
+}
+
+/* === Print Styles === */
+/* Hide navigation and adjust layout for PDF/print output */
+@media print {
+  body { background: white !important; color: black !important; }
+  [data-no-print], nav, aside { display: none !important; }
+  main { margin: 0 !important; padding: 0 !important; margin-left: 0 !important; }
+  .lg\:ml-\[240px\] { margin-left: 0 !important; }
+
+  @page {
+    margin: 6mm 8mm;
+    size: A4;
+  }
+
+  .print-doc {
+    width: 100% !important;
+    max-width: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    border: none !important;
+  }
+
+  table { page-break-inside: auto !important; }
+  tr { page-break-inside: auto !important; page-break-after: auto !important; }
+  .bg-white { background: white !important; box-shadow: none !important; border-radius: 0 !important; }
+}

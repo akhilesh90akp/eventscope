@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" href="/bluebell-app/favicon.svg" />
+    <link rel="apple-touch-icon" href="/bluebell-app/icons/icon-192.png" />
+    <link rel="manifest" href="/bluebell-app/manifest.json" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#331948" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Bluebell" />
+    <meta name="description" content="Event management app for Bluebell Event Planners LLP" />
+    <title>Bluebell</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+    <script>
+      // ============================================================
+      // Service Worker registration + auto-update banner
+      //
+      // Problem this solves: the SW's cache-first strategy for JS/CSS
+      // means an already-open tab can keep running old code indefinitely
+      // even after a new version is deployed, since ES modules already
+      // loaded in memory don't re-fetch on their own. This shows a
+      // dismissible "New version available" banner the moment a new SW
+      // takes over, instead of silently serving stale code forever.
+      // ============================================================
+      if ('serviceWorker' in navigator) {
+        function showUpdateBanner() {
+          if (document.getElementById('bb-update-banner')) return; // already shown
+          var bar = document.createElement('div');
+          bar.id = 'bb-update-banner';
+          bar.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:99999;' +
+            'background:#331948;color:#fff;padding:12px 16px;display:flex;' +
+            'align-items:center;justify-content:center;gap:12px;font:14px system-ui,sans-serif;' +
+            'box-shadow:0 -2px 8px rgba(0,0,0,0.15);';
+          bar.innerHTML =
+            '<span>A new version of Bluebell is available.</span>' +
+            '<button id="bb-update-btn" style="background:#fff;color:#331948;border:none;' +
+            'padding:6px 14px;border-radius:6px;font-weight:600;cursor:pointer;">Refresh</button>';
+          document.body.appendChild(bar);
+          document.getElementById('bb-update-btn').addEventListener('click', function() {
+            window.location.reload();
+          });
+        }
+
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/bluebell-app/sw.js', {scope: '/bluebell-app/'})
+            .then(function(reg) {
+              console.log('SW registered');
+
+              // A new SW is already waiting (e.g. tab was open during deploy)
+              if (reg.waiting) showUpdateBanner();
+
+              // Watch for a new SW appearing and finishing install
+              reg.addEventListener('updatefound', function() {
+                var newWorker = reg.installing;
+                if (!newWorker) return;
+                newWorker.addEventListener('statechange', function() {
+                  // 'installed' + an existing controller = a genuine update,
+                  // not the very first install for a first-time visitor
+                  if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                    showUpdateBanner();
+                  }
+                });
+              });
+
+              // Check for updates periodically while the app is open
+              setInterval(function() { reg.update(); }, 15 * 60 * 1000);
+            })
+            .catch(function(err) { console.log('SW registration failed:', err); });
+        });
+      }
+    </script>
+  </body>
+</html>

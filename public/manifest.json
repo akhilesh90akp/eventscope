@@ -1,0 +1,25 @@
+{
+  "name": "Bluebell Event Planners",
+  "short_name": "Bluebell",
+  "description": "Event management app for Bluebell Event Planners LLP",
+  "start_url": "/bluebell-app/",
+  "scope": "/bluebell-app/",
+  "display": "standalone",
+  "background_color": "#331948",
+  "theme_color": "#331948",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/bluebell-app/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/bluebell-app/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
