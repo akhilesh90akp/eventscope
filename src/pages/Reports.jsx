@@ -194,7 +194,7 @@ export default function Reports() {
             <title>EventScope — Syncing...</title>
             <style>
               body { margin:0; height:100vh; display:flex; align-items:center;
-                justify-content:center; font-family:system-ui,-apple-system,sans-serif;
+                justify-content:center; font-family:'Oxanium',system-ui,-apple-system,sans-serif;
                 background:#f7f5fa; }
               .spinner { width:32px; height:32px; border:3px solid #e5ddf0;
                 border-top-color:#331948; border-radius:50%;
