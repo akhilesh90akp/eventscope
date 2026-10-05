@@ -15,7 +15,7 @@ const PRECACHE_ASSETS = [
   BASE,
   BASE + 'manifest.json',
   BASE + 'eventscope-logo.svg',
-  BASE + 'eventscope-wordmark.svg',
+  BASE + 'eventscope-logo-horizontal.svg',
   BASE + 'logo-purple-horizontal.svg',
   BASE + 'icons/icon-192.png',
   BASE + 'icons/icon-512.png',

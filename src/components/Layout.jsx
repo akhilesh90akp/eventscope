@@ -42,10 +42,10 @@ export default function Layout() {
     <div className="min-h-[100dvh] bg-bb-bg overflow-x-hidden">
       {/* === SIDEBAR (Desktop only: 1024px+) === */}
       <aside className="hidden lg:flex flex-col fixed top-0 left-0 bottom-0 w-[240px] bg-bb-sidebar border-r border-bb-sidebar-border z-50">
-        {/* Logo - EventScope wordmark (white + gold star, no tagline) */}
+        {/* Logo - EventScope horizontal logo (white + gold star, with tagline) */}
         <div className="p-3 border-b border-bb-sidebar-border">
           <img
-            src={import.meta.env.BASE_URL + "eventscope-wordmark.svg"}
+            src={import.meta.env.BASE_URL + "eventscope-logo-horizontal.svg"}
             alt="EventScope"
             className="h-10 w-auto object-contain"
           />
