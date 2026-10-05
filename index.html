@@ -2,16 +2,16 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" href="/bluebell-app/favicon.svg" />
-    <link rel="apple-touch-icon" href="/bluebell-app/icons/icon-192.png" />
-    <link rel="manifest" href="/bluebell-app/manifest.json" />
+    <link rel="icon" href="/eventscope/favicon.svg" />
+    <link rel="apple-touch-icon" href="/eventscope/icons/icon-192.png" />
+    <link rel="manifest" href="/eventscope/manifest.json" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="theme-color" content="#331948" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="Bluebell" />
-    <meta name="description" content="Event management app for Bluebell Event Planners LLP" />
-    <title>Bluebell</title>
+    <meta name="apple-mobile-web-app-title" content="EventScope" />
+    <meta name="description" content="EventScope — Every event, in focus. Quotations, billing and reports for event management companies." />
+    <title>EventScope</title>
   </head>
   <body>
     <div id="root"></div>
@@ -37,7 +37,7 @@
             'align-items:center;justify-content:center;gap:12px;font:14px system-ui,sans-serif;' +
             'box-shadow:0 -2px 8px rgba(0,0,0,0.15);';
           bar.innerHTML =
-            '<span>A new version of Bluebell is available.</span>' +
+            '<span>A new version of EventScope is available.</span>' +
             '<button id="bb-update-btn" style="background:#fff;color:#331948;border:none;' +
             'padding:6px 14px;border-radius:6px;font-weight:600;cursor:pointer;">Refresh</button>';
           document.body.appendChild(bar);
@@ -47,7 +47,7 @@
         }
 
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/bluebell-app/sw.js', {scope: '/bluebell-app/'})
+          navigator.serviceWorker.register('/eventscope/sw.js', {scope: '/eventscope/'})
             .then(function(reg) {
               console.log('SW registered');
 

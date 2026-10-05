@@ -1,5 +1,5 @@
 // ============================================================
-// Bluebell App — Firestore Security Rules
+// EventScope — Firestore Security Rules
 //
 // This file is NOT auto-deployed by this repo (Vite doesn't touch it) —
 // it must be pasted into Firebase Console → Firestore Database → Rules,

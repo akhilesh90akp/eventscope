@@ -1,4 +1,4 @@
-# Bluebell App — Code Structure Convention
+# EventScope — Code Structure Convention
 
 This document defines the standard structure for every source file in this
 project. Follow it for all new files and when editing existing ones, so the

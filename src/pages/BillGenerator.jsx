@@ -276,7 +276,7 @@ export default function BillGenerator() {
     const dateStr = formatDateReadable(invoiceDate);
     document.title = `Invoice - ${billToName || event.clientName || 'Client'} ${invoiceNo} ${dateStr}`;
     window.print();
-    document.title = 'Bluebell';
+    document.title = 'EventScope';
   };
 
   /** Generates a formatted WhatsApp message with invoice details */

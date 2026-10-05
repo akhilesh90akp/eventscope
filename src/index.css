@@ -1,7 +1,7 @@
 /**
  * Global Styles - Application-wide CSS
  *
- * Defines the Bluebell design system theme tokens via Tailwind CSS @theme,
+ * Defines the EventScope design system theme tokens via Tailwind CSS @theme,
  * base body/html resets, native input fixes, and print-specific styles.
  */
 
@@ -9,7 +9,7 @@
 @import "tailwindcss";
 
 /* === Theme Tokens === */
-/* Custom color palette for the Bluebell brand */
+/* Custom color palette for the EventScope brand */
 @theme {
   --color-bb-bg: #f3f4f6;
   --color-bb-card: #ffffff;

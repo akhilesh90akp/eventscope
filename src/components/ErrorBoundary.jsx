@@ -29,7 +29,7 @@ export default class ErrorBoundary extends React.Component {
         names.forEach((name) => caches.delete(name));
       });
     }
-    window.location.replace(import.meta.env.BASE_URL || '/bluebell-app/');
+    window.location.replace(import.meta.env.BASE_URL || '/eventscope/');
   };
 
   render() {

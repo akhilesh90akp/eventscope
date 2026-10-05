@@ -5,7 +5,7 @@
  * GitHub Pages, a static file host with no server-side routing support.
  * HashRouter keeps everything after "#" purely client-side — the browser
  * never sends it to the server — so a hard refresh on any page (e.g.
- * /bluebell-app/#/drafts) always resolves correctly. No 404/redirect
+ * /eventscope/#/drafts) always resolves correctly. No 404/redirect
  * workaround needed. See CODE_STRUCTURE.md.
  */
 
@@ -40,7 +40,7 @@ function AppRoutes() {
     return (
       <div className="min-h-[100dvh] bg-bb-sidebar flex items-center justify-center">
         <div className="text-center">
-          <img src={import.meta.env.BASE_URL + "logo-gold.png"} alt="Bluebell" className="h-12 mx-auto mb-4 animate-pulse" />
+          <img src={import.meta.env.BASE_URL + "eventscope-logo.svg"} alt="EventScope — Every event, in focus" className="h-24 w-auto mx-auto mb-6 animate-pulse" />
           <p className="text-bb-sidebar-muted text-sm">Loading...</p>
         </div>
       </div>

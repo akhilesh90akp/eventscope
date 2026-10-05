@@ -7,14 +7,15 @@
  * - API calls (Firebase, etc.): Network-only (never cache)
  */
 
-const CACHE_NAME = 'bluebell-v5';
-const BASE = '/bluebell-app/';
+const CACHE_NAME = 'eventscope-v1';
+const BASE = '/eventscope/';
 
 // Assets to pre-cache on install
 const PRECACHE_ASSETS = [
   BASE,
   BASE + 'manifest.json',
-  BASE + 'logo-gold.png',
+  BASE + 'eventscope-logo.svg',
+  BASE + 'eventscope-wordmark.svg',
   BASE + 'logo-purple-horizontal.svg',
   BASE + 'icons/icon-192.png',
   BASE + 'icons/icon-512.png',

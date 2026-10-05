@@ -42,11 +42,11 @@ export default function Layout() {
     <div className="min-h-[100dvh] bg-bb-bg overflow-x-hidden">
       {/* === SIDEBAR (Desktop only: 1024px+) === */}
       <aside className="hidden lg:flex flex-col fixed top-0 left-0 bottom-0 w-[240px] bg-bb-sidebar border-r border-bb-sidebar-border z-50">
-        {/* Logo - Golden Bluebell PNG */}
+        {/* Logo - EventScope wordmark (white + gold star, no tagline) */}
         <div className="p-3 border-b border-bb-sidebar-border">
           <img
-            src={import.meta.env.BASE_URL + "logo-gold.png"}
-            alt="Bluebell Event Planners LLP"
+            src={import.meta.env.BASE_URL + "eventscope-wordmark.svg"}
+            alt="EventScope"
             className="h-10 w-auto object-contain"
           />
         </div>
@@ -81,7 +81,7 @@ export default function Layout() {
             <LogOut size={14} />
             Logout
           </button>
-          <p className="text-[10px] text-bb-sidebar-muted text-center mt-2">Bluebell Event Planners v1.0</p>
+          <p className="text-[10px] text-bb-sidebar-muted text-center mt-2">EventScope v1.0</p>
         </div>
       </aside>
 

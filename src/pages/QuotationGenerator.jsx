@@ -493,7 +493,7 @@ export default function QuotationGenerator() {
     const dateStr = displayDate ? formatDateReadable(displayDate) : formatDateReadable(new Date().toISOString());
     document.title = `Quotation - ${event.clientName || 'Client'} ${event.eventType || 'Event'} ${dateStr}`;
     window.print();
-    document.title = 'Bluebell';
+    document.title = 'EventScope';
   };
 
   /** Generates a formatted WhatsApp message with quotation details */

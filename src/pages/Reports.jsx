@@ -191,7 +191,7 @@ export default function Reports() {
         <!DOCTYPE html>
         <html>
           <head>
-            <title>Bluebell — Syncing...</title>
+            <title>EventScope — Syncing...</title>
             <style>
               body { margin:0; height:100vh; display:flex; align-items:center;
                 justify-content:center; font-family:system-ui,-apple-system,sans-serif;
@@ -313,7 +313,7 @@ export default function Reports() {
       window.print();
       setTimeout(() => {
         if (printEl) printEl.style.display = 'none';
-        document.title = 'Bluebell';
+        document.title = 'EventScope';
       }, 500);
     }, 100);
   };
