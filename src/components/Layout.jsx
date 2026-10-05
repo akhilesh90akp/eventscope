@@ -47,7 +47,7 @@ export default function Layout() {
           <img
             src={import.meta.env.BASE_URL + "eventscope-logo-horizontal.svg"}
             alt="EventScope"
-            className="w-full max-w-[200px] h-auto object-contain"
+            className="w-full max-w-[150px] h-auto object-contain"
           />
         </div>
 
