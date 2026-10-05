@@ -107,3 +107,22 @@ Every async Firestore operation must:
 it's deployed to Firebase, not bundled by Vite) and is tracked in git like
 any other source file. See `firestore.rules` in this repo for the current
 rules — keep it in sync with the Firestore paths used in `AppContext.jsx`.
+
+**Multi-tenant rules of thumb**
+
+- All company data lives under `tenants/{tenantId}/...`. Never read or write
+  `users/{uid}/...` for business data — `users/{uid}` only maps a login to a
+  tenant and role.
+- Every page gets data through `useApp()`; never call Firestore from a page.
+  `AppContext.jsx` is the only place that builds Firestore paths.
+- Permission checks in the UI (`canEditEvents`, `canEditSettings`) are hints
+  for a good experience. `firestore.rules` is what actually enforces them —
+  change both together.
+- Any change to `firestore.rules` must keep `npm run test:rules` green
+  (runs on GitHub automatically: `.github/workflows/test-rules.yml`).
+
+## 8. Local testing against the Firebase emulator
+
+Create `.env.local` (git-ignored) with `VITE_USE_EMULATOR=true`, then run
+`firebase emulators:start --only auth,firestore` alongside `npm run dev`.
+The app then talks to the local emulator instead of the real project.

@@ -3,6 +3,8 @@
  *
  * Multi-tab settings interface for managing company details, bank information,
  * invoice preferences, service categories, and team (placeholder).
+ * Settings belong to the tenant (company). Only the owner can change them;
+ * staff see them read-only (firestore.rules enforces the same).
  * All changes persist to Firestore via AppContext (not localStorage).
  *
  * Save actions await the Firestore result before confirming success —
@@ -12,12 +14,13 @@
 // ============================================================
 // IMPORTS
 // ============================================================
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import Input from '../components/Input';
 import Modal from '../components/Modal';
+import { resizeImageFile } from '../utils/helpers';
 import { Save, Plus, Trash2, Edit2, X, Building2, Landmark, FileText, Layers, Users, RefreshCw } from 'lucide-react';
 
 // ============================================================
@@ -26,7 +29,7 @@ import { Save, Plus, Trash2, Edit2, X, Building2, Landmark, FileText, Layers, Us
 
 /** Multi-tab settings page for company, bank, invoice, and service configuration */
 export default function Settings() {
-  const { settings, categories, updateSettings, addCategory, updateCategory, deleteCategory, addItemToCat, removeItemFromCat, logout, user, showToast } = useApp();
+  const { settings, categories, updateSettings, addCategory, updateCategory, deleteCategory, addItemToCat, removeItemFromCat, logout, user, showToast, canEditSettings, isOwner, isSuspended, role } = useApp();
 
   // ------------------------------------------------------------
   // STATE
@@ -39,6 +42,22 @@ export default function Settings() {
   const [newItemInput, setNewItemInput] = useState('');
   const [newTerm, setNewTerm] = useState('');
   const [saving, setSaving] = useState(false);
+
+  // Settings load asynchronously after sign-in; re-sync the form when they
+  // arrive (or change) so it never shows — and then saves — stale blanks.
+  useEffect(() => {
+    setForm({ ...settings, bankDetails: { ...settings.bankDetails } });
+  }, [settings]);
+
+  /** Resizes an uploaded image and stores it on the given form field */
+  const handleImageUpload = async (key, file) => {
+    if (!file) return;
+    try {
+      set(key, await resizeImageFile(file, 400));
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
 
   // ------------------------------------------------------------
   // EVENT HANDLERS — FORM FIELDS
@@ -137,6 +156,18 @@ export default function Settings() {
         ))}
       </div>
 
+      {/* Read-only notice for staff / suspended accounts */}
+      {!canEditSettings && tab !== 'team' && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg px-4 py-3">
+          {isSuspended
+            ? 'This account is suspended, so settings can’t be changed.'
+            : 'Only the account owner can change settings. You’re viewing them read-only.'}
+        </div>
+      )}
+
+      {/* Editable tabs — disabled as a block when the user can't edit settings */}
+      <fieldset disabled={!canEditSettings} className="space-y-4 min-w-0">
+
       {/* Company Tab */}
       {tab === 'company' && (
         <Card>
@@ -157,16 +188,10 @@ export default function Settings() {
               <input
                 type="file"
                 accept="image/*"
-                onChange={e => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    const reader = new FileReader();
-                    reader.onload = (ev) => set('logo', ev.target.result);
-                    reader.readAsDataURL(file);
-                  }
-                }}
+                onChange={e => handleImageUpload('logo', e.target.files?.[0])}
                 className="text-sm text-bb-muted file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-bb-accent/20 file:text-bb-accent hover:file:bg-bb-accent/30 file:cursor-pointer"
               />
+              <p className="text-xs text-bb-muted mt-1">Shown on your quotations and bills. Resized automatically.</p>
               {form.logo && <img src={form.logo} alt="Logo" className="mt-2 h-16 rounded" />}
             </div>
           </div>
@@ -224,14 +249,7 @@ export default function Settings() {
               <input
                 type="file"
                 accept="image/*"
-                onChange={e => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    const reader = new FileReader();
-                    reader.onload = (ev) => set('signature', ev.target.result);
-                    reader.readAsDataURL(file);
-                  }
-                }}
+                onChange={e => handleImageUpload('signature', e.target.files?.[0])}
                 className="text-sm text-bb-muted file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-bb-accent/20 file:text-bb-accent hover:file:bg-bb-accent/30 file:cursor-pointer"
               />
               {form.signature && <img src={form.signature} alt="Signature" className="mt-2 h-12" />}
@@ -301,7 +319,9 @@ export default function Settings() {
         </div>
       )}
 
-      {/* Team Tab - now shows logged-in user + logout */}
+      </fieldset>
+
+      {/* Team Tab - logged-in user, role + logout (always usable) */}
       {tab === 'team' && (
         <Card>
           <div className="space-y-4">
@@ -311,6 +331,7 @@ export default function Settings() {
                 <div>
                   <p className="text-sm font-medium text-bb-text">{user.displayName || 'User'}</p>
                   <p className="text-xs text-bb-muted">{user.email}</p>
+                  <p className="text-xs text-bb-accent font-medium mt-0.5">{isOwner ? 'Owner · full access' : 'Staff · can manage events, not settings'}</p>
                 </div>
               </div>
             )}
@@ -328,6 +349,7 @@ export default function Settings() {
         </Card>
       )}
 
+      <fieldset disabled={!canEditSettings} className="space-y-4 min-w-0">
       {tab === 'sync' && (
         <Card>
           <div className="space-y-4">
@@ -359,8 +381,10 @@ export default function Settings() {
         </Card>
       )}
 
-      {/* Save Button - shown for editable tabs only */}
-      {tab !== 'services' && tab !== 'team' && (
+      </fieldset>
+
+      {/* Save Button - shown for editable tabs, and only to users who can edit */}
+      {canEditSettings && tab !== 'services' && tab !== 'team' && (
         <Button icon={Save} fullWidth size="lg" onClick={handleSave} disabled={saving}>
           {saving ? 'Saving...' : 'Save Settings'}
         </Button>

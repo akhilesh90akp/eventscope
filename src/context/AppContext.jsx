@@ -1,10 +1,16 @@
 /**
  * AppContext — Global state with Firebase Firestore sync
  *
- * All data is stored in Firestore under the user's UID, at:
- *   users/{uid}/events/{eventId}     - one doc per event/draft
- *   users/{uid}/config/settings      - invoice settings singleton
- *   users/{uid}/config/categories    - item categories singleton
+ * Multi-tenant: every company (tenant) has its own data, and each login
+ * is linked to exactly one tenant. On sign-in we read users/{uid} to find
+ * the tenant, then load only that tenant's data:
+ *   users/{uid}                              - { tenantId, role: 'owner'|'staff', name, email }
+ *   tenants/{tenantId}                       - { name, plan, status, ownerUid, createdAt } (platform-controlled)
+ *   tenants/{tenantId}/config/settings       - company profile + invoice settings (owner-editable)
+ *   tenants/{tenantId}/config/categories     - service categories (owner-editable)
+ *   tenants/{tenantId}/events/{eventId}      - one doc per event/draft
+ *   platformAdmins/{uid}                     - EventScope staff
+ * Firestore rules (firestore.rules) enforce the same boundaries server-side.
  *
  * Every write operation below returns a { success, error? } result instead
  * of firing-and-forgetting — callers (pages) MUST check this result before
@@ -12,7 +18,7 @@
  */
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { collection, doc, getDocs, setDoc, deleteDoc, onSnapshot, getDoc } from 'firebase/firestore';
+import { collection, doc, setDoc, deleteDoc, onSnapshot, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { DEFAULT_SETTINGS, DEFAULT_CATEGORIES } from '../constants/data';
 import { genId } from '../utils/helpers';
@@ -29,6 +35,12 @@ export function AppProvider({ children }) {
   // ============================================================
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  // Tenant membership, resolved from users/{uid} after sign-in.
+  // tenantStatus: 'loading' | 'ready' | 'none' (signed in but not in any company) | 'error'
+  const [membership, setMembership] = useState(null); // { tenantId, role }
+  const [tenant, setTenant] = useState(null);         // tenants/{tenantId} doc
+  const [tenantStatus, setTenantStatus] = useState('loading');
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [events, setEvents] = useState([]);
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
@@ -68,9 +80,43 @@ export function AppProvider({ children }) {
   // DATA LOADING (runs whenever the logged-in user changes)
   // ============================================================
 
-  // Load data from Firestore when user logs in
+  // Step 1: when the login changes, find which tenant it belongs to.
   useEffect(() => {
+    setMembership(null);
+    setTenant(null);
+    setIsPlatformAdmin(false);
     if (!user) {
+      setTenantStatus('loading');
+      return;
+    }
+    setTenantStatus('loading');
+    let cancelled = false;
+    (async () => {
+      try {
+        const [profileSnap, adminSnap] = await Promise.all([
+          getDoc(doc(db, 'users', user.uid)),
+          getDoc(doc(db, 'platformAdmins', user.uid)),
+        ]);
+        if (cancelled) return;
+        setIsPlatformAdmin(adminSnap.exists());
+        const profile = profileSnap.exists() ? profileSnap.data() : null;
+        if (!profile?.tenantId) {
+          setTenantStatus('none');
+          return;
+        }
+        setMembership({ tenantId: profile.tenantId, role: profile.role || 'staff' });
+      } catch (err) {
+        console.error('Error resolving tenant membership:', err.code, err.message);
+        if (!cancelled) setTenantStatus('error');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user]);
+
+  // Step 2: once we know the tenant, load its data (and keep it live).
+  const tenantId = membership?.tenantId || null;
+  useEffect(() => {
+    if (!tenantId) {
       setEvents([]);
       setSettings(DEFAULT_SETTINGS);
       setCategories(DEFAULT_CATEGORIES);
@@ -78,13 +124,24 @@ export function AppProvider({ children }) {
       return;
     }
 
-    console.log('User logged in:', user.email, user.uid);
+    // Tenant doc (plan/status) — live, so a suspension shows up immediately
+    const unsubTenant = onSnapshot(doc(db, 'tenants', tenantId), (snap) => {
+      if (!snap.exists()) {
+        console.error('Tenant doc missing for', tenantId);
+        setTenantStatus('none');
+        return;
+      }
+      setTenant({ id: snap.id, ...snap.data() });
+      setTenantStatus('ready');
+    }, (err) => {
+      console.error('Tenant listener error:', err.code, err.message);
+      setTenantStatus('error');
+    });
 
     // Real-time listener for events
-    const eventsRef = collection(db, 'users', user.uid, 'events');
+    const eventsRef = collection(db, 'tenants', tenantId, 'events');
     const unsubEvents = onSnapshot(eventsRef, (snapshot) => {
       const evs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      console.log('Events loaded from Firestore:', evs.length);
       setEvents(evs);
       setLoaded(true);
     }, (err) => {
@@ -95,23 +152,38 @@ export function AppProvider({ children }) {
     // Load settings and categories (one-time read)
     const loadConfig = async () => {
       try {
-        const settingsDoc = await getDoc(doc(db, 'users', user.uid, 'config', 'settings'));
-        if (settingsDoc.exists()) {
-          setSettings({ ...DEFAULT_SETTINGS, ...settingsDoc.data() });
-        }
-        const catsDoc = await getDoc(doc(db, 'users', user.uid, 'config', 'categories'));
-        if (catsDoc.exists()) {
-          setCategories(catsDoc.data().list || DEFAULT_CATEGORIES);
-        }
+        const settingsDoc = await getDoc(doc(db, 'tenants', tenantId, 'config', 'settings'));
+        setSettings(settingsDoc.exists() ? { ...DEFAULT_SETTINGS, ...settingsDoc.data() } : DEFAULT_SETTINGS);
+        const catsDoc = await getDoc(doc(db, 'tenants', tenantId, 'config', 'categories'));
+        setCategories(catsDoc.exists() ? (catsDoc.data().list || DEFAULT_CATEGORIES) : DEFAULT_CATEGORIES);
       } catch (err) {
         console.error('Error loading config:', err);
       }
     };
     loadConfig();
 
-    // Cleanup: unsubscribe from events listener
-    return () => unsubEvents();
-  }, [user]);
+    // Cleanup: unsubscribe from listeners
+    return () => { unsubTenant(); unsubEvents(); };
+  }, [tenantId]);
+
+  // ============================================================
+  // DERIVED PERMISSIONS
+  // (UI hints only — firestore.rules is what actually enforces these)
+  // ============================================================
+  const role = membership?.role || null;
+  const isOwner = role === 'owner';
+  const isSuspended = tenant?.status === 'suspended';
+  const canEditEvents = !!tenantId && !isSuspended;
+  const canEditSettings = isOwner && !isSuspended;
+
+  /** Shared guard for writes. Returns an error string, or null if the write may proceed. */
+  const writeBlockedReason = ({ ownerOnly = false } = {}) => {
+    if (!user) return 'You are signed out — please log in again before saving.';
+    if (!tenantId) return 'Your login is not linked to a company yet.';
+    if (isSuspended) return 'This account is suspended — changes are disabled. Please contact EventScope support.';
+    if (ownerOnly && !isOwner) return 'Only the account owner can change settings.';
+    return null;
+  };
 
   // ============================================================
   // EVENT OPERATIONS (CRUD)
@@ -125,16 +197,16 @@ export function AppProvider({ children }) {
 
   /** Creates a new event/draft in Firestore. Returns { success, id, event } or { success: false, error }. */
   const addEvent = async (data) => {
-    if (!user) {
-      const error = 'You are signed out — please log in again before saving.';
-      console.error('addEvent: no authenticated user');
-      showToast(error, 'error');
-      return { success: false, error };
+    const blocked = writeBlockedReason();
+    if (blocked) {
+      console.error('addEvent blocked:', blocked);
+      showToast(blocked, 'error');
+      return { success: false, error: blocked };
     }
     const id = genId();
     const ev = { ...data, status: 'draft', createdAt: new Date().toISOString() };
     try {
-      await setDoc(doc(db, 'users', user.uid, 'events', id), ev);
+      await setDoc(doc(db, 'tenants', tenantId, 'events', id), ev);
       console.log('Event saved to Firestore:', id);
       return { success: true, id, event: { id, ...ev } };
     } catch (err) {
@@ -142,7 +214,7 @@ export function AppProvider({ children }) {
       // (err.code === 'permission-denied'), or no network connection.
       console.error('Error adding event:', err.code, err.message);
       const friendly = err.code === 'permission-denied'
-        ? 'Save blocked by Firestore security rules — check your rules allow writes to users/{uid}/events.'
+        ? 'Save blocked by Firestore security rules — check your rules allow writes to tenants/{tenantId}/events.'
         : err.message;
       return { success: false, error: friendly };
     }
@@ -156,20 +228,20 @@ export function AppProvider({ children }) {
    * re-flag the event as changed to anything comparing against `updatedAt`.
    */
   const updateEvent = async (id, data, { touch = true } = {}) => {
-    if (!user) {
-      const error = 'You are signed out — please log in again before saving.';
-      console.error('updateEvent: no authenticated user');
-      return { success: false, error };
+    const blocked = writeBlockedReason();
+    if (blocked) {
+      console.error('updateEvent blocked:', blocked);
+      return { success: false, error: blocked };
     }
     try {
-      const evRef = doc(db, 'users', user.uid, 'events', id);
+      const evRef = doc(db, 'tenants', tenantId, 'events', id);
       const payload = touch ? { ...data, updatedAt: new Date().toISOString() } : data;
       await setDoc(evRef, payload, { merge: true });
       return { success: true };
     } catch (err) {
       console.error('Error updating event:', err.code, err.message);
       const friendly = err.code === 'permission-denied'
-        ? 'Save blocked by Firestore security rules — check your rules allow writes to users/{uid}/events.'
+        ? 'Save blocked by Firestore security rules — check your rules allow writes to tenants/{tenantId}/events.'
         : err.message;
       return { success: false, error: friendly };
     }
@@ -177,9 +249,13 @@ export function AppProvider({ children }) {
 
   /** Deletes an event by id. Returns { success } or { success: false, error }. */
   const deleteEvent = async (id) => {
-    if (!user) return { success: false, error: 'You are signed out.' };
+    const blocked = writeBlockedReason();
+    if (blocked) {
+      showToast(blocked, 'error');
+      return { success: false, error: blocked };
+    }
     try {
-      await deleteDoc(doc(db, 'users', user.uid, 'events', id));
+      await deleteDoc(doc(db, 'tenants', tenantId, 'events', id));
       return { success: true };
     } catch (err) {
       console.error('Error deleting event:', err.code, err.message);
@@ -194,11 +270,15 @@ export function AppProvider({ children }) {
 
   /** Merges and persists invoice settings. Returns { success } or { success: false, error }. */
   const updateSettings = async (data) => {
-    if (!user) return { success: false, error: 'You are signed out.' };
+    const blocked = writeBlockedReason({ ownerOnly: true });
+    if (blocked) {
+      showToast(blocked, 'error');
+      return { success: false, error: blocked };
+    }
     const newSettings = { ...settings, ...data };
     setSettings(newSettings); // optimistic local update
     try {
-      await setDoc(doc(db, 'users', user.uid, 'config', 'settings'), newSettings);
+      await setDoc(doc(db, 'tenants', tenantId, 'config', 'settings'), newSettings);
       return { success: true };
     } catch (err) {
       console.error('Error saving settings:', err.code, err.message);
@@ -213,10 +293,14 @@ export function AppProvider({ children }) {
 
   /** Persists the full categories list. Returns { success } or { success: false, error }. */
   const saveCategories = async (cats) => {
-    if (!user) return { success: false, error: 'You are signed out.' };
+    const blocked = writeBlockedReason({ ownerOnly: true });
+    if (blocked) {
+      showToast(blocked, 'error');
+      return { success: false, error: blocked };
+    }
     setCategories(cats); // optimistic local update
     try {
-      await setDoc(doc(db, 'users', user.uid, 'config', 'categories'), { list: cats });
+      await setDoc(doc(db, 'tenants', tenantId, 'config', 'categories'), { list: cats });
       return { success: true };
     } catch (err) {
       console.error('Error saving categories:', err.code, err.message);
@@ -262,6 +346,8 @@ export function AppProvider({ children }) {
   return (
     <Ctx.Provider value={{
       user, authLoading, logout,
+      tenant, tenantId, tenantStatus, role, isOwner, isPlatformAdmin,
+      isSuspended, canEditEvents, canEditSettings,
       events, settings, categories, loaded,
       addEvent, updateEvent, deleteEvent,
       updateSettings,

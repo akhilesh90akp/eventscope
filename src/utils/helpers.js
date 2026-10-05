@@ -303,3 +303,32 @@ export const computeSectionTotal = (sectionId, itemNames, itemPrices, bundles, h
     return sum + (Number(p.qty) || 0) * (Number(p.rate) || 0);
   }, 0);
 };
+
+/**
+ * Reads an image file and returns a resized data URL (max `maxWidth` px wide,
+ * never upscaled). Logos/signatures are stored inside the tenant's settings
+ * doc, which Firestore caps at 1 MB — shrinking on upload keeps a large photo
+ * from making Settings un-savable. PNG/SVG stay PNG (keeps transparency);
+ * everything else becomes JPEG.
+ */
+export const resizeImageFile = (file, maxWidth = 400) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onerror = () => reject(new Error('Could not read the image file.'));
+  reader.onload = () => {
+    const img = new Image();
+    img.onerror = () => reject(new Error('That file does not look like an image.'));
+    img.onload = () => {
+      const scale = Math.min(1, maxWidth / (img.naturalWidth || maxWidth));
+      const w = Math.max(1, Math.round((img.naturalWidth || maxWidth) * scale));
+      const h = Math.max(1, Math.round((img.naturalHeight || maxWidth) * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      const keepAlpha = /png|svg|webp|gif/i.test(file.type);
+      resolve(keepAlpha ? canvas.toDataURL('image/png') : canvas.toDataURL('image/jpeg', 0.85));
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+});

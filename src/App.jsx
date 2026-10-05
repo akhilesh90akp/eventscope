@@ -32,24 +32,71 @@ import Settings from './pages/Settings';
 // AppRoutes — auth gate + route table
 // ============================================================
 
+/** Full-screen loading state on the brand background */
+function LoadingScreen() {
+  return (
+    <div className="min-h-[100dvh] bg-bb-sidebar flex items-center justify-center">
+      <div className="text-center">
+        <img src={import.meta.env.BASE_URL + "eventscope-logo.svg"} alt="EventScope — Every event, in focus" className="h-24 w-auto mx-auto mb-6 animate-pulse" />
+        <p className="text-bb-sidebar-muted text-sm">Loading...</p>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Shown when someone signs in but their login isn't linked to any company
+ * (no users/{uid} doc), or membership couldn't be loaded. Step 7 (public
+ * sign-up) will add a "Create your company" action here.
+ */
+function AccountStatusScreen({ title, message }) {
+  const { user, logout } = useApp();
+  return (
+    <div className="min-h-[100dvh] bg-bb-sidebar flex flex-col items-center justify-center p-4">
+      <img src={import.meta.env.BASE_URL + "eventscope-logo.svg"} alt="EventScope — Every event, in focus" className="h-28 w-auto mb-10 object-contain" />
+      <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl p-8 text-center">
+        <h1 className="text-xl font-bold text-gray-900 mb-2">{title}</h1>
+        <p className="text-sm text-gray-500 mb-2">{message}</p>
+        <p className="text-xs text-gray-400 mb-6">Signed in as {user?.email}</p>
+        <button
+          onClick={logout}
+          className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 cursor-pointer"
+        >
+          Sign out
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function AppRoutes() {
-  const { user, authLoading, toast } = useApp();
+  const { user, authLoading, tenantStatus, toast } = useApp();
 
   // Show loading while checking auth
-  if (authLoading) {
-    return (
-      <div className="min-h-[100dvh] bg-bb-sidebar flex items-center justify-center">
-        <div className="text-center">
-          <img src={import.meta.env.BASE_URL + "eventscope-logo.svg"} alt="EventScope — Every event, in focus" className="h-24 w-auto mx-auto mb-6 animate-pulse" />
-          <p className="text-bb-sidebar-muted text-sm">Loading...</p>
-        </div>
-      </div>
-    );
-  }
+  if (authLoading) return <LoadingScreen />;
 
   // Show login if not authenticated
   if (!user) {
     return <Login />;
+  }
+
+  // Signed in — wait until we know which company this login belongs to
+  if (tenantStatus === 'loading') return <LoadingScreen />;
+  if (tenantStatus === 'none') {
+    return (
+      <AccountStatusScreen
+        title="You're not part of a company yet"
+        message="This login isn't linked to an EventScope account. Ask your company's owner to add you, or sign in with a different Google account."
+      />
+    );
+  }
+  if (tenantStatus === 'error') {
+    return (
+      <AccountStatusScreen
+        title="Couldn't load your account"
+        message="Something went wrong loading your company's data. Check your connection and try again."
+      />
+    );
   }
 
   // Authenticated - show main app

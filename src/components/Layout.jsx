@@ -36,7 +36,8 @@ const mobileNav = [
 /** Main layout wrapper with sidebar, content area, and mobile nav */
 export default function Layout() {
   const navigate = useNavigate();
-  const { logout } = useApp();
+  const { logout, tenant, settings, role, isSuspended } = useApp();
+  const companyName = settings.companyName || tenant?.name || '';
 
   return (
     <div className="min-h-[100dvh] bg-bb-bg overflow-x-hidden">
@@ -72,8 +73,14 @@ export default function Layout() {
           ))}
         </nav>
 
-        {/* Version footer */}
+        {/* Account + version footer */}
         <div className="px-4 py-3 border-t border-bb-sidebar-border">
+          {companyName && (
+            <div className="px-2 mb-2">
+              <p className="text-xs font-semibold text-white truncate">{companyName}</p>
+              <p className="text-[10px] text-bb-sidebar-muted capitalize">{role}</p>
+            </div>
+          )}
           <button
             onClick={logout}
             className="flex items-center gap-2 w-full px-2 py-1.5 rounded-lg text-xs text-bb-sidebar-muted hover:text-white transition-colors cursor-pointer"
@@ -87,6 +94,12 @@ export default function Layout() {
 
       {/* === MAIN CONTENT === */}
       <main className="lg:ml-[240px] min-h-[100dvh] pb-20 lg:pb-6">
+        {/* Suspended account banner (tenant set to read-only by EventScope) */}
+        {isSuspended && (
+          <div className="bg-amber-50 border-b border-amber-200 text-amber-800 text-sm px-4 py-3 text-center">
+            This account is suspended — you can view your data, but changes are disabled. Please contact EventScope support.
+          </div>
+        )}
         <div className="p-3 sm:p-4 md:p-6 lg:p-8 w-full">
           <Outlet />
         </div>

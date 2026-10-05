@@ -14,8 +14,8 @@
 // IMPORTS
 // ============================================================
 import { initializeApp } from 'firebase/app';
-import { getAuth, browserLocalPersistence, setPersistence } from 'firebase/auth';
-import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
+import { getAuth, browserLocalPersistence, setPersistence, connectAuthEmulator } from 'firebase/auth';
+import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, connectFirestoreEmulator } from 'firebase/firestore';
 
 // ============================================================
 // CONFIG
@@ -60,6 +60,20 @@ try {
   // Already initialized or persistence not supported on this device
   console.warn('Firestore persistent cache unavailable, using default:', e.message);
   db = getFirestore(app);
+}
+
+// ============================================================
+// LOCAL EMULATOR (development/testing only)
+//
+// Set VITE_USE_EMULATOR=true (e.g. in .env.local, which is git-ignored) to
+// point the app at the Firebase Emulator Suite on this machine instead of
+// the real project. Never set in production builds.
+// ============================================================
+
+if (import.meta.env.VITE_USE_EMULATOR === 'true') {
+  connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+  connectFirestoreEmulator(db, '127.0.0.1', 8080);
+  console.warn('Using Firebase emulators (VITE_USE_EMULATOR=true)');
 }
 
 // ============================================================

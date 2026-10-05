@@ -48,10 +48,15 @@ export const DEFAULT_CATEGORIES = [
 // COMPANY / INVOICE DEFAULTS
 // ============================================================
 
-/** Default company/business settings used on first launch */
+/**
+ * Default company/business settings for a brand-new tenant.
+ * Deliberately blank: every company fills in its own name, address, tax IDs
+ * and bank details in Settings — stored in Firestore, never in code.
+ * (No company's real details belong in this repo.)
+ */
 export const DEFAULT_SETTINGS = {
-  companyName: 'BLUE BELL',
-  tagline: 'Event Planners LLP',
+  companyName: '',
+  tagline: '',
   address: '',
   gstin: '',
   pan: '',
@@ -60,18 +65,17 @@ export const DEFAULT_SETTINGS = {
   email: '',
   logo: null,
   bankDetails: {
-    accountName: 'BLUE BELL',
+    accountName: '',
     accountNo: '',
     bankName: '',
     branch: '',
     ifscCode: '',
     upiId: '',
   },
-  invoicePrefix: 'BB',
+  invoicePrefix: 'INV',
   defaultGstRate: 18,
   termsAndConditions: [
     'Total payment due in 30 days',
-    'Please include the invoice number on your check',
   ],
   thankYouMessage: 'Thank You For Your Business!',
   // Google Sheets sync — see CODE_STRUCTURE.md and src/utils/sheetSync.js.

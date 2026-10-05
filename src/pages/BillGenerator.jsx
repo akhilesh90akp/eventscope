@@ -391,12 +391,16 @@ export default function BillGenerator() {
             {/* Row 2: Company address left, Logo + Bill Date + Invoice # right */}
             <tr>
               <td colSpan="3" style={{verticalAlign: 'top', padding: '12px 24px', fontSize: '11px', color: '#4b5563', lineHeight: '1.7'}}>
-                <span style={{fontWeight: '700', fontSize: '13px', color: '#1f2937'}}>BLUE BELL</span><span style={{color: '#4b5563'}}> — Event Planners LLP</span><br/>
-                {settings.address}<br/>
-                Ph: {settings.phone} | GSTIN: {settings.gstin}
+                {/* Company block — from the tenant's own settings */}
+                <span style={{fontWeight: '700', fontSize: '13px', color: '#1f2937'}}>{settings.companyName}</span>
+                {settings.tagline && <span style={{color: '#4b5563'}}> — {settings.tagline}</span>}<br/>
+                {(settings.address || '').split('\n').filter(Boolean).map((line, i) => (
+                  <React.Fragment key={i}>{line}<br/></React.Fragment>
+                ))}
+                {[settings.phone && `Ph: ${settings.phone}`, settings.gstin && `GSTIN: ${settings.gstin}`].filter(Boolean).join(' | ')}
               </td>
               <td colSpan="3" style={{verticalAlign: 'top', textAlign: 'right', padding: '12px 24px'}}>
-                <img src={import.meta.env.BASE_URL + "logo-purple-horizontal.svg"} alt="Bluebell" style={{height: '40px', width: 'auto', marginLeft: 'auto', display: 'block'}} /><br/>
+                {settings.logo && <img src={settings.logo} alt={settings.companyName || 'Logo'} style={{height: '40px', width: 'auto', marginLeft: 'auto', display: 'block'}} />}<br/>
                 <span style={{fontSize: '11px', color: '#4b5563', lineHeight: '2'}}>Bill Date: {formatDateReadable(invoiceDate)}</span><br/>
                 <span style={{fontSize: '11px', color: '#4b5563'}}>Invoice #: {invoiceNo}</span>
               </td>
