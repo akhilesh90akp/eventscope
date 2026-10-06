@@ -163,8 +163,10 @@ export function AppProvider({ children }) {
    * Signs out AND wipes this browser's offline copy of the company's data,
    * so the next person using a shared computer can't see it. Firestore's
    * cache can only be cleared once the client is shut down, so we reload.
+   * Always asks first — every Log out / Sign out button goes through here.
    */
   const logout = async () => {
+    if (!window.confirm('Log out of EventScope?\n\nYou’ll need to sign in with Google again, and this device’s saved copy of your data will be cleared.')) return;
     try {
       await signOut(auth);
       await terminate(db);
