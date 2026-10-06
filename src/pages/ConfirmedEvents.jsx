@@ -14,7 +14,7 @@
 // IMPORTS
 // ============================================================
 import React, { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import Card from '../components/Card';
 import Button from '../components/Button';
@@ -61,24 +61,21 @@ function getEventDate(ev) {
 // ConfirmedEvents — MAIN COMPONENT
 // ============================================================
 
-/** Manages confirmed events with pricing, item addition, and completion */
-export default function ConfirmedEvents() {
+/**
+ * Lists confirmed OR completed events (one status per page — the two are
+ * separate pages in the nav, each mounted with its own `status` prop).
+ * Handles pricing, item addition, and marking events completed.
+ */
+export default function ConfirmedEvents({ status = 'confirmed' }) {
   const { events, categories, updateEvent, deleteEvent, showToast } = useApp();
   const navigate = useNavigate();
-  const location = useLocation();
 
   // ------------------------------------------------------------
   // STATE
   // ------------------------------------------------------------
   const [search, setSearch] = useState('');
-  // Opens on whichever tab makes sense for how we got here: EditDraft
-  // passes { statusFilter: 'completed' } via navigate() so editing a
-  // completed event and saving returns you to Completed, not the default
-  // Confirmed; the dedicated "/completed" sidebar link opens straight on
-  // that tab by URL alone (no navigation state involved).
-  const [statusFilter, setStatusFilter] = useState(
-    location.state?.statusFilter || (location.pathname === '/completed' ? 'completed' : 'confirmed')
-  ); // 'confirmed' | 'completed'
+  const statusFilter = status; // 'confirmed' | 'completed' — fixed per page
+  const pageLabel = status === 'completed' ? 'Completed' : 'Confirmed';
   const [addItemModal, setAddItemModal] = useState(null); // event id for add-item modal
   const [priceModal, setPriceModal] = useState(null); // event id for pricing modal
   const [newItem, setNewItem] = useState('');
@@ -260,7 +257,7 @@ export default function ConfirmedEvents() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-bold text-bb-text">Confirmed Events</h1>
+      <h1 className="text-xl font-bold text-bb-text">{pageLabel} Events</h1>
 
       <Input
         placeholder="Search events..."
@@ -269,32 +266,14 @@ export default function ConfirmedEvents() {
         onChange={e => setSearch(e.target.value)}
       />
 
-      {/* Status Filter Tabs */}
-      <div className="flex gap-1 bg-bb-input rounded-lg p-1">
-        {[
-          { key: 'confirmed', label: 'Confirmed' },
-          { key: 'completed', label: 'Completed' },
-        ].map(tab => (
-          <button
-            key={tab.key}
-            onClick={() => setStatusFilter(tab.key)}
-            className={`flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors cursor-pointer ${
-              statusFilter === tab.key
-                ? 'bg-bb-card text-bb-text shadow-sm'
-                : 'text-bb-muted hover:text-bb-text'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
       {confirmedEvents.length === 0 ? (
         <Card>
           <div className="text-center py-10">
             <PackageOpen size={44} className="mx-auto text-bb-muted mb-3" />
-            <p className="text-bb-muted font-medium">No confirmed events</p>
-            <p className="text-sm text-bb-muted/60 mt-1">Confirm a draft to see it here</p>
+            <p className="text-bb-muted font-medium">No {status} events</p>
+            <p className="text-sm text-bb-muted/60 mt-1">
+              {status === 'completed' ? 'Mark a confirmed event as completed to see it here' : 'Confirm a draft to see it here'}
+            </p>
           </div>
         </Card>
       ) : (
