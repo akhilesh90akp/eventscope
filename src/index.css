@@ -65,6 +65,21 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   filter: none;
 }
 
+/* === Dropdowns (every <select> in the app) === */
+/* The browser's own arrow sits tight against the border; draw our own with
+   breathing room instead. Unlayered on purpose so it wins over Tailwind's
+   px-* utilities (which would otherwise shrink the right padding again). */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 16px 16px;
+  padding-right: 2.5rem;
+}
+select:disabled { opacity: 0.6; }
+
 /* === Print Styles === */
 /* Hide navigation and adjust layout for PDF/print output */
 @media print {

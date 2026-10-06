@@ -77,14 +77,14 @@ function LoadingScreen() {
 
 /** Shown when the company's data couldn't be loaded (e.g. offline) */
 function AccountErrorScreen() {
-  const { user, logout } = useApp();
+  const { user, logout, loadError } = useApp();
   return (
     <div className="min-h-[100dvh] bg-bb-sidebar flex flex-col items-center justify-center p-4">
       <img src={import.meta.env.BASE_URL + 'eventscope-logo.svg'} alt="EventScope — Every event, in focus" className="h-28 w-auto mb-10 object-contain" />
       <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl p-8 text-center">
         <h1 className="text-xl font-bold text-gray-900 mb-2">Couldn’t load your account</h1>
         <p className="text-sm text-gray-500 mb-2">Something went wrong loading your company’s data. Check your connection and try again.</p>
-        <p className="text-xs text-gray-400 mb-6">Signed in as {user?.email}</p>
+        <p className="text-xs text-gray-400 mb-6">Signed in as {user?.email}{loadError ? ` · code: ${loadError}` : ''}</p>
         <button onClick={() => window.location.reload()} className="w-full mb-2 px-4 py-3 bg-bb-accent text-white rounded-xl text-sm font-semibold cursor-pointer">
           Try again
         </button>

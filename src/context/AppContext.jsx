@@ -45,6 +45,11 @@ const Ctx = createContext();
 /** Firestore batches cap at 500 writes; stay safely under it */
 const BATCH_LIMIT = 450;
 
+/** A fresh tab can hit a brief sign-in race on its first read; retry this
+ *  many times (with a growing pause) before showing "Couldn't load your account" */
+const LOAD_RETRIES = 3;
+const RETRY_DELAY_MS = 800;
+
 // ============================================================
 // HELPERS
 // ============================================================
@@ -107,6 +112,8 @@ export function AppProvider({ children }) {
   const [tenantStatus, setTenantStatus] = useState('loading');
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [pendingInvite, setPendingInvite] = useState(null); // invite waiting for Join / Decline
+  const [loadAttempt, setLoadAttempt] = useState(0);        // bumps to re-subscribe after a transient error
+  const [loadError, setLoadError] = useState('');           // error code shown small on the error screen
 
   // Company data
   const [events, setEvents] = useState([]);
@@ -171,6 +178,19 @@ export function AppProvider({ children }) {
     }
   };
 
+  /** On a load error: retry a few times, then give up and show the error screen */
+  const retryOrFail = useCallback((err) => {
+    if (loadAttempt < LOAD_RETRIES) {
+      setTimeout(() => setLoadAttempt(n => n + 1), RETRY_DELAY_MS * (loadAttempt + 1));
+    } else {
+      setLoadError(err?.code || err?.message || 'unknown');
+      setTenantStatus('error');
+    }
+  }, [loadAttempt]);
+
+  // New login → start the retry count from zero
+  useEffect(() => { setLoadAttempt(0); setLoadError(''); }, [user]);
+
   // ------------------------------------------------------------
   // DATA LOADING — STEP 1: MEMBERSHIP
   // When the login changes, find which tenant it belongs to. users/{uid}
@@ -212,12 +232,12 @@ export function AppProvider({ children }) {
         if (!cancelled) setTenantStatus('none');
       }
     }, (err) => {
-      console.error('Error resolving tenant membership:', err.code, err.message);
-      if (!cancelled) setTenantStatus('error');
+      console.error('Error resolving tenant membership:', err.code, err.message, `(attempt ${loadAttempt + 1})`);
+      if (!cancelled) retryOrFail(err);
     });
 
     return () => { cancelled = true; unsubProfile(); };
-  }, [user]);
+  }, [user, loadAttempt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ------------------------------------------------------------
   // DATA LOADING — STEP 2: COMPANY DATA (all live listeners)
@@ -251,7 +271,7 @@ export function AppProvider({ children }) {
       setTenantStatus('ready');
     }, (err) => {
       logErr('Tenant')(err);
-      setTenantStatus('error');
+      retryOrFail(err);
     });
 
     // Events
@@ -287,7 +307,7 @@ export function AppProvider({ children }) {
     });
 
     return () => { unsubTenant(); unsubEvents(); unsubSettings(); unsubCats(); unsubCols(); unsubFin(); };
-  }, [tenantId]);
+  }, [tenantId, loadAttempt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ------------------------------------------------------------
   // DERIVED PERMISSIONS
@@ -791,7 +811,7 @@ export function AppProvider({ children }) {
     <Ctx.Provider value={{
       // Auth & account
       user, authLoading, logout,
-      tenant, tenantId, tenantStatus, role, isOwner, isPlatformAdmin,
+      tenant, tenantId, tenantStatus, loadError, role, isOwner, isPlatformAdmin,
       isSuspended, canEditEvents, canEditSettings,
       createCompany, pendingInvite, acceptPendingInvite, declinePendingInvite, showPendingInvite,
       // Company data
