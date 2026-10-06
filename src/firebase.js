@@ -22,13 +22,12 @@ import { getFirestore, initializeFirestore, persistentLocalCache, persistentMult
 // ============================================================
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCGtwV4ePNuGIdzULROXZWPACdImEzuA-0",
-  authDomain: "bluebell-event.firebaseapp.com",
-  projectId: "bluebell-event",
-  storageBucket: "bluebell-event.firebasestorage.app",
-  messagingSenderId: "282114023514",
-  appId: "1:282114023514:web:dcb8b436cd90e8741a3863",
-  measurementId: "G-H5BYMZQCX7"
+  apiKey: "AIzaSyDtHNsr6PsItMwzAbEM1bBulqTAYWqa888",
+  authDomain: "eventscope-app.firebaseapp.com",
+  projectId: "eventscope-app",
+  storageBucket: "eventscope-app.firebasestorage.app",
+  messagingSenderId: "688826399809",
+  appId: "1:688826399809:web:7324299edd89b262a19ac0"
 };
 
 const app = initializeApp(firebaseConfig);
