@@ -1,46 +1,57 @@
 // ============================================================
 // EventScope — Firestore Security Rules (multi-tenant)
 //
-// This file is NOT auto-deployed by this repo (Vite doesn't touch it) —
-// paste it into Firebase Console → Firestore Database → Rules, or deploy
-// via `firebase deploy --only firestore:rules`. Keep it in sync with the
-// paths used in src/context/AppContext.jsx:
+// These rules are what actually protect data — the app's own permission
+// checks are only for a good UI. NOT auto-deployed by this repo: paste into
+// Firebase Console → Firestore Database → Rules, or run
+// `firebase deploy --only firestore:rules`.
 //
-//   platformAdmins/{uid}                  EventScope staff (managed in console)
-//   users/{uid}                           { tenantId, role: 'owner'|'staff', name, email }
-//   invites/{email}                       pending teammate invite { tenantId, role: 'staff', ... }
-//   tenants/{tenantId}                    { name, plan, status: 'active'|'suspended', ownerUid, createdAt }
-//   tenants/{tenantId}/config/settings    company profile, bank, invoice settings
-//   tenants/{tenantId}/config/categories  service categories
-//   tenants/{tenantId}/events/{eventId}   one doc per event/draft
-//   tenants/{tenantId}/config/jobLog      Job Log columns (owner-editable, like all config)
-//   tenants/{tenantId}/financials/{id}    costs/income per event (members)
+// Keep in sync with the paths in src/context/AppContext.jsx:
+//   platformAdmins/{uid}                     EventScope staff (managed in the console)
+//   users/{uid}                              { tenantId, role: 'owner'|'staff', name, email, joinedAt }
+//   invites/{email}                          pending teammate invite { tenantId, role: 'staff', ... }
+//   tenants/{tenantId}                       { name, plan, status: 'active'|'suspended', ownerUid, ownerEmail, ... }
+//   tenants/{tenantId}/private/contact       owner's backup email + phone (owner + admins only)
+//   tenants/{tenantId}/config/{doc}          settings | categories | jobLog (owner-editable)
+//   tenants/{tenantId}/events/{eventId}      events/drafts (members)
+//   tenants/{tenantId}/financials/{eventId}  Job Log costs/income/notes per event (members)
 //
-// Isolation: a signed-in user can only reach the tenant named in their own
-// users/{uid} doc. Plan/status live on the tenant doc, which only platform
-// admins can write — a company can't upgrade or un-suspend itself.
-// Suspended tenants are read-only. Staff can't change settings/categories.
-// Tests: tests/firestore.rules.test.js (run against the emulator).
+// Guarantees (each covered by tests/firestore.rules.test.mjs):
+//   - A login only ever reaches the tenant named in its own users/{uid}.
+//   - Plan/status are platform-controlled: a company can't upgrade or
+//     un-suspend itself. Suspended companies are read-only.
+//   - Staff can't change settings/categories/columns or manage the team.
+//   - Nobody can change their own role or company, or make themselves admin.
+//   - Joining a company needs an invite addressed to your verified Google email;
+//     creating one needs a verified email and no existing company.
 // ============================================================
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ---------- helpers ----------
+    // ============================================================
+    // HELPERS — WHO IS ASKING
+    // ============================================================
+
     function signedIn() {
       return request.auth != null;
     }
+    function verifiedEmail() {
+      return signedIn() && request.auth.token.email_verified == true;
+    }
+    // Full document path from a relative one, e.g. docPath('users/' + uid)
+    function docPath(p) {
+      return path('/databases/' + database + '/documents/' + p);
+    }
     function isPlatformAdmin() {
-      return signedIn()
-        && exists(/databases/$(database)/documents/platformAdmins/$(request.auth.uid));
+      return signedIn() && exists(docPath('platformAdmins/' + request.auth.uid));
     }
     function hasProfile() {
-      return signedIn()
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+      return signedIn() && exists(docPath('users/' + request.auth.uid));
     }
     function me() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return get(docPath('users/' + request.auth.uid)).data;
     }
     function isMember(tenantId) {
       return hasProfile() && me().tenantId == tenantId;
@@ -49,63 +60,79 @@ service cloud.firestore {
       return isMember(tenantId) && me().role == 'owner';
     }
     function tenantActive(tenantId) {
-      return get(/databases/$(database)/documents/tenants/$(tenantId)).data.status == 'active';
+      return get(docPath('tenants/' + tenantId)).data.status == 'active';
+    }
+    function isInvitee(email) {
+      return verifiedEmail() && request.auth.token.email.lower() == email;
     }
 
-    function isInvitee(email) {
-      return signedIn()
-        && request.auth.token.email_verified == true
-        && request.auth.token.email.lower() == email;
+    // ============================================================
+    // HELPERS — JOINING / CREATING A COMPANY
+    // ============================================================
+
+    // Self-join: an invite for my verified email exists, and the new
+    // users/{uid} doc copies exactly its tenant + role.
+    function joiningViaInvite(uid) {
+      let invite = docPath('invites/' + request.auth.token.email.lower());
+      return verifiedEmail()
+        && request.auth.uid == uid
+        && exists(invite)
+        && request.resource.data.tenantId == get(invite).data.tenantId
+        && request.resource.data.role == get(invite).data.role
+        && request.resource.data.keys().hasOnly(['tenantId', 'role', 'name', 'email', 'joinedAt']);
     }
-    // Public sign-up: a signed-in, verified user with no company yet creates
-    // a brand-new tenant they own, on the free pilot plan, status active.
+
+    // Public sign-up, part 1: a verified login with no company creates a
+    // brand-new tenant it owns, on the free pilot, active — and (same batch)
+    // the users/{uid} link making it the owner, so no orphan companies.
     function creatingOwnTenant(tenantId) {
-      return signedIn()
-        && request.auth.token.email_verified == true
+      let myLinkAfter = getAfter(docPath('users/' + request.auth.uid)).data;
+      return verifiedEmail()
         && !hasProfile()
         && request.resource.data.ownerUid == request.auth.uid
         && request.resource.data.status == 'active'
         && request.resource.data.plan == 'trial'
-        && request.resource.data.keys().hasOnly(['name', 'ownerUid', 'ownerEmail', 'ownerPhone', 'recoveryEmail', 'plan', 'status', 'createdAt', 'acceptedTermsAt']);
+        && request.resource.data.keys().hasOnly(['name', 'ownerUid', 'ownerEmail', 'plan', 'status', 'createdAt', 'acceptedTermsAt'])
+        && myLinkAfter.tenantId == tenantId
+        && myLinkAfter.role == 'owner';
     }
-    // ...and, in the same batch, the users/{uid} doc making them its owner.
+
+    // Public sign-up, part 2: the users/{uid} doc for the brand-new tenant.
     function joiningAsNewOwner(uid) {
-      let tenantPath = /databases/$(database)/documents/tenants/$(request.resource.data.tenantId);
+      let tenant = docPath('tenants/' + request.resource.data.tenantId);
       return signedIn()
         && request.auth.uid == uid
         && request.resource.data.role == 'owner'
-        && !exists(tenantPath)
-        && getAfter(tenantPath).data.ownerUid == request.auth.uid
+        && !exists(tenant)
+        && getAfter(tenant).data.ownerUid == request.auth.uid
         && request.resource.data.keys().hasOnly(['tenantId', 'role', 'name', 'email', 'joinedAt']);
     }
 
-    // Self-join: no existing membership, an invite for my verified email
-    // exists, and the new users/{uid} doc copies exactly its tenant + role.
-    function joiningViaInvite(uid) {
-      let inviteId = request.auth.token.email.lower();
-      let invitePath = /databases/$(database)/documents/invites/$(inviteId);
+    // Public sign-up, part 3: the owner's private contact record, created
+    // in the same batch as the brand-new tenant.
+    function creatingContactForNewTenant(tenantId) {
+      let tenant = docPath('tenants/' + tenantId);
       return signedIn()
-        && request.auth.uid == uid
-        && request.auth.token.email_verified == true
-        && exists(invitePath)
-        && request.resource.data.tenantId == get(invitePath).data.tenantId
-        && request.resource.data.role == get(invitePath).data.role
-        && request.resource.data.keys().hasOnly(['tenantId', 'role', 'name', 'email', 'joinedAt']);
+        && !exists(tenant)
+        && getAfter(tenant).data.ownerUid == request.auth.uid;
     }
 
-    // ---------- platform admins (EventScope staff) ----------
+    // ============================================================
+    // PLATFORM ADMINS (EventScope staff)
     // Added/removed by hand in the Firebase console, never from the app.
+    // ============================================================
     match /platformAdmins/{uid} {
       allow read: if signedIn() && request.auth.uid == uid;
       allow write: if false;
     }
 
-    // ---------- user → tenant membership ----------
-    // Read: yourself, the owner of your tenant (team list), or a platform admin.
-    // Create: a platform admin, OR the signed-in user joining via an invite
-    //   addressed to their Google-verified email (role/tenant must match it).
-    // Delete: a platform admin, or the tenant owner removing a staff member.
-    // Update: platform admins only (nobody can change their own role/tenant).
+    // ============================================================
+    // USERS — login → tenant + role
+    // Read: yourself, your tenant's owner (team list), or a platform admin.
+    // Create: admin, invite self-join, or the owner link at sign-up.
+    // Update: admins only — nobody changes their own role or company.
+    // Delete: admin, or the owner removing one of their staff (not themselves).
+    // ============================================================
     match /users/{uid} {
       allow read: if signedIn() && (
         request.auth.uid == uid
@@ -118,10 +145,12 @@ service cloud.firestore {
         || (isOwner(resource.data.tenantId) && resource.data.role == 'staff' && uid != request.auth.uid);
     }
 
-    // ---------- teammate invites ----------
-    // Keyed by the invitee's email (lower-case). The owner creates/cancels
-    // invites for their own tenant (staff role only). The invitee can read
-    // and consume (delete) the invite addressed to their verified email.
+    // ============================================================
+    // INVITES — keyed by the invitee's lower-case email
+    // The owner creates/cancels invites for their own active tenant (staff
+    // role only); re-inviting can only overwrite their own tenant's invite.
+    // The invitee can read and consume the invite for their verified email.
+    // ============================================================
     match /invites/{email} {
       allow read: if isPlatformAdmin()
         || isOwner(resource.data.tenantId)
@@ -130,8 +159,8 @@ service cloud.firestore {
         && tenantActive(request.resource.data.tenantId)
         && request.resource.data.role == 'staff'
         && email == email.lower();
-      // Re-inviting overwrites only your own tenant's invite, never another's.
       allow update: if isOwner(resource.data.tenantId)
+        && tenantActive(resource.data.tenantId)
         && request.resource.data.tenantId == resource.data.tenantId
         && request.resource.data.role == 'staff';
       allow delete: if isPlatformAdmin()
@@ -139,27 +168,41 @@ service cloud.firestore {
         || isInvitee(email);
     }
 
-    // ---------- tenants ----------
+    // ============================================================
+    // TENANTS (companies) and everything inside them
+    // ============================================================
     match /tenants/{tenantId} {
+      // Plan/status are platform-controlled
       allow read: if isMember(tenantId) || isPlatformAdmin();
       allow create: if isPlatformAdmin() || creatingOwnTenant(tenantId);
       allow update, delete: if isPlatformAdmin();
 
-      // Company profile, bank details, invoice settings, categories: owner only.
+      // Owner's backup email + phone — never visible to staff
+      match /private/{docId} {
+        allow read: if isOwner(tenantId) || isPlatformAdmin();
+        allow create: if isPlatformAdmin()
+          || (docId == 'contact'
+              && creatingContactForNewTenant(tenantId)
+              && request.resource.data.keys().hasOnly(['phone', 'recoveryEmail']));
+        allow update: if isPlatformAdmin() || (isOwner(tenantId) && tenantActive(tenantId));
+        allow delete: if isPlatformAdmin();
+      }
+
+      // Company profile, bank details, invoice settings, services, Job Log columns
       match /config/{docId} {
         allow read: if isMember(tenantId) || isPlatformAdmin();
         allow write: if (isOwner(tenantId) && tenantActive(tenantId)) || isPlatformAdmin();
       }
 
-      // Costs/income per event (Job Log): any member reads and edits, like
-      // events. Reports/profit views are owner-only in the app.
-      match /financials/{eventId} {
+      // Events/drafts — any member, while the company is active
+      match /events/{eventId} {
         allow read: if isMember(tenantId) || isPlatformAdmin();
         allow write: if (isMember(tenantId) && tenantActive(tenantId)) || isPlatformAdmin();
       }
 
-      // Events/drafts: any member, while the tenant is active.
-      match /events/{eventId} {
+      // Job Log costs/income/notes — any member, like events
+      // (Reports/profit views are owner-only in the app)
+      match /financials/{eventId} {
         allow read: if isMember(tenantId) || isPlatformAdmin();
         allow write: if (isMember(tenantId) && tenantActive(tenantId)) || isPlatformAdmin();
       }

@@ -1,8 +1,8 @@
 /**
  * Settings — Application configuration page
  *
- * Multi-tab settings interface for managing company details, bank information,
- * invoice preferences, service categories, and team (placeholder).
+ * Tabs: Company, Bank, Invoice, Services, Team (invite/remove staff) and
+ * Job Log columns.
  * Settings belong to the tenant (company). Only the owner can change them;
  * staff see them read-only (firestore.rules enforces the same).
  * All changes persist to Firestore via AppContext (not localStorage).
@@ -30,7 +30,7 @@ import { Save, Plus, Trash2, Edit2, X, Building2, Landmark, FileText, Layers, Us
 
 /** Multi-tab settings page for company, bank, invoice, and service configuration */
 export default function Settings() {
-  const { settings, categories, updateSettings, addCategory, updateCategory, deleteCategory, addItemToCat, removeItemFromCat, logout, user, showToast, canEditSettings, isOwner, isSuspended, team, invites, inviteTeammate, cancelInvite, removeTeammate } = useApp();
+  const { settings, categories, updateSettings, addCategory, deleteCategory, addItemToCat, removeItemFromCat, logout, user, showToast, canEditSettings, isOwner, isSuspended, team, invites, inviteTeammate, cancelInvite, removeTeammate } = useApp();
 
   // ------------------------------------------------------------
   // STATE
@@ -46,11 +46,25 @@ export default function Settings() {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviting, setInviting] = useState(false);
 
+  // ------------------------------------------------------------
+  // DATA LOADING / EFFECTS
+  // ------------------------------------------------------------
+
   // Settings load asynchronously after sign-in; re-sync the form when they
   // arrive (or change) so it never shows — and then saves — stale blanks.
   useEffect(() => {
     setForm({ ...settings, bankDetails: { ...settings.bankDetails } });
   }, [settings]);
+
+  // ------------------------------------------------------------
+  // EVENT HANDLERS — FORM FIELDS
+  // ------------------------------------------------------------
+
+  /** Updates a top-level form field */
+  const set = (key, val) => setForm(p => ({ ...p, [key]: val }));
+
+  /** Updates a nested bank details field */
+  const setBank = (key, val) => setForm(p => ({ ...p, bankDetails: { ...p.bankDetails, [key]: val } }));
 
   /** Resizes an uploaded image and stores it on the given form field */
   const handleImageUpload = async (key, file) => {
@@ -63,48 +77,8 @@ export default function Settings() {
   };
 
   // ------------------------------------------------------------
-  // EVENT HANDLERS — FORM FIELDS
+  // EVENT HANDLERS — SAVE / CATEGORIES / TERMS
   // ------------------------------------------------------------
-
-  /** Updates a top-level form field */
-  const set = (key, val) => setForm(p => ({ ...p, [key]: val }));
-
-  /** Updates a nested bank details field */
-  const setBank = (key, val) => setForm(p => ({ ...p, bankDetails: { ...p.bankDetails, [key]: val } }));
-
-  // ------------------------------------------------------------
-  // EVENT HANDLERS — SAVE / CATEGORIES
-  // ------------------------------------------------------------
-
-  /** Invites a teammate by email (owner only) */
-  const handleInvite = async () => {
-    if (inviting || !inviteEmail.trim()) return;
-    setInviting(true);
-    try {
-      const result = await inviteTeammate(inviteEmail);
-      if (result.success) {
-        showToast(`Invite added — ask them to sign in with ${inviteEmail.trim()}`);
-        setInviteEmail('');
-      } else {
-        showToast(result.error, 'error');
-      }
-    } finally {
-      setInviting(false);
-    }
-  };
-
-  /** Cancels a pending invite */
-  const handleCancelInvite = async (email) => {
-    const result = await cancelInvite(email);
-    showToast(result.success ? 'Invite cancelled' : result.error, result.success ? 'success' : 'error');
-  };
-
-  /** Removes a staff member after confirmation */
-  const handleRemove = async (member) => {
-    if (!window.confirm(`Remove ${member.name || member.email} from your company? They will lose access immediately.`)) return;
-    const result = await removeTeammate(member.uid);
-    showToast(result.success ? 'Teammate removed' : result.error, result.success ? 'success' : 'error');
-  };
 
   /** Saves the current form state to global settings. Awaits the write; uses the app's toast, not a blocking alert(). */
   const handleSave = async () => {
@@ -149,6 +123,40 @@ export default function Settings() {
   const handleRemoveTerm = (idx) => {
     const terms = (form.termsAndConditions || []).filter((_, i) => i !== idx);
     setForm(p => ({ ...p, termsAndConditions: terms }));
+  };
+
+  // ------------------------------------------------------------
+  // EVENT HANDLERS — TEAM (owner only)
+  // ------------------------------------------------------------
+
+  /** Invites a teammate by email (owner only) */
+  const handleInvite = async () => {
+    if (inviting || !inviteEmail.trim()) return;
+    setInviting(true);
+    try {
+      const result = await inviteTeammate(inviteEmail);
+      if (result.success) {
+        showToast(`Invite added — ask them to sign in with ${inviteEmail.trim()}`);
+        setInviteEmail('');
+      } else {
+        showToast(result.error, 'error');
+      }
+    } finally {
+      setInviting(false);
+    }
+  };
+
+  /** Cancels a pending invite */
+  const handleCancelInvite = async (email) => {
+    const result = await cancelInvite(email);
+    showToast(result.success ? 'Invite cancelled' : result.error, result.success ? 'success' : 'error');
+  };
+
+  /** Removes a staff member after confirmation */
+  const handleRemove = async (member) => {
+    if (!window.confirm(`Remove ${member.name || member.email} from your company? They will lose access immediately.`)) return;
+    const result = await removeTeammate(member.uid);
+    showToast(result.success ? 'Teammate removed' : result.error, result.success ? 'success' : 'error');
   };
 
   // ------------------------------------------------------------

@@ -232,7 +232,7 @@ export default function BillGenerator() {
   // ------------------------------------------------------------
 
   // Get items and groups (backward compatible)
-  const { allItems, eventGroups } = useMemo(() => event ? getEventItemsData(event) : { allItems: [], eventGroups: [] }, [event]);
+  const { eventGroups } = useMemo(() => event ? getEventItemsData(event) : { allItems: [], eventGroups: [] }, [event]);
   const storedPrices = useMemo(() => event?.itemPrices || {}, [event]);
   const bundles = useMemo(() => event?.bundles || [], [event]);
   const hidePrices = event?.hidePrices || false;

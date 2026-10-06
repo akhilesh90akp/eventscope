@@ -1,9 +1,11 @@
 /**
- * Layout - Application shell with navigation
+ * Layout — Application shell with navigation
  *
- * Provides the main layout structure including a desktop sidebar,
- * mobile bottom navigation bar, and a floating action button (FAB).
- * All page content is rendered via React Router's Outlet.
+ * Desktop: sidebar (logo, nav, account row with logout). Mobile: bottom
+ * navigation bar with a floating "new event" button. Shows a banner when
+ * the company is suspended. Page content renders via React Router's Outlet.
+ * Menu items marked ownerOnly / adminOnly are hidden from everyone else
+ * (firestore.rules still enforce access server-side).
  */
 
 // ============================================================
@@ -13,6 +15,10 @@ import React from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, FilePlus, FileText, CheckCircle2, PartyPopper, Settings, Plus, BarChart3, LogOut, Shield } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+
+// ============================================================
+// CONSTANTS
+// ============================================================
 
 /** Navigation items displayed in the desktop sidebar */
 const sidebarNav = [
@@ -34,12 +40,24 @@ const mobileNav = [
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 
+// ============================================================
+// Layout — MAIN COMPONENT
+// ============================================================
+
 /** Main layout wrapper with sidebar, content area, and mobile nav */
 export default function Layout() {
   const navigate = useNavigate();
   const { logout, tenant, settings, role, isSuspended, isOwner, isPlatformAdmin } = useApp();
-  const companyName = settings.companyName || tenant?.name || '';
 
+  // ------------------------------------------------------------
+  // DERIVED DATA
+  // ------------------------------------------------------------
+  const companyName = settings.companyName || tenant?.name || '';
+  const visibleNav = sidebarNav.filter(item => (!item.ownerOnly || isOwner) && (!item.adminOnly || isPlatformAdmin));
+
+  // ------------------------------------------------------------
+  // RENDER
+  // ------------------------------------------------------------
   return (
     <div className="min-h-[100dvh] bg-bb-bg overflow-x-hidden">
       {/* === SIDEBAR (Desktop only: 1024px+) === */}
@@ -55,7 +73,7 @@ export default function Layout() {
 
         {/* Nav links */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {sidebarNav.filter(item => (!item.ownerOnly || isOwner) && (!item.adminOnly || isPlatformAdmin)).map((item) => (
+          {visibleNav.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}

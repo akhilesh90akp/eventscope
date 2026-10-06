@@ -1,16 +1,47 @@
-# React + Vite
+# EventScope
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+**Every event, in focus.** Quotations, bills, a cost & profit Job Log and
+reports for event management companies — one app, many companies, each
+company's data kept separate.
 
-Currently, two official plugins are available:
+- **Live site:** `https://akhilesh90akp.github.io/eventscope/` (GitHub Pages)
+- **Stack:** React + Vite + Tailwind CSS, Firebase Auth (Google sign-in) and
+  Cloud Firestore, installable as a PWA.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Getting started
 
-## React Compiler
+```bash
+npm install
+npm run dev          # local dev server
+npm run build        # production build into dist/
+npm run lint         # oxlint
+npm run test:unit    # money/bill math tests (no network needed)
+npm run test:rules   # Firestore security-rules tests (needs the Firebase emulator)
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Pushing to `main` deploys automatically (`.github/workflows/deploy.yml`) and
+runs the unit and security-rules tests (`.github/workflows/tests.yml`).
 
-## Expanding the Oxlint configuration
+## How it's organised
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+See **[CODE_STRUCTURE.md](CODE_STRUCTURE.md)** — file layout, where new code
+goes, the section/banner convention every file follows, and the
+multi-tenant data rules.
+
+## Security model (short version)
+
+- Every company (tenant) has its own data under `tenants/{tenantId}/…`.
+- `users/{uid}` links each Google login to one company with a role:
+  **owner** (everything) or **staff** (events, quotes, bills, costs —
+  not settings, team, reports or profit).
+- `firestore.rules` enforces all of this on the server; the app's own
+  checks only shape the UI. Rules are covered by `tests/firestore.rules.test.mjs`.
+- EventScope platform admins are listed in `platformAdmins/{uid}`, added by
+  hand in the Firebase console.
+
+## Before going live with paying customers
+
+- Fill in the business details in `src/constants/legal.js`.
+- Have the Terms / Privacy pages reviewed by a lawyer.
+- Deploy `firestore.rules` to the Firebase project and confirm the
+  rules-test workflow is green.

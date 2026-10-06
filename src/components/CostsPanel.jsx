@@ -33,6 +33,9 @@ export default function CostsPanel({ event }) {
   const [drafts, setDrafts] = useState({});   // { columnId: text being typed }
   const [saving, setSaving] = useState(false);
 
+  // ------------------------------------------------------------
+  // DERIVED DATA
+  // ------------------------------------------------------------
   const values = financials[event.id]?.values || {};
   const revenue = getEventRevenue(event);
   const calc = computeEventFinancials(revenue, values, jobLogColumns);

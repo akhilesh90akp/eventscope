@@ -21,7 +21,7 @@ import Button from '../components/Button';
 import Input from '../components/Input';
 import Badge from '../components/Badge';
 import { formatCurrency, formatDateReadable, getActiveDate, getEventRevenue, computeEventFinancials, openJobLog } from '../utils/helpers';
-import { Download, Printer, Calendar, BarChart3, ExternalLink, Lock } from 'lucide-react';
+import { Download, Calendar, BarChart3, ExternalLink, Lock } from 'lucide-react';
 
 // ============================================================
 // Reports — MAIN COMPONENT
@@ -46,13 +46,6 @@ export default function Reports() {
   const [year, setYear] = useState(() => String(new Date().getFullYear()));
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
-
-  // ------------------------------------------------------------
-  // HELPERS
-  // ------------------------------------------------------------
-
-  // Revenue = bill total (shared with the Job Log so the numbers always match)
-  const getEventTotal = (event) => getEventRevenue(event);
 
   // ------------------------------------------------------------
   // DERIVED / CALCULATED VALUES
@@ -101,12 +94,12 @@ export default function Reports() {
     const drafts = filteredEvents.filter(e => e.status === 'draft').length;
     const confirmed = filteredEvents.filter(e => e.status === 'confirmed').length;
     const completed = filteredEvents.filter(e => e.status === 'completed').length;
-    const revenue = filteredEvents.reduce((s, e) => s + getEventTotal(e), 0);
+    const revenue = filteredEvents.reduce((s, e) => s + getEventRevenue(e), 0);
     // Profit from the Job Log: completed events with at least one cost/income entered
     let profit = 0;
     let profitEvents = 0;
     filteredEvents.filter(e => e.status === 'completed').forEach(e => {
-      const calc = computeEventFinancials(getEventTotal(e), financials[e.id]?.values, jobLogColumns);
+      const calc = computeEventFinancials(getEventRevenue(e), financials[e.id]?.values, jobLogColumns);
       if (calc.hasAny) { profit += calc.profit; profitEvents++; }
     });
     return { total, drafts, confirmed, completed, revenue, profit, profitEvents };
@@ -270,7 +263,7 @@ export default function Reports() {
                     <td className="py-2 px-2 text-bb-muted hidden sm:table-cell">{e.eventType}</td>
                     <td className="py-2 px-2 text-bb-muted">{formatDateReadable(e.mainEvent?.date || e.date)}</td>
                     <td className="py-2 px-2"><Badge variant={e.status}>{e.status}</Badge></td>
-                    <td className="py-2 px-2 text-right text-bb-text">{formatCurrency(getEventTotal(e))}</td>
+                    <td className="py-2 px-2 text-right text-bb-text">{formatCurrency(getEventRevenue(e))}</td>
                   </tr>
                 ))}
               </tbody>
@@ -334,7 +327,7 @@ export default function Reports() {
                 <td style={{padding: '8px', fontSize: '11px', color: '#1f2937', fontWeight: '500'}}>{e.clientName}</td>
                 <td style={{padding: '8px', fontSize: '11px', color: '#4b5563'}}>{e.eventType}</td>
                 <td style={{padding: '8px', fontSize: '11px', color: '#4b5563'}}>{formatDateReadable(e.mainEvent?.date || e.date)}</td>
-                <td style={{padding: '8px', fontSize: '11px', color: '#1f2937', fontWeight: '600', textAlign: 'right'}}>{formatCurrency(getEventTotal(e))}</td>
+                <td style={{padding: '8px', fontSize: '11px', color: '#1f2937', fontWeight: '600', textAlign: 'right'}}>{formatCurrency(getEventRevenue(e))}</td>
               </tr>
             ))}
             {/* Total Row */}

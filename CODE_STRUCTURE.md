@@ -4,6 +4,57 @@ This document defines the standard structure for every source file in this
 project. Follow it for all new files and when editing existing ones, so the
 codebase stays easy to navigate no matter who (or what) touches it next.
 
+## 0. Project map — where things live
+
+```
+src/
+  main.jsx                  App bootstrap (React root)
+  App.jsx                   Screen gates (public / login / sign-up / app) + route table
+  firebase.js               Firebase init (+ opt-in local emulator)
+  index.css                 Tailwind theme tokens, brand font, print styles
+  context/
+    AppContext.jsx          ALL Firestore access + app state; exposes useApp()
+  pages/                    One file per route/screen
+    Dashboard, NewDraft, EditDraft, DraftsList, ConfirmedEvents (Confirmed + Completed),
+    QuotationGenerator, BillGenerator, Reports (owner), JobLog (owner, own tab),
+    Settings, Admin (platform admins), CreateCompany (sign-up),
+    JoinInvite (accept/decline an invite), Login,
+    Legal (Terms / Privacy / Data protection — public)
+  components/               Reusable UI pieces
+    Layout (sidebar + mobile nav), Button, Card, Input, Select, Modal, Toast,
+    Badge, Toggle, LocationInput, ErrorBoundary,
+    CostsPanel (costs on one event), JobLogColumnsEditor (Settings tab)
+  constants/
+    data.js                 Defaults: event types, service categories, new-company
+                            settings, Job Log columns, plans
+    legal.js                Business details shown on the legal pages
+  utils/
+    helpers.js              Formatting, GST, IDs/links, dates, pricing, bill &
+                            Job Log math, image resizing (no Firestore here)
+    jobLogExcel.js          Job Log ⇄ .xlsx (exceljs, loaded on demand)
+firestore.rules             Server-side security rules (source of truth for access)
+tests/
+  firestore.rules.test.mjs  Rules tests (emulator; also run on GitHub)
+  helpers.test.mjs          Unit tests for money/bill math
+public/                     Logos, icons, manifest, service worker
+```
+
+**Where new code goes**
+
+- Reads/writes to Firestore → a function in `AppContext.jsx`, in the section
+  for its domain (events, settings, team, Job Log, admin…), returning
+  `{ success, error }`. Pages never import from `firebase/firestore`.
+- A new screen → `pages/`, plus a `<Route>` in `App.jsx`.
+- UI used by more than one page, or a self-contained panel → `components/`.
+- Pure calculation/formatting used in more than one place → `utils/helpers.js`,
+  under the matching section banner (not appended at the end of the file).
+- Fixed lists/defaults → `constants/`.
+- Any new Firestore path → add it to the data map at the top of
+  `AppContext.jsx` AND `firestore.rules`, with tests.
+- When modifying a file, put new code inside the section it belongs to; if
+  no section fits, add a new banner in the standard order (§2) rather than
+  appending at the bottom.
+
 ## 1. File header banner
 
 Every file starts with a block comment stating what the file is and its role
@@ -48,24 +99,25 @@ the ordering when multiple do.
 
 ## 3. Context/data-layer files (e.g. `AppContext.jsx`)
 
-Organize by domain, not by CRUD verb:
+Organize by domain, not by CRUD verb. `AppContext.jsx` uses this order
+(inside `AppProvider`, as `// ----` sub-banners):
 
 ```
-// ============================================================
-// AUTH STATE
-// ============================================================
-
-// ============================================================
-// EVENT OPERATIONS (CRUD)
-// ============================================================
-
-// ============================================================
-// SETTINGS OPERATIONS
-// ============================================================
-
-// ============================================================
-// CATEGORY OPERATIONS
-// ============================================================
+STATE                               (grouped: auth, membership, company data, team, UI)
+TOAST
+AUTH STATE                          (listener + logout that clears the offline cache)
+DATA LOADING — STEP 1: MEMBERSHIP   (users/{uid} → tenant, or a pending invite)
+DATA LOADING — STEP 2: COMPANY DATA (live listeners)
+DERIVED PERMISSIONS                 (role flags + writeBlockedReason)
+PUBLIC SIGN-UP
+INVITE — JOIN OR DECLINE
+TEAM
+EVENT OPERATIONS (CRUD)
+SETTINGS OPERATIONS
+CATEGORY OPERATIONS
+JOB LOG / FINANCIALS
+PLATFORM ADMIN
+CONTEXT VALUE                       (grouped the same way)
 ```
 
 Every async Firestore operation must:
@@ -119,7 +171,7 @@ rules — keep it in sync with the Firestore paths used in `AppContext.jsx`.
   for a good experience. `firestore.rules` is what actually enforces them —
   change both together.
 - Any change to `firestore.rules` must keep `npm run test:rules` green
-  (runs on GitHub automatically: `.github/workflows/test-rules.yml`).
+  (runs on GitHub automatically: `.github/workflows/tests.yml`).
 
 ## 8. Local testing against the Firebase emulator
 

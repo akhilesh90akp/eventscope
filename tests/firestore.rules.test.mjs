@@ -3,9 +3,9 @@
  *
  * Runs against the local Firestore emulator:
  *   npm run test:rules
- * (which wraps: firebase emulators:exec --only firestore "node --test tests/")
+ * (which wraps: firebase emulators:exec --only firestore "node --test tests/firestore.rules.test.mjs")
  *
- * Also runs automatically on GitHub (.github/workflows/test-rules.yml).
+ * Also runs automatically on GitHub (.github/workflows/tests.yml).
  */
 
 // ============================================================
@@ -217,11 +217,12 @@ test('owner can list own team and invites', async () => {
 // ============================================================
 // PUBLIC SIGN-UP
 // ============================================================
-const signupBatch = async (db, uid, tenantId, tenant = {}, user = {}) => {
+const signupBatch = async (db, uid, tenantId, tenant = {}, user = {}, { withUser = true, withContact = true } = {}) => {
   const { writeBatch } = await import('firebase/firestore');
   const b = writeBatch(db);
   b.set(doc(db, `tenants/${tenantId}`), { name: 'New Co', ownerUid: uid, ownerEmail: 'n@gmail.com', plan: 'trial', status: 'active', createdAt: 'x', acceptedTermsAt: 'x', ...tenant });
-  b.set(doc(db, `users/${uid}`), { tenantId, role: 'owner', name: 'N', email: 'n@gmail.com', joinedAt: 'x', ...user });
+  if (withUser) b.set(doc(db, `users/${uid}`), { tenantId, role: 'owner', name: 'N', email: 'n@gmail.com', joinedAt: 'x', ...user });
+  if (withContact) b.set(doc(db, `tenants/${tenantId}/private/contact`), { phone: '900', recoveryEmail: 'backup@gmail.com' });
   return b.commit();
 };
 
@@ -246,4 +247,46 @@ test('existing members CANNOT create a second company', async () => {
 
 test('unverified emails CANNOT sign up', async () => {
   await assertFails(signupBatch(asUnverified('u4', 'd@gmail.com'), 'u4', 't4'));
+});
+
+test('sign-up CANNOT create an orphan company (no owner link in the same batch)', async () => {
+  await assertFails(signupBatch(as('u5', 'e@gmail.com'), 'u5', 't5', {}, {}, { withUser: false }));
+});
+
+test('sign-up CANNOT put extra fields on the company (e.g. contact details)', async () => {
+  await assertFails(signupBatch(as('u6', 'f@gmail.com'), 'u6', 't6', { recoveryEmail: 'x@gmail.com' }));
+});
+
+// ============================================================
+// OWNER'S PRIVATE CONTACT (backup email / phone)
+// ============================================================
+test('owner and admin can read the private contact; staff and others cannot', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'tenants/acme/private/contact'), { phone: '900', recoveryEmail: 'b@gmail.com' });
+  });
+  await assertSucceeds(getDoc(doc(as('alice'), 'tenants/acme/private/contact')));
+  await assertSucceeds(getDoc(doc(as('admin'), 'tenants/acme/private/contact')));
+  await assertFails(getDoc(doc(as('sam'), 'tenants/acme/private/contact')));
+  await assertFails(getDoc(doc(as('zara'), 'tenants/acme/private/contact')));
+});
+
+test('nobody can plant a contact record on an existing company', async () => {
+  await assertFails(setDoc(doc(as('zara', 'zara@gmail.com'), 'tenants/acme/private/contact'), { phone: '1', recoveryEmail: 'evil@gmail.com' }));
+  await assertFails(setDoc(doc(as('sam'), 'tenants/acme/private/contact'), { phone: '1', recoveryEmail: 'evil@gmail.com' }));
+});
+
+// ============================================================
+// JOB LOG DATA
+// ============================================================
+test('members can read/write own Job Log data; other tenants cannot', async () => {
+  await assertSucceeds(setDoc(doc(as('sam'), 'tenants/acme/financials/e1'), { values: { labour: 100 } }));
+  await assertSucceeds(getDoc(doc(as('alice'), 'tenants/acme/financials/e1')));
+  await assertFails(getDoc(doc(as('zara'), 'tenants/acme/financials/e1')));
+  await assertFails(setDoc(doc(as('zara'), 'tenants/acme/financials/e1'), { values: { labour: 1 } }));
+  await assertFails(setDoc(doc(as('fred'), 'tenants/frozen/financials/e1'), { values: { labour: 1 } }));
+});
+
+test('only the owner can change Job Log columns', async () => {
+  await assertSucceeds(setDoc(doc(as('alice'), 'tenants/acme/config/jobLog'), { columns: [] }));
+  await assertFails(setDoc(doc(as('sam'), 'tenants/acme/config/jobLog'), { columns: [] }));
 });

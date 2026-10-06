@@ -1,47 +1,79 @@
 /**
- * AppContext — Global state with Firebase Firestore sync
+ * AppContext — Global state and the ONLY place that talks to Firestore
  *
- * Multi-tenant: every company (tenant) has its own data, and each login
- * is linked to exactly one tenant. On sign-in we read users/{uid} to find
- * the tenant, then load only that tenant's data:
- *   users/{uid}                              - { tenantId, role: 'owner'|'staff', name, email }
- *   tenants/{tenantId}                       - { name, plan, status, ownerUid, createdAt } (platform-controlled)
- *   tenants/{tenantId}/config/settings       - company profile + invoice settings (owner-editable)
- *   tenants/{tenantId}/config/categories     - service categories (owner-editable)
- *   tenants/{tenantId}/events/{eventId}      - one doc per event/draft
- *   tenants/{tenantId}/config/jobLog         - Job Log cost/income columns (owner-editable)
- *   tenants/{tenantId}/financials/{eventId}  - { values: { [columnId]: number|null } } costs/income per event
- *   platformAdmins/{uid}                     - EventScope staff
- *   invites/{email}                          - pending teammate invite { tenantId, role, ... }
- * Firestore rules (firestore.rules) enforce the same boundaries server-side.
+ * Multi-tenant: every company (tenant) has its own data, and each login is
+ * linked to exactly one tenant. On sign-in we read users/{uid} to find the
+ * tenant, then load only that tenant's data. Firestore layout:
  *
- * Every write operation below returns a { success, error? } result instead
- * of firing-and-forgetting — callers (pages) MUST check this result before
- * navigating away or telling the user it worked. See CODE_STRUCTURE.md §3.
+ *   platformAdmins/{uid}                      EventScope staff (added by hand in the console)
+ *   users/{uid}                               { tenantId, role: 'owner'|'staff', name, email, joinedAt }
+ *   invites/{email}                           pending teammate invite { tenantId, role: 'staff', ... }
+ *   tenants/{tenantId}                        { name, plan, status, ownerUid, ownerEmail, createdAt } — platform-controlled
+ *   tenants/{tenantId}/private/contact        owner's backup email + phone (owner + admins only)
+ *   tenants/{tenantId}/config/settings        company profile + invoice settings (owner-editable)
+ *   tenants/{tenantId}/config/categories      service categories (owner-editable)
+ *   tenants/{tenantId}/config/jobLog          Job Log columns (owner-editable)
+ *   tenants/{tenantId}/events/{eventId}       one doc per event/draft
+ *   tenants/{tenantId}/financials/{eventId}   { values: { [columnId]: number|string|null } } — costs/income/notes
+ *
+ * firestore.rules enforces the same boundaries server-side; the permission
+ * flags exposed here (isOwner, canEditSettings, …) only drive the UI.
+ *
+ * Every write returns { success, error? } instead of firing-and-forgetting —
+ * callers MUST check it before telling the user it worked (CODE_STRUCTURE.md §3).
  */
+
+// ============================================================
+// IMPORTS
+// ============================================================
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { collection, doc, setDoc, deleteDoc, onSnapshot, getDoc, query, where, writeBatch, getCountFromServer } from 'firebase/firestore';
+import {
+  collection, doc, setDoc, deleteDoc, onSnapshot, getDoc, query, where,
+  writeBatch, getCountFromServer, terminate, clearIndexedDbPersistence,
+} from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { DEFAULT_SETTINGS, DEFAULT_CATEGORIES, DEFAULT_JOBLOG_COLUMNS } from '../constants/data';
 import { genId, inviteKey } from '../utils/helpers';
 
 // ============================================================
-// HELPERS — INVITES
+// CONSTANTS
 // ============================================================
 
+const Ctx = createContext();
+
+/** Firestore batches cap at 500 writes; stay safely under it */
+const BATCH_LIMIT = 450;
+
+// ============================================================
+// HELPERS
+// ============================================================
+
+/** Turns a Firestore error into a message a user can act on */
+const friendlyError = (err, what = 'save') => (
+  err?.code === 'permission-denied'
+    ? `Couldn’t ${what} — you don’t have permission for this (or the account is suspended).`
+    : err?.code === 'unavailable'
+      ? `Couldn’t ${what} — you appear to be offline. Check your connection and try again.`
+      : err?.message || `Couldn’t ${what}.`
+);
+
+/** Returns the pending invite for this login's Google email, or null */
+async function findInvite(user) {
+  if (!user?.email) return null;
+  const snap = await getDoc(doc(db, 'invites', inviteKey(user.email)));
+  return snap.exists() ? snap.data() : null;
+}
+
 /**
- * If an invite exists for this user's Google email, join that tenant:
- * create users/{uid} and delete the invite in one atomic batch.
- * firestore.rules only allows this when the invite matches the signed-in,
- * Google-verified email. Returns true if the user joined a tenant.
+ * Joins the invited tenant: creates users/{uid} and deletes the invite in
+ * one atomic batch. Only called after the person clicks "Join" — never
+ * automatically, so nobody can be pulled into a company they didn't choose.
+ * firestore.rules only allow this when the invite matches the signed-in,
+ * Google-verified email.
  */
-async function acceptInvite(user) {
-  if (!user?.email) return false;
+async function joinViaInvite(user, invite) {
   const inviteRef = doc(db, 'invites', inviteKey(user.email));
-  const inviteSnap = await getDoc(inviteRef);
-  if (!inviteSnap.exists()) return false;
-  const invite = inviteSnap.data();
   const batch = writeBatch(db);
   batch.set(doc(db, 'users', user.uid), {
     tenantId: invite.tenantId,
@@ -52,38 +84,52 @@ async function acceptInvite(user) {
   });
   batch.delete(inviteRef);
   await batch.commit();
-  return true;
 }
 
 // ============================================================
-// CONTEXT
+// AppProvider — MAIN COMPONENT
 // ============================================================
 
-const Ctx = createContext();
-
 export function AppProvider({ children }) {
-  // ============================================================
+  // ------------------------------------------------------------
   // STATE
-  // ============================================================
+  // ------------------------------------------------------------
+
+  // Auth
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
-  // Tenant membership, resolved from users/{uid} after sign-in.
-  // tenantStatus: 'loading' | 'ready' | 'none' (signed in but not in any company) | 'error'
-  const [membership, setMembership] = useState(null); // { tenantId, role }
-  const [tenant, setTenant] = useState(null);         // tenants/{tenantId} doc
+
+  // Membership — which company this login belongs to
+  // tenantStatus: 'loading' | 'ready' | 'invited' (has a pending invite) |
+  //               'none' (signed in, no company) | 'error'
+  const [membership, setMembership] = useState(null);     // { tenantId, role }
+  const [tenant, setTenant] = useState(null);             // tenants/{tenantId} doc
   const [tenantStatus, setTenantStatus] = useState('loading');
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
+  const [pendingInvite, setPendingInvite] = useState(null); // invite waiting for Join / Decline
+
+  // Company data
   const [events, setEvents] = useState([]);
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
-  const [loaded, setLoaded] = useState(false);
+  const [loaded, setLoaded] = useState(false);            // events have arrived at least once
   const [jobLogColumns, setJobLogColumns] = useState(DEFAULT_JOBLOG_COLUMNS);
-  const [financials, setFinancials] = useState({});      // { [eventId]: { values, updatedAt, updatedBy } }
+  const [financials, setFinancials] = useState({});       // { [eventId]: { values, updatedAt, updatedBy } }
   const [financialsLoaded, setFinancialsLoaded] = useState(false);
+
+  // Team (owner only)
+  const [team, setTeam] = useState([]);
+  const [invites, setInvites] = useState([]);
+
+  // UI
   const [toast, setToast] = useState({ message: '', type: 'success', visible: false });
   const toastTimer = useRef(null);
 
-  /** Show a toast message that auto-dismisses after 3 seconds */
+  // ------------------------------------------------------------
+  // TOAST
+  // ------------------------------------------------------------
+
+  /** Shows a toast message that auto-dismisses after 3 seconds */
   const showToast = useCallback((message, type = 'success') => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
     setToast({ message, type, visible: true });
@@ -94,11 +140,10 @@ export function AppProvider({ children }) {
     }, 3000);
   }, []);
 
-  // ============================================================
+  // ------------------------------------------------------------
   // AUTH STATE
-  // ============================================================
+  // ------------------------------------------------------------
 
-  // Listen for auth state changes
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
       setUser(u);
@@ -107,34 +152,46 @@ export function AppProvider({ children }) {
     return unsub;
   }, []);
 
+  /**
+   * Signs out AND wipes this browser's offline copy of the company's data,
+   * so the next person using a shared computer can't see it. Firestore's
+   * cache can only be cleared once the client is shut down, so we reload.
+   */
   const logout = async () => {
-    await signOut(auth);
+    try {
+      await signOut(auth);
+      await terminate(db);
+      await clearIndexedDbPersistence(db);
+    } catch (err) {
+      console.warn('Sign-out cleanup:', err.message);
+    } finally {
+      // Back to the home address, then a full reload (fresh, empty client)
+      window.location.hash = '#/';
+      window.location.reload();
+    }
   };
 
-  // ============================================================
-  // DATA LOADING (runs whenever the logged-in user changes)
-  // ============================================================
+  // ------------------------------------------------------------
+  // DATA LOADING — STEP 1: MEMBERSHIP
+  // When the login changes, find which tenant it belongs to. users/{uid}
+  // is watched live, so if the owner removes this person they drop out
+  // straight away. No users/{uid} but an invite for this Google email?
+  // Show it (status 'invited') and let the person Join or Decline.
+  // ------------------------------------------------------------
 
-  // Step 1: when the login changes, find which tenant it belongs to.
-  // users/{uid} is watched live, so if the owner removes this person they
-  // drop to the "not part of a company" screen straight away.
-  // If there's no users/{uid} yet but an invite exists for this Google
-  // email, accept it: create the membership and delete the invite together.
   useEffect(() => {
     setMembership(null);
     setTenant(null);
     setIsPlatformAdmin(false);
-    if (!user) {
-      setTenantStatus('loading');
-      return;
-    }
+    setPendingInvite(null);
     setTenantStatus('loading');
+    if (!user) return undefined;
+
     let cancelled = false;
-    let accepting = false;
 
     getDoc(doc(db, 'platformAdmins', user.uid))
       .then(snap => { if (!cancelled) setIsPlatformAdmin(snap.exists()); })
-      .catch(() => {});
+      .catch(() => {}); // not an admin (or offline) — the Admin menu simply stays hidden
 
     const unsubProfile = onSnapshot(doc(db, 'users', user.uid), async (snap) => {
       if (cancelled) return;
@@ -145,17 +202,14 @@ export function AppProvider({ children }) {
       }
       setMembership(null);
       setTenant(null);
-      if (accepting) return;
-      accepting = true;
       try {
-        const joined = await acceptInvite(user);
-        if (!joined && !cancelled) setTenantStatus('none');
-        // if joined, the users/{uid} listener fires again with the new membership
+        const invite = await findInvite(user);
+        if (cancelled) return;
+        setPendingInvite(invite);
+        setTenantStatus(invite ? 'invited' : 'none');
       } catch (err) {
-        console.error('Error accepting invite:', err.code, err.message);
+        console.error('Error checking for an invite:', err.code, err.message);
         if (!cancelled) setTenantStatus('none');
-      } finally {
-        accepting = false;
       }
     }, (err) => {
       console.error('Error resolving tenant membership:', err.code, err.message);
@@ -165,8 +219,14 @@ export function AppProvider({ children }) {
     return () => { cancelled = true; unsubProfile(); };
   }, [user]);
 
-  // Step 2: once we know the tenant, load its data (and keep it live).
+  // ------------------------------------------------------------
+  // DATA LOADING — STEP 2: COMPANY DATA (all live listeners)
+  // Live, so edits from another tab (e.g. the Job Log) or another teammate
+  // appear without a reload, and a suspension takes effect immediately.
+  // ------------------------------------------------------------
+
   const tenantId = membership?.tenantId || null;
+
   useEffect(() => {
     if (!tenantId) {
       setEvents([]);
@@ -176,28 +236,11 @@ export function AppProvider({ children }) {
       setFinancials({});
       setFinancialsLoaded(false);
       setLoaded(false);
-      return;
+      return undefined;
     }
+    const logErr = (what) => (err) => console.error(`${what} listener error:`, err.code, err.message);
 
-    // Costs/income per event (Job Log + Costs section) — live, so edits in
-    // the Job Log tab show up instantly in the main app tab and vice versa
-    const unsubFin = onSnapshot(collection(db, 'tenants', tenantId, 'financials'), (snap) => {
-      const map = {};
-      snap.docs.forEach(d => { map[d.id] = d.data(); });
-      setFinancials(map);
-      setFinancialsLoaded(true);
-    }, (err) => {
-      console.error('Financials listener error:', err.code, err.message);
-      setFinancialsLoaded(true);
-    });
-
-    // Job Log column setup — live too, so a column rename shows everywhere
-    const unsubCols = onSnapshot(doc(db, 'tenants', tenantId, 'config', 'jobLog'), (snap) => {
-      const cols = snap.exists() ? snap.data().columns : null;
-      setJobLogColumns(Array.isArray(cols) && cols.length ? cols : DEFAULT_JOBLOG_COLUMNS);
-    }, (err) => console.error('Job Log columns listener error:', err.code, err.message));
-
-    // Tenant doc (plan/status) — live, so a suspension shows up immediately
+    // Tenant doc (plan / status)
     const unsubTenant = onSnapshot(doc(db, 'tenants', tenantId), (snap) => {
       if (!snap.exists()) {
         console.error('Tenant doc missing for', tenantId);
@@ -207,103 +250,57 @@ export function AppProvider({ children }) {
       setTenant({ id: snap.id, ...snap.data() });
       setTenantStatus('ready');
     }, (err) => {
-      console.error('Tenant listener error:', err.code, err.message);
+      logErr('Tenant')(err);
       setTenantStatus('error');
     });
 
-    // Real-time listener for events
-    const eventsRef = collection(db, 'tenants', tenantId, 'events');
-    const unsubEvents = onSnapshot(eventsRef, (snapshot) => {
-      const evs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      setEvents(evs);
+    // Events
+    const unsubEvents = onSnapshot(collection(db, 'tenants', tenantId, 'events'), (snap) => {
+      setEvents(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       setLoaded(true);
     }, (err) => {
-      console.error('Firestore events listener error:', err);
+      logErr('Events')(err);
       setLoaded(true);
     });
 
-    // Settings and categories — live, so a brand-new company's details,
-    // and edits made in another tab, show up without a reload
+    // Settings + categories
     const unsubSettings = onSnapshot(doc(db, 'tenants', tenantId, 'config', 'settings'), (snap) => {
       setSettings(snap.exists() ? { ...DEFAULT_SETTINGS, ...snap.data() } : DEFAULT_SETTINGS);
-    }, (err) => console.error('Settings listener error:', err.code, err.message));
+    }, logErr('Settings'));
     const unsubCats = onSnapshot(doc(db, 'tenants', tenantId, 'config', 'categories'), (snap) => {
       setCategories(snap.exists() ? (snap.data().list || DEFAULT_CATEGORIES) : DEFAULT_CATEGORIES);
-    }, (err) => console.error('Categories listener error:', err.code, err.message));
+    }, logErr('Categories'));
 
-    // Cleanup: unsubscribe from listeners
-    return () => { unsubTenant(); unsubEvents(); unsubFin(); unsubCols(); unsubSettings(); unsubCats(); };
+    // Job Log columns + per-event costs/income/notes
+    const unsubCols = onSnapshot(doc(db, 'tenants', tenantId, 'config', 'jobLog'), (snap) => {
+      const cols = snap.exists() ? snap.data().columns : null;
+      setJobLogColumns(Array.isArray(cols) && cols.length ? cols : DEFAULT_JOBLOG_COLUMNS);
+    }, logErr('Job Log columns'));
+    const unsubFin = onSnapshot(collection(db, 'tenants', tenantId, 'financials'), (snap) => {
+      const map = {};
+      snap.docs.forEach(d => { map[d.id] = d.data(); });
+      setFinancials(map);
+      setFinancialsLoaded(true);
+    }, (err) => {
+      logErr('Financials')(err);
+      setFinancialsLoaded(true);
+    });
+
+    return () => { unsubTenant(); unsubEvents(); unsubSettings(); unsubCats(); unsubCols(); unsubFin(); };
   }, [tenantId]);
 
-  // ============================================================
-  // PUBLIC SIGN-UP — create a new company (tenant) owned by this login
-  // ============================================================
-
-  /**
-   * Creates tenants/{id} + users/{uid} (owner) atomically, then the starting
-   * company settings. Only allowed by firestore.rules for a verified login
-   * with no company yet. Returns { success } or { success: false, error }.
-   */
-  const createCompany = async ({ name, phone, city, recoveryEmail }) => {
-    if (!user) return { success: false, error: 'Please sign in first.' };
-    const companyName = name.trim();
-    if (companyName.length < 2) return { success: false, error: 'Please enter your company name.' };
-    const slug = companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30) || 'company';
-    const newTenantId = `${slug}-${Math.random().toString(36).slice(2, 7)}`;
-    const now = new Date().toISOString();
-    try {
-      const batch = writeBatch(db);
-      batch.set(doc(db, 'tenants', newTenantId), {
-        name: companyName,
-        ownerUid: user.uid,
-        ownerEmail: inviteKey(user.email),
-        plan: 'trial',
-        status: 'active',
-        createdAt: now,
-        acceptedTermsAt: now,
-        ownerPhone: phone?.trim() || '',
-        recoveryEmail: inviteKey(recoveryEmail),
-      });
-      batch.set(doc(db, 'users', user.uid), {
-        tenantId: newTenantId,
-        role: 'owner',
-        name: user.displayName || '',
-        email: inviteKey(user.email),
-        joinedAt: now,
-      });
-      await batch.commit();
-    } catch (err) {
-      console.error('Error creating company:', err.code, err.message);
-      return { success: false, error: err.code === 'permission-denied' ? 'This login already belongs to a company, or its email isn’t verified.' : err.message };
-    }
-    // Starting settings (we're the owner now). Not fatal if this fails —
-    // they can fill everything in from Settings.
-    try {
-      await setDoc(doc(db, 'tenants', newTenantId, 'config', 'settings'), {
-        ...DEFAULT_SETTINGS,
-        companyName,
-        phone: phone?.trim() || '',
-        whatsapp: phone?.trim() || '',
-        address: city?.trim() || '',
-        email: inviteKey(user.email),
-      });
-    } catch (err) {
-      console.warn('Company created, but starting settings failed:', err.message);
-    }
-    return { success: true };
-  };
-
-  // ============================================================
+  // ------------------------------------------------------------
   // DERIVED PERMISSIONS
-  // (UI hints only — firestore.rules is what actually enforces these)
-  // ============================================================
+  // UI hints only — firestore.rules is what actually enforces these.
+  // ------------------------------------------------------------
+
   const role = membership?.role || null;
   const isOwner = role === 'owner';
   const isSuspended = tenant?.status === 'suspended';
   const canEditEvents = !!tenantId && !isSuspended;
   const canEditSettings = isOwner && !isSuspended;
 
-  // Columns the owner hasn't removed (removed ones keep their values, hidden)
+  /** Job Log columns the owner hasn't removed (removed ones keep their values) */
   const activeJobLogColumns = jobLogColumns.filter(c => !c.hidden);
 
   /** Shared guard for writes. Returns an error string, or null if the write may proceed. */
@@ -311,21 +308,120 @@ export function AppProvider({ children }) {
     if (!user) return 'You are signed out — please log in again before saving.';
     if (!tenantId) return 'Your login is not linked to a company yet.';
     if (isSuspended) return 'This account is suspended — changes are disabled. Please contact EventScope support.';
-    if (ownerOnly && !isOwner) return 'Only the account owner can change settings.';
+    if (ownerOnly && !isOwner) return 'Only the account owner can change this.';
     return null;
   };
 
-  // ============================================================
+  // ------------------------------------------------------------
+  // PUBLIC SIGN-UP — create a new company owned by this login
+  // ------------------------------------------------------------
+
+  /**
+   * Creates tenants/{id}, users/{uid} (as owner) and the owner's private
+   * contact record in one atomic batch, then the starting settings.
+   * firestore.rules only allow this for a verified login with no company.
+   * Returns { success } or { success: false, error }.
+   */
+  const createCompany = async ({ name, phone, city, recoveryEmail }) => {
+    if (!user) return { success: false, error: 'Please sign in first.' };
+    const companyName = (name || '').trim();
+    if (companyName.length < 2) return { success: false, error: 'Please enter your company name.' };
+
+    const slug = companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30) || 'company';
+    const newTenantId = `${slug}-${Math.random().toString(36).slice(2, 7)}`;
+    const now = new Date().toISOString();
+    const ownerEmail = inviteKey(user.email);
+
+    try {
+      const batch = writeBatch(db);
+      batch.set(doc(db, 'tenants', newTenantId), {
+        name: companyName,
+        ownerUid: user.uid,
+        ownerEmail,
+        plan: 'trial',
+        status: 'active',
+        createdAt: now,
+        acceptedTermsAt: now,
+      });
+      batch.set(doc(db, 'users', user.uid), {
+        tenantId: newTenantId,
+        role: 'owner',
+        name: user.displayName || '',
+        email: ownerEmail,
+        joinedAt: now,
+      });
+      batch.set(doc(db, 'tenants', newTenantId, 'private', 'contact'), {
+        phone: (phone || '').trim(),
+        recoveryEmail: inviteKey(recoveryEmail),
+      });
+      await batch.commit();
+    } catch (err) {
+      console.error('Error creating company:', err.code, err.message);
+      return {
+        success: false,
+        error: err.code === 'permission-denied'
+          ? 'This login already belongs to a company, or its email isn’t verified.'
+          : friendlyError(err, 'create your company'),
+      };
+    }
+
+    // Starting settings (we're the owner now). Not fatal if this fails —
+    // everything can be filled in from Settings.
+    try {
+      await setDoc(doc(db, 'tenants', newTenantId, 'config', 'settings'), {
+        ...DEFAULT_SETTINGS,
+        companyName,
+        phone: (phone || '').trim(),
+        whatsapp: (phone || '').trim(),
+        address: (city || '').trim(),
+        email: ownerEmail,
+      });
+    } catch (err) {
+      console.warn('Company created, but starting settings failed:', err.message);
+    }
+    return { success: true };
+  };
+
+  // ------------------------------------------------------------
+  // INVITE — JOIN OR DECLINE (for someone who was invited)
+  // ------------------------------------------------------------
+
+  /** Joins the company in the pending invite. Returns { success } or { success: false, error }. */
+  const acceptPendingInvite = async () => {
+    if (!user || !pendingInvite) return { success: false, error: 'No invite to accept.' };
+    try {
+      await joinViaInvite(user, pendingInvite);
+      setPendingInvite(null); // the users/{uid} listener now loads the company
+      return { success: true };
+    } catch (err) {
+      console.error('Error joining via invite:', err.code, err.message);
+      return { success: false, error: friendlyError(err, 'join the company') };
+    }
+  };
+
+  /** Declines (deletes) the pending invite, then offers sign-up. Returns { success } or { success: false, error }. */
+  const declinePendingInvite = async () => {
+    if (!user || !pendingInvite) return { success: false, error: 'No invite to decline.' };
+    try {
+      await deleteDoc(doc(db, 'invites', inviteKey(user.email)));
+      setPendingInvite(null);
+      setTenantStatus('none');
+      return { success: true };
+    } catch (err) {
+      console.error('Error declining invite:', err.code, err.message);
+      return { success: false, error: friendlyError(err, 'decline the invite') };
+    }
+  };
+
+  // ------------------------------------------------------------
   // TEAM (owner only): members + pending invites, kept live
-  // ============================================================
-  const [team, setTeam] = useState([]);
-  const [invites, setInvites] = useState([]);
+  // ------------------------------------------------------------
 
   useEffect(() => {
     if (!tenantId || !isOwner) {
       setTeam([]);
       setInvites([]);
-      return;
+      return undefined;
     }
     const unsubTeam = onSnapshot(
       query(collection(db, 'users'), where('tenantId', '==', tenantId)),
@@ -363,10 +459,12 @@ export function AppProvider({ children }) {
       return { success: true };
     } catch (err) {
       console.error('Error inviting teammate:', err.code, err.message);
-      const error = err.code === 'permission-denied'
-        ? 'That email already has a pending invite to another company, or you don’t have permission.'
-        : err.message;
-      return { success: false, error };
+      return {
+        success: false,
+        error: err.code === 'permission-denied'
+          ? 'That email already has a pending invite to another company.'
+          : friendlyError(err, 'add the invite'),
+      };
     }
   };
 
@@ -379,7 +477,7 @@ export function AppProvider({ children }) {
       return { success: true };
     } catch (err) {
       console.error('Error cancelling invite:', err.code, err.message);
-      return { success: false, error: err.message };
+      return { success: false, error: friendlyError(err, 'cancel the invite') };
     }
   };
 
@@ -393,25 +491,18 @@ export function AppProvider({ children }) {
       return { success: true };
     } catch (err) {
       console.error('Error removing teammate:', err.code, err.message);
-      return { success: false, error: err.message };
+      return { success: false, error: friendlyError(err, 'remove this teammate') };
     }
   };
 
-  // ============================================================
+  // ------------------------------------------------------------
   // EVENT OPERATIONS (CRUD)
-  //
-  // Every function here returns { success, error? } (and `id`/`event` on
-  // success where relevant) instead of failing silently. Pages that call
-  // these MUST await the result and branch on `success` before showing a
-  // toast or navigating — never assume the write worked. See bug notes in
-  // CODE_STRUCTURE.md §3.
-  // ============================================================
+  // ------------------------------------------------------------
 
-  /** Creates a new event/draft in Firestore. Returns { success, id, event } or { success: false, error }. */
+  /** Creates a new event/draft. Returns { success, id, event } or { success: false, error }. */
   const addEvent = async (data) => {
     const blocked = writeBlockedReason();
     if (blocked) {
-      console.error('addEvent blocked:', blocked);
       showToast(blocked, 'error');
       return { success: false, error: blocked };
     }
@@ -419,47 +510,32 @@ export function AppProvider({ children }) {
     const ev = { ...data, status: 'draft', createdAt: new Date().toISOString() };
     try {
       await setDoc(doc(db, 'tenants', tenantId, 'events', id), ev);
-      console.log('Event saved to Firestore:', id);
       return { success: true, id, event: { id, ...ev } };
     } catch (err) {
-      // Common causes: Firestore security rules rejecting the write
-      // (err.code === 'permission-denied'), or no network connection.
       console.error('Error adding event:', err.code, err.message);
-      const friendly = err.code === 'permission-denied'
-        ? 'Save blocked by Firestore security rules — check your rules allow writes to tenants/{tenantId}/events.'
-        : err.message;
-      return { success: false, error: friendly };
+      return { success: false, error: friendlyError(err, 'save the event') };
     }
   };
 
   /**
-   * Updates an existing event by id. Returns { success } or { success: false, error }.
-   * Pass { touch: false } for internal bookkeeping writes (e.g. recording
-   * that a sync completed) that shouldn't bump `updatedAt` — otherwise the
-   * bookkeeping write would itself look like a fresh edit and immediately
-   * re-flag the event as changed to anything comparing against `updatedAt`.
+   * Updates an existing event. Returns { success } or { success: false, error }.
+   * Pass { touch: false } for bookkeeping writes that shouldn't bump
+   * `updatedAt` (so they don't look like a fresh edit).
    */
   const updateEvent = async (id, data, { touch = true } = {}) => {
     const blocked = writeBlockedReason();
-    if (blocked) {
-      console.error('updateEvent blocked:', blocked);
-      return { success: false, error: blocked };
-    }
+    if (blocked) return { success: false, error: blocked };
     try {
-      const evRef = doc(db, 'tenants', tenantId, 'events', id);
       const payload = touch ? { ...data, updatedAt: new Date().toISOString() } : data;
-      await setDoc(evRef, payload, { merge: true });
+      await setDoc(doc(db, 'tenants', tenantId, 'events', id), payload, { merge: true });
       return { success: true };
     } catch (err) {
       console.error('Error updating event:', err.code, err.message);
-      const friendly = err.code === 'permission-denied'
-        ? 'Save blocked by Firestore security rules — check your rules allow writes to tenants/{tenantId}/events.'
-        : err.message;
-      return { success: false, error: friendly };
+      return { success: false, error: friendlyError(err, 'save the event') };
     }
   };
 
-  /** Deletes an event by id. Returns { success } or { success: false, error }. */
+  /** Deletes an event. Returns { success } or { success: false, error }. */
   const deleteEvent = async (id) => {
     const blocked = writeBlockedReason();
     if (blocked) {
@@ -471,19 +547,82 @@ export function AppProvider({ children }) {
       return { success: true };
     } catch (err) {
       console.error('Error deleting event:', err.code, err.message);
-      showToast('Failed to delete: ' + err.message, 'error');
-      return { success: false, error: err.message };
+      const error = friendlyError(err, 'delete the event');
+      showToast(error, 'error');
+      return { success: false, error };
     }
   };
 
-  // ============================================================
+  // ------------------------------------------------------------
+  // SETTINGS OPERATIONS (owner only)
+  // ------------------------------------------------------------
+
+  /** Merges and saves company/invoice settings. Returns { success } or { success: false, error }. */
+  const updateSettings = async (data) => {
+    const blocked = writeBlockedReason({ ownerOnly: true });
+    if (blocked) {
+      showToast(blocked, 'error');
+      return { success: false, error: blocked };
+    }
+    const newSettings = { ...settings, ...data };
+    setSettings(newSettings); // optimistic; the live listener confirms or corrects it
+    try {
+      await setDoc(doc(db, 'tenants', tenantId, 'config', 'settings'), newSettings);
+      return { success: true };
+    } catch (err) {
+      console.error('Error saving settings:', err.code, err.message);
+      const error = friendlyError(err, 'save settings');
+      showToast(error, 'error');
+      return { success: false, error };
+    }
+  };
+
+  // ------------------------------------------------------------
+  // CATEGORY OPERATIONS (owner only)
+  // ------------------------------------------------------------
+
+  /** Saves the full categories list. Returns { success } or { success: false, error }. */
+  const saveCategories = async (cats) => {
+    const blocked = writeBlockedReason({ ownerOnly: true });
+    if (blocked) {
+      showToast(blocked, 'error');
+      return { success: false, error: blocked };
+    }
+    setCategories(cats); // optimistic; the live listener confirms or corrects it
+    try {
+      await setDoc(doc(db, 'tenants', tenantId, 'config', 'categories'), { list: cats });
+      return { success: true };
+    } catch (err) {
+      console.error('Error saving categories:', err.code, err.message);
+      const error = friendlyError(err, 'save services');
+      showToast(error, 'error');
+      return { success: false, error };
+    }
+  };
+
+  /** Adds a new category. Returns the saveCategories() result. */
+  const addCategory = (cat) => saveCategories([...categories, { id: genId(), ...cat }]);
+
+  /** Updates fields on an existing category. Returns the saveCategories() result. */
+  const updateCategory = (id, data) => saveCategories(categories.map(c => (c.id === id ? { ...c, ...data } : c)));
+
+  /** Removes a category entirely. Returns the saveCategories() result. */
+  const deleteCategory = (id) => saveCategories(categories.filter(c => c.id !== id));
+
+  /** Adds one item to a category. Returns the saveCategories() result. */
+  const addItemToCat = (catId, item) => saveCategories(categories.map(c => (c.id === catId ? { ...c, items: [...c.items, item] } : c)));
+
+  /** Removes one item from a category. Returns the saveCategories() result. */
+  const removeItemFromCat = (catId, item) => saveCategories(categories.map(c => (c.id === catId ? { ...c, items: c.items.filter(i => i !== item) } : c)));
+
+  // ------------------------------------------------------------
   // JOB LOG / FINANCIALS
-  // ============================================================
+  // ------------------------------------------------------------
 
   /**
-   * Saves one or more cost/income cells.
-   * changes: [{ eventId, columnId, value }] — value is a number or null (blank).
-   * Uses a batch so a paste or Excel upload saves all-or-nothing.
+   * Saves one or more Job Log cells (costs, income, notes).
+   * changes: [{ eventId, columnId, value }] — value is a number, text, or null (blank).
+   * Batched, so a paste or Excel upload saves all-or-nothing per batch.
    * Returns { success } or { success: false, error }.
    */
   const saveFinancials = async (changes) => {
@@ -493,6 +632,7 @@ export function AppProvider({ children }) {
       return { success: false, error: blocked };
     }
     if (!changes.length) return { success: true };
+
     const byEvent = {};
     changes.forEach(({ eventId, columnId, value }) => {
       (byEvent[eventId] = byEvent[eventId] || {})[columnId] = value;
@@ -500,21 +640,23 @@ export function AppProvider({ children }) {
     const now = new Date().toISOString();
     try {
       const ids = Object.keys(byEvent);
-      // Firestore batches cap at 500 writes
-      for (let i = 0; i < ids.length; i += 450) {
+      for (let i = 0; i < ids.length; i += BATCH_LIMIT) {
         const batch = writeBatch(db);
-        ids.slice(i, i + 450).forEach(eventId => {
-          batch.set(doc(db, 'tenants', tenantId, 'financials', eventId),
+        ids.slice(i, i + BATCH_LIMIT).forEach(eventId => {
+          batch.set(
+            doc(db, 'tenants', tenantId, 'financials', eventId),
             { values: byEvent[eventId], updatedAt: now, updatedBy: user.uid },
-            { merge: true });
+            { merge: true }, // merge keeps the event's other columns
+          );
         });
         await batch.commit();
       }
       return { success: true };
     } catch (err) {
       console.error('Error saving costs:', err.code, err.message);
-      showToast('Failed to save costs: ' + err.message, 'error');
-      return { success: false, error: err.message };
+      const error = friendlyError(err, 'save costs');
+      showToast(error, 'error');
+      return { success: false, error };
     }
   };
 
@@ -530,14 +672,15 @@ export function AppProvider({ children }) {
       return { success: true };
     } catch (err) {
       console.error('Error saving Job Log columns:', err.code, err.message);
-      showToast('Failed to save columns: ' + err.message, 'error');
-      return { success: false, error: err.message };
+      const error = friendlyError(err, 'save columns');
+      showToast(error, 'error');
+      return { success: false, error };
     }
   };
 
-  // ============================================================
+  // ------------------------------------------------------------
   // PLATFORM ADMIN (EventScope staff only — firestore.rules enforces it)
-  // ============================================================
+  // ------------------------------------------------------------
 
   /** Live list of every tenant. Returns an unsubscribe function. */
   const subscribeAllTenants = (onChange, onError) => onSnapshot(
@@ -546,7 +689,7 @@ export function AppProvider({ children }) {
     (err) => { console.error('All-tenants listener error:', err.code, err.message); onError?.(err); },
   );
 
-  /** Team size and event count for one tenant (server-side counts, cheap). */
+  /** Team size and event count for one tenant (server-side counts — cheap, no documents downloaded) */
   const getTenantCounts = async (id) => {
     const [members, evs] = await Promise.all([
       getCountFromServer(query(collection(db, 'users'), where('tenantId', '==', id))),
@@ -563,103 +706,34 @@ export function AppProvider({ children }) {
       return { success: true };
     } catch (err) {
       console.error('Admin update failed:', err.code, err.message);
-      return { success: false, error: err.message };
+      return { success: false, error: friendlyError(err, 'update the company') };
     }
   };
 
-  // ============================================================
-  // SETTINGS OPERATIONS
-  // ============================================================
-
-  /** Merges and persists invoice settings. Returns { success } or { success: false, error }. */
-  const updateSettings = async (data) => {
-    const blocked = writeBlockedReason({ ownerOnly: true });
-    if (blocked) {
-      showToast(blocked, 'error');
-      return { success: false, error: blocked };
-    }
-    const newSettings = { ...settings, ...data };
-    setSettings(newSettings); // optimistic local update
-    try {
-      await setDoc(doc(db, 'tenants', tenantId, 'config', 'settings'), newSettings);
-      return { success: true };
-    } catch (err) {
-      console.error('Error saving settings:', err.code, err.message);
-      showToast('Failed to save settings: ' + err.message, 'error');
-      return { success: false, error: err.message };
-    }
-  };
-
-  // ============================================================
-  // CATEGORY OPERATIONS
-  // ============================================================
-
-  /** Persists the full categories list. Returns { success } or { success: false, error }. */
-  const saveCategories = async (cats) => {
-    const blocked = writeBlockedReason({ ownerOnly: true });
-    if (blocked) {
-      showToast(blocked, 'error');
-      return { success: false, error: blocked };
-    }
-    setCategories(cats); // optimistic local update
-    try {
-      await setDoc(doc(db, 'tenants', tenantId, 'config', 'categories'), { list: cats });
-      return { success: true };
-    } catch (err) {
-      console.error('Error saving categories:', err.code, err.message);
-      showToast('Failed to save categories: ' + err.message, 'error');
-      return { success: false, error: err.message };
-    }
-  };
-
-  /** Adds a new category. Returns the saveCategories() result. */
-  const addCategory = (cat) => {
-    const updated = [...categories, { id: genId(), ...cat }];
-    return saveCategories(updated);
-  };
-
-  /** Updates fields on an existing category. Returns the saveCategories() result. */
-  const updateCategory = (id, data) => {
-    const updated = categories.map(c => c.id === id ? { ...c, ...data } : c);
-    return saveCategories(updated);
-  };
-
-  /** Removes a category entirely. Returns the saveCategories() result. */
-  const deleteCategory = (id) => {
-    const updated = categories.filter(c => c.id !== id);
-    return saveCategories(updated);
-  };
-
-  /** Adds one item to a category's item list. Returns the saveCategories() result. */
-  const addItemToCat = (catId, item) => {
-    const updated = categories.map(c => c.id === catId ? { ...c, items: [...c.items, item] } : c);
-    return saveCategories(updated);
-  };
-
-  /** Removes one item from a category's item list. Returns the saveCategories() result. */
-  const removeItemFromCat = (catId, item) => {
-    const updated = categories.map(c => c.id === catId ? { ...c, items: c.items.filter(i => i !== item) } : c);
-    return saveCategories(updated);
-  };
-
-  // ============================================================
+  // ------------------------------------------------------------
   // CONTEXT VALUE
-  // ============================================================
+  // ------------------------------------------------------------
 
   return (
     <Ctx.Provider value={{
+      // Auth & account
       user, authLoading, logout,
       tenant, tenantId, tenantStatus, role, isOwner, isPlatformAdmin,
       isSuspended, canEditEvents, canEditSettings,
-      team, invites, inviteTeammate, cancelInvite, removeTeammate,
-      subscribeAllTenants, getTenantCounts, adminUpdateTenant, createCompany,
-      jobLogColumns: activeJobLogColumns, allJobLogColumns: jobLogColumns,
-      financials, financialsLoaded, saveFinancials, saveJobLogColumns,
+      createCompany, pendingInvite, acceptPendingInvite, declinePendingInvite,
+      // Company data
       events, settings, categories, loaded,
       addEvent, updateEvent, deleteEvent,
       updateSettings,
-      addCategory, updateCategory, deleteCategory,
-      addItemToCat, removeItemFromCat,
+      addCategory, updateCategory, deleteCategory, addItemToCat, removeItemFromCat,
+      // Team
+      team, invites, inviteTeammate, cancelInvite, removeTeammate,
+      // Job Log
+      jobLogColumns: activeJobLogColumns, allJobLogColumns: jobLogColumns,
+      financials, financialsLoaded, saveFinancials, saveJobLogColumns,
+      // Platform admin
+      subscribeAllTenants, getTenantCounts, adminUpdateTenant,
+      // UI
       toast, showToast,
     }}>
       {children}
@@ -667,4 +741,12 @@ export function AppProvider({ children }) {
   );
 }
 
+// ============================================================
+// EXPORTS
+// ============================================================
+
+/** Hook every page uses to read app state and call operations */
+// Exported next to the provider on purpose (one import for every page);
+// the only cost is a full reload instead of fast-refresh while developing.
+// oxlint-disable-next-line react/only-export-components
 export const useApp = () => useContext(Ctx);

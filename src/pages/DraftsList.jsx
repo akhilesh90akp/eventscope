@@ -48,14 +48,6 @@ function getAllItems(ev) {
 }
 
 /**
- * Helper: get display date for an event (backward compatible)
- */
-function getEventDate(ev) {
-  if (ev.mainEvent?.date) return ev.mainEvent.date;
-  return ev.date || '';
-}
-
-/**
  * Helper: get event location (backward compatible)
  */
 function getEventLocation(ev) {
@@ -129,6 +121,9 @@ export default function DraftsList() {
     setExpandedId(prev => prev === id ? null : id);
   };
 
+  // ------------------------------------------------------------
+  // RENDER
+  // ------------------------------------------------------------
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-bold text-bb-text">Drafts</h1>

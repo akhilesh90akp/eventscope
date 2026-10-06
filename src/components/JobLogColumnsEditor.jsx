@@ -31,8 +31,16 @@ export default function JobLogColumnsEditor() {
   const [newType, setNewType] = useState('cost');
   const [saving, setSaving] = useState(false);
 
+  // ------------------------------------------------------------
+  // DATA LOADING / EFFECTS
+  // ------------------------------------------------------------
+
+  // Re-sync when the saved columns change (e.g. edited in another tab)
   useEffect(() => { setCols(allJobLogColumns); }, [allJobLogColumns]);
 
+  // ------------------------------------------------------------
+  // DERIVED DATA
+  // ------------------------------------------------------------
   const active = cols.filter(c => !c.hidden);
   const removed = cols.filter(c => c.hidden);
   const dirty = JSON.stringify(cols) !== JSON.stringify(allJobLogColumns);

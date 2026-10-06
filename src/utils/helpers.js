@@ -1,8 +1,10 @@
 /**
- * Helpers - Utility functions
+ * Helpers — shared utility functions
  *
- * Pure utility functions used across the application for formatting,
- * calculations, link generation, and ID creation.
+ * Small, mostly pure functions used across pages: formatting and parsing,
+ * GST/rounding, IDs and links, event dates, quotation pricing, bill and
+ * Job Log money math, and image resizing. No Firestore access here —
+ * that lives only in context/AppContext.jsx.
  */
 
 // ============================================================
@@ -53,6 +55,15 @@ export const daysUntil = (d) => {
   return Math.ceil((ev - now) / 86400000);
 };
 
+/** Parses a typed/pasted money value ("₹1,48,000", "148000", "") → number or null */
+export const parseMoney = (raw) => {
+  if (raw === null || raw === undefined) return null;
+  const cleaned = String(raw).replace(/[₹,\s]/g, '').replace(/^Rs\.?/i, '');
+  if (cleaned === '' || cleaned === '-' || cleaned === '—') return null;
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : null;
+};
+
 // ============================================================
 // CALCULATIONS
 // ============================================================
@@ -91,6 +102,9 @@ export const roundOff = (amt) => {
  */
 export const genId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 9);
 
+/** Invites are keyed by the invitee's Google email, lower-cased. */
+export const inviteKey = (email) => (email || '').trim().toLowerCase();
+
 /**
  * Generates a WhatsApp deep link for sending a message.
  * @param {string} phone - Phone number (auto-prefixes with 91 if needed)
@@ -109,6 +123,11 @@ export const waLink = (phone, msg = '') => {
  */
 export const telLink = (phone) => `tel:+91${phone.replace(/\D/g, '')}`;
 
+/** Opens the Job Log grid in a new browser tab (it loads the app full-screen at #/job-log) */
+export const openJobLog = () => {
+  window.open(`${import.meta.env.BASE_URL}#/job-log`, '_blank');
+};
+
 /**
  * Generates a formatted invoice number based on financial year.
  * Format: PREFIX-B2CYY(YY+1)-NNN (e.g., BB-B2C2526-001)
@@ -116,7 +135,7 @@ export const telLink = (phone) => `tel:+91${phone.replace(/\D/g, '')}`;
  * @param {number} existingCount - Number of existing invoices for sequential numbering
  * @returns {string} Formatted invoice number
  */
-export const genInvoiceNo = (prefix = 'BB', existingCount = 0) => {
+export const genInvoiceNo = (prefix = 'INV', existingCount = 0) => {
   const now = new Date();
   // Financial year starts in April (month index 3)
   const fy1 = now.getMonth() >= 3 ? now.getFullYear().toString().slice(2) : (now.getFullYear()-1).toString().slice(2);
@@ -304,35 +323,6 @@ export const computeSectionTotal = (sectionId, itemNames, itemPrices, bundles, h
   }, 0);
 };
 
-/**
- * Reads an image file and returns a resized data URL (max `maxWidth` px wide,
- * never upscaled). Logos/signatures are stored inside the tenant's settings
- * doc, which Firestore caps at 1 MB — shrinking on upload keeps a large photo
- * from making Settings un-savable. PNG/SVG stay PNG (keeps transparency);
- * everything else becomes JPEG.
- */
-export const resizeImageFile = (file, maxWidth = 400) => new Promise((resolve, reject) => {
-  const reader = new FileReader();
-  reader.onerror = () => reject(new Error('Could not read the image file.'));
-  reader.onload = () => {
-    const img = new Image();
-    img.onerror = () => reject(new Error('That file does not look like an image.'));
-    img.onload = () => {
-      const scale = Math.min(1, maxWidth / (img.naturalWidth || maxWidth));
-      const w = Math.max(1, Math.round((img.naturalWidth || maxWidth) * scale));
-      const h = Math.max(1, Math.round((img.naturalHeight || maxWidth) * scale));
-      const canvas = document.createElement('canvas');
-      canvas.width = w;
-      canvas.height = h;
-      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-      const keepAlpha = /png|svg|webp|gif/i.test(file.type);
-      resolve(keepAlpha ? canvas.toDataURL('image/png') : canvas.toDataURL('image/jpeg', 0.85));
-    };
-    img.src = reader.result;
-  };
-  reader.readAsDataURL(file);
-});
-
 // ============================================================
 // REVENUE & JOB LOG MATH
 // ============================================================
@@ -385,15 +375,6 @@ export const getEventBill = (event) => {
 /** An event's revenue = bill subtotal − discount, excluding GST (see getEventBill) */
 export const getEventRevenue = (event) => getEventBill(event).revenue;
 
-/** Parses a typed/pasted money value ("₹1,48,000", "148000", "") → number or null */
-export const parseMoney = (raw) => {
-  if (raw === null || raw === undefined) return null;
-  const cleaned = String(raw).replace(/[₹,\s]/g, '').replace(/^Rs\.?/i, '');
-  if (cleaned === '' || cleaned === '-' || cleaned === '—') return null;
-  const n = Number(cleaned);
-  return Number.isFinite(n) ? n : null;
-};
-
 /**
  * Totals for one event's Job Log row.
  * values: { [columnId]: number|null }, columns: active Job Log columns.
@@ -418,10 +399,35 @@ export const computeEventFinancials = (revenue, values = {}, columns = []) => {
   return { totalCost, income, profit, margin, hasAny };
 };
 
-/** Opens the Job Log grid in a new browser tab (it loads the app full-screen at #/job-log) */
-export const openJobLog = () => {
-  window.open(`${import.meta.env.BASE_URL}#/job-log`, '_blank');
-};
+// ============================================================
+// IMAGES
+// ============================================================
 
-/** Invites are keyed by the invitee's Google email, lower-cased. */
-export const inviteKey = (email) => (email || '').trim().toLowerCase();
+/**
+ * Reads an image file and returns a resized data URL (max `maxWidth` px wide,
+ * never upscaled). Logos/signatures are stored inside the tenant's settings
+ * doc, which Firestore caps at 1 MB — shrinking on upload keeps a large photo
+ * from making Settings un-savable. PNG/SVG stay PNG (keeps transparency);
+ * everything else becomes JPEG.
+ */
+export const resizeImageFile = (file, maxWidth = 400) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onerror = () => reject(new Error('Could not read the image file.'));
+  reader.onload = () => {
+    const img = new Image();
+    img.onerror = () => reject(new Error('That file does not look like an image.'));
+    img.onload = () => {
+      const scale = Math.min(1, maxWidth / (img.naturalWidth || maxWidth));
+      const w = Math.max(1, Math.round((img.naturalWidth || maxWidth) * scale));
+      const h = Math.max(1, Math.round((img.naturalHeight || maxWidth) * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      const keepAlpha = /png|svg|webp|gif/i.test(file.type);
+      resolve(keepAlpha ? canvas.toDataURL('image/png') : canvas.toDataURL('image/jpeg', 0.85));
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+});

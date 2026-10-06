@@ -50,14 +50,6 @@ function getAllItems(ev) {
   return ev.items || [];
 }
 
-/**
- * Helper: get display date for an event (backward compatible)
- */
-function getEventDate(ev) {
-  if (ev.mainEvent?.date) return ev.mainEvent.date;
-  return ev.date || '';
-}
-
 // ============================================================
 // ConfirmedEvents — MAIN COMPONENT
 // ============================================================
@@ -75,8 +67,6 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
   // STATE
   // ------------------------------------------------------------
   const [search, setSearch] = useState('');
-  const statusFilter = status; // 'confirmed' | 'completed' — fixed per page
-  const pageLabel = status === 'completed' ? 'Completed' : 'Confirmed';
   const [addItemModal, setAddItemModal] = useState(null); // event id for add-item modal
   const [priceModal, setPriceModal] = useState(null); // event id for pricing modal
   const [newItem, setNewItem] = useState('');
@@ -89,6 +79,8 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
   // ------------------------------------------------------------
   // DERIVED DATA
   // ------------------------------------------------------------
+  const statusFilter = status; // 'confirmed' | 'completed' — fixed per page
+  const pageLabel = status === 'completed' ? 'Completed' : 'Confirmed';
 
   // Filter confirmed/completed events by status tab and search query
   const confirmedEvents = sortByActiveDate(
@@ -196,6 +188,10 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
     }
   };
 
+  // ------------------------------------------------------------
+  // EVENT HANDLERS — STATUS & DELETE
+  // ------------------------------------------------------------
+
   /** Marks an event as completed. Awaits the write and only toasts success on confirmation. */
   const markDone = async (id) => {
     const result = await updateEvent(id, { status: 'completed' });
@@ -241,6 +237,10 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
     }
   };
 
+  // ------------------------------------------------------------
+  // EVENT HANDLERS — CARD UI
+  // ------------------------------------------------------------
+
   /** Toggles the expanded/collapsed state of an event card */
   const toggleExpand = (id) => {
     setExpandedId(prev => prev === id ? null : id);
@@ -256,6 +256,9 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
     return opts;
   };
 
+  // ------------------------------------------------------------
+  // RENDER
+  // ------------------------------------------------------------
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">

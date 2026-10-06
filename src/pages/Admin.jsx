@@ -40,6 +40,11 @@ export default function Admin() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [busyId, setBusyId] = useState(null);
 
+  // ------------------------------------------------------------
+  // DATA LOADING / EFFECTS
+  // ------------------------------------------------------------
+
+  // Live list of all companies
   useEffect(() => {
     if (!isPlatformAdmin) return undefined;
     return subscribeAllTenants(setTenants, () => setTenants([]));

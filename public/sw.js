@@ -7,7 +7,7 @@
  * - API calls (Firebase, etc.): Network-only (never cache)
  */
 
-const CACHE_NAME = 'eventscope-v1';
+const CACHE_NAME = 'eventscope-v2';
 const BASE = '/eventscope/';
 
 // Assets to pre-cache on install
@@ -16,7 +16,6 @@ const PRECACHE_ASSETS = [
   BASE + 'manifest.json',
   BASE + 'eventscope-logo.svg',
   BASE + 'eventscope-logo-horizontal.svg',
-  BASE + 'logo-purple-horizontal.svg',
   BASE + 'icons/icon-192.png',
   BASE + 'icons/icon-512.png',
   BASE + 'favicon.svg',

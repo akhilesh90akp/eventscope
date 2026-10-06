@@ -5,6 +5,11 @@
  * before onboarding any external customer. These are business details of
  * EventScope (the company providing the service) — not a customer's data.
  */
+
+// ============================================================
+// CONSTANTS
+// ============================================================
+
 export const LEGAL = {
   productName: 'EventScope',
   businessName: '[Legal name of the business that owns EventScope]',

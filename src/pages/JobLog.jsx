@@ -4,8 +4,10 @@
  * Opens in its own browser tab (window.open from Reports / Completed
  * Events) as a full-screen page, outside the normal sidebar layout.
  * One row per completed event:
- *   - from the app (read-only): date, client, event, location, type, revenue
- *   - typed: the tenant's cost + income columns (Settings → Job Log columns)
+ *   - from the event & bill (read-only): client, date/time, event, contact,
+ *     location, type, invoice #, revenue (excl. GST), GST, bill total,
+ *     received, balance due
+ *   - typed: the tenant's cost, income and note columns (Settings → Job Log columns)
  *   - calculated: total cost, profit, margin
  *
  * Values live in tenants/{id}/financials/{eventId} — the same data the
@@ -24,17 +26,8 @@ import { exportJobLogToExcel, readJobLogFromExcel } from '../utils/jobLogExcel';
 import { Download, Upload, Loader2 } from 'lucide-react';
 
 // ============================================================
-// HELPERS
+// CONSTANTS
 // ============================================================
-
-const rupees = (n) => (n === null || n === undefined || n === '' ? '' : '₹' + Math.round(Number(n)).toLocaleString('en-IN'));
-const eventDate = (ev) => ev.mainEvent?.date || ev.date || '';
-const monthKey = (d) => (d ? d.slice(0, 7) : '');
-const monthLabel = (key) => {
-  if (!key) return '';
-  const [y, m] = key.split('-');
-  return new Date(Number(y), Number(m) - 1, 1).toLocaleString('en-IN', { month: 'short', year: 'numeric' });
-};
 
 /** Read-only money columns from the event's bill (mobile: revenue + balance only) */
 const BILL_INFO = [
@@ -44,6 +37,23 @@ const BILL_INFO = [
   { key: 'advance', label: 'Received' },
   { key: 'balance', label: 'Balance due', mobile: true },
 ];
+
+// ============================================================
+// HELPERS
+// ============================================================
+
+/** ₹ with Indian digit grouping; blank stays blank */
+const rupees = (n) => (n === null || n === undefined || n === '' ? '' : '₹' + Math.round(Number(n)).toLocaleString('en-IN'));
+/** Main event date (YYYY-MM-DD), supporting the older flat `date` field */
+const eventDate = (ev) => ev.mainEvent?.date || ev.date || '';
+/** 'YYYY-MM' month key for the period filter */
+const monthKey = (d) => (d ? d.slice(0, 7) : '');
+/** 'Oct 2026' label for a month key */
+const monthLabel = (key) => {
+  if (!key) return '';
+  const [y, m] = key.split('-');
+  return new Date(Number(y), Number(m) - 1, 1).toLocaleString('en-IN', { month: 'short', year: 'numeric' });
+};
 
 // ============================================================
 // SUB-COMPONENTS
@@ -85,6 +95,11 @@ export default function JobLog() {
 
   const companyName = settings.companyName || tenant?.name || '';
 
+  // ------------------------------------------------------------
+  // EFFECTS
+  // ------------------------------------------------------------
+
+  // Tab title, so the Job Log tab is easy to find among browser tabs
   useEffect(() => {
     document.title = `Job Log${companyName ? ' · ' + companyName : ''} — EventScope`;
   }, [companyName]);
@@ -220,9 +235,10 @@ export default function JobLog() {
     const grid = text.replace(/\r/g, '').replace(/\n$/, '').split('\n').map(line => line.split('\t'));
     const changes = [];
     let skipped = 0;
+    let rowsPastEnd = 0;
     grid.forEach((cells, i) => {
       const row = rows[r + i];
-      if (!row) return;
+      if (!row) { rowsPastEnd++; return; }
       cells.forEach((cellText, j) => {
         const col = editCols[c + j];
         if (!col) return;
@@ -243,7 +259,11 @@ export default function JobLog() {
       return n;
     });
     if (await save(changes)) {
-      showToast(`Pasted ${changes.length} cell${changes.length === 1 ? '' : 's'}${skipped ? ` · ${skipped} non-numbers skipped` : ''}`);
+      const notes = [
+        skipped ? `${skipped} non-numbers skipped` : '',
+        rowsPastEnd ? `${rowsPastEnd} row${rowsPastEnd === 1 ? '' : 's'} past the last event not pasted` : '',
+      ].filter(Boolean).join(' · ');
+      showToast(`Pasted ${changes.length} cell${changes.length === 1 ? '' : 's'}${notes ? ` · ${notes}` : ''}`);
     }
   };
 
@@ -318,12 +338,17 @@ export default function JobLog() {
   }
 
   // ------------------------------------------------------------
-  // RENDER
+  // RENDER — SHARED STYLES & STATUS
   // ------------------------------------------------------------
+  const readOnly = !canEditEvents;
+  const savedLabel = lastError ? 'Not saved — check connection' : pending ? 'Saving…' : 'All changes saved';
+  const ro = 'bg-[#f9fafb] text-gray-600 border-b border-r border-gray-100';  // read-only cell
+  const foot = 'sticky bottom-0 z-10 bg-bb-sidebar';                         // totals row cell
+  const stickyBg = 'bg-[#f9fafb]';
 
-  const ro = 'bg-[#f9fafb] text-gray-600 border-b border-r border-gray-100';
-  const foot = 'sticky bottom-0 z-10 bg-bb-sidebar';
-
+  // ------------------------------------------------------------
+  // RENDER — EDITABLE CELL
+  // ------------------------------------------------------------
   /** One editable cell (money or text) */
   const renderInput = (row, col, r, c) => {
     const key = draftKey(row.id, col.id);
@@ -355,10 +380,9 @@ export default function JobLog() {
     );
   };
 
-  const savedLabel = lastError ? 'Not saved — check connection' : pending ? 'Saving…' : 'All changes saved';
-  const readOnly = !canEditEvents;
-  const stickyBg = 'bg-[#f9fafb]';
-
+  // ------------------------------------------------------------
+  // RENDER
+  // ------------------------------------------------------------
   return (
     <div className="min-h-[100dvh] bg-bb-bg flex flex-col">
       {/* === TOP BAR === */}

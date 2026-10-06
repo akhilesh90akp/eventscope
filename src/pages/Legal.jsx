@@ -15,6 +15,13 @@ import React, { useEffect } from 'react';
 import { LEGAL } from '../constants/legal';
 
 // ============================================================
+// CONSTANTS
+// ============================================================
+
+/** Short names for the business details used throughout the text */
+const { productName: N, businessName: B, contactEmail: E, jurisdiction: J, dataRegion: R } = LEGAL;
+
+// ============================================================
 // SUB-COMPONENTS
 // ============================================================
 const H = ({ children }) => <h2 className="text-lg font-bold text-gray-900 mt-8 mb-2">{children}</h2>;
@@ -25,10 +32,8 @@ const UL = ({ items }) => (
   </ul>
 );
 
-const { productName: N, businessName: B, contactEmail: E, jurisdiction: J, dataRegion: R } = LEGAL;
-
 // ============================================================
-// CONTENT
+// CONTENT — one component per page
 // ============================================================
 
 function Terms() {
@@ -120,7 +125,7 @@ function DataProtection() {
       <H>Only your team gets in</H>
       <UL items={[
         'Sign-in is through Google, so we never see or store passwords.',
-        'Only people the owner adds can join a company, and an invite works only for the exact Google account it was sent to.',
+        'Only people the owner adds can join a company. An invite works only for the exact Google account it was sent to, and nobody joins until they choose to accept it.',
         'Owners can remove someone at any time; their access stops immediately.',
       ]} />
       <H>Owner and staff see different things</H>
@@ -140,14 +145,19 @@ function DataProtection() {
 }
 
 // ============================================================
-// Legal — MAIN COMPONENT
+// PAGE TABLE
 // ============================================================
 
+/** #/<key> → page title + content component */
 const PAGES = {
   terms: { title: 'Terms of Service', body: Terms },
   privacy: { title: 'Privacy Policy', body: Privacy },
   'data-protection': { title: 'How we protect your data', body: DataProtection },
 };
+
+// ============================================================
+// Legal — MAIN COMPONENT
+// ============================================================
 
 export default function Legal({ page }) {
   const doc = PAGES[page] || PAGES.terms;
