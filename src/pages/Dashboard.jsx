@@ -20,7 +20,7 @@ import Badge from '../components/Badge';
 import { formatCurrency, formatDateReadable, daysUntil, telLink, sortByActiveDate, getActiveDate } from '../utils/helpers';
 import {
   FileText, CheckCircle, PartyPopper, IndianRupee,
-  Plus, List, Settings, Phone, CalendarDays, MapPin, BarChart3,
+  Plus, List, Settings, Phone, CalendarDays, MapPin, BarChart3, Shield,
 } from 'lucide-react';
 
 // ============================================================
@@ -29,7 +29,7 @@ import {
 
 /** Main dashboard view with stats, quick actions, and upcoming events */
 export default function Dashboard() {
-  const { events, isOwner } = useApp();
+  const { events, isOwner, isPlatformAdmin } = useApp();
   const navigate = useNavigate();
 
   // ------------------------------------------------------------
@@ -84,6 +84,7 @@ export default function Dashboard() {
         <Button icon={PartyPopper} variant="secondary" onClick={() => navigate('/completed')}>Completed</Button>
         {isOwner && <Button icon={BarChart3} variant="secondary" onClick={() => navigate('/reports')}>Reports</Button>}
         <Button icon={Settings} variant="ghost" onClick={() => navigate('/settings')}>Settings</Button>
+        {isPlatformAdmin && <Button icon={Shield} variant="ghost" onClick={() => navigate('/admin')}>Admin</Button>}
       </div>
 
       {/* Confirmed Events */}

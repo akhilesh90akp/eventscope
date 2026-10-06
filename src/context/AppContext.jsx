@@ -21,7 +21,7 @@
  */
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { collection, doc, setDoc, deleteDoc, onSnapshot, getDoc, query, where, writeBatch } from 'firebase/firestore';
+import { collection, doc, setDoc, deleteDoc, onSnapshot, getDoc, query, where, writeBatch, getCountFromServer } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { DEFAULT_SETTINGS, DEFAULT_CATEGORIES, DEFAULT_JOBLOG_COLUMNS } from '../constants/data';
 import { genId } from '../utils/helpers';
@@ -485,6 +485,38 @@ export function AppProvider({ children }) {
   };
 
   // ============================================================
+  // PLATFORM ADMIN (EventScope staff only — firestore.rules enforces it)
+  // ============================================================
+
+  /** Live list of every tenant. Returns an unsubscribe function. */
+  const subscribeAllTenants = (onChange, onError) => onSnapshot(
+    collection(db, 'tenants'),
+    (snap) => onChange(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+    (err) => { console.error('All-tenants listener error:', err.code, err.message); onError?.(err); },
+  );
+
+  /** Team size and event count for one tenant (server-side counts, cheap). */
+  const getTenantCounts = async (id) => {
+    const [members, evs] = await Promise.all([
+      getCountFromServer(query(collection(db, 'users'), where('tenantId', '==', id))),
+      getCountFromServer(collection(db, 'tenants', id, 'events')),
+    ]);
+    return { members: members.data().count, events: evs.data().count };
+  };
+
+  /** Changes a tenant's platform fields (plan / status). Returns { success } or { success: false, error }. */
+  const adminUpdateTenant = async (id, patch) => {
+    if (!isPlatformAdmin) return { success: false, error: 'Admins only.' };
+    try {
+      await setDoc(doc(db, 'tenants', id), { ...patch, updatedAt: new Date().toISOString() }, { merge: true });
+      return { success: true };
+    } catch (err) {
+      console.error('Admin update failed:', err.code, err.message);
+      return { success: false, error: err.message };
+    }
+  };
+
+  // ============================================================
   // SETTINGS OPERATIONS
   // ============================================================
 
@@ -569,6 +601,7 @@ export function AppProvider({ children }) {
       tenant, tenantId, tenantStatus, role, isOwner, isPlatformAdmin,
       isSuspended, canEditEvents, canEditSettings,
       team, invites, inviteTeammate, cancelInvite, removeTeammate,
+      subscribeAllTenants, getTenantCounts, adminUpdateTenant,
       jobLogColumns: activeJobLogColumns, allJobLogColumns: jobLogColumns,
       financials, financialsLoaded, saveFinancials, saveJobLogColumns,
       events, settings, categories, loaded,

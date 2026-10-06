@@ -28,6 +28,7 @@ import QuotationGenerator from './pages/QuotationGenerator';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 import JobLog, { JobLogLoader } from './pages/JobLog';
+import Admin from './pages/Admin';
 
 // ============================================================
 // AppRoutes — auth gate + route table
@@ -73,7 +74,7 @@ function AccountStatusScreen({ title, message }) {
 }
 
 function AppRoutes() {
-  const { user, authLoading, tenantStatus, toast } = useApp();
+  const { user, authLoading, tenantStatus, isPlatformAdmin, toast } = useApp();
 
   // Show loading while checking auth
   if (authLoading) return <LoadingScreen />;
@@ -85,6 +86,19 @@ function AppRoutes() {
 
   // Signed in — wait until we know which company this login belongs to
   if (tenantStatus === 'loading') return <LoadingScreen />;
+  // A platform admin without a company of their own still gets the Admin page
+  if (tenantStatus === 'none' && isPlatformAdmin) {
+    return (
+      <HashRouter>
+        <Routes>
+          <Route element={<Layout />}>
+            <Route path="*" element={<Admin />} />
+          </Route>
+        </Routes>
+        <Toast message={toast.message} type={toast.type} isVisible={toast.visible} />
+      </HashRouter>
+    );
+  }
   if (tenantStatus === 'none') {
     return (
       <AccountStatusScreen
@@ -121,6 +135,7 @@ function AppRoutes() {
           <Route path="/quotation/:eventId" element={<QuotationGenerator />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/admin" element={<Admin />} />
         </Route>
       </Routes>
       <Toast message={toast.message} type={toast.type} isVisible={toast.visible} />

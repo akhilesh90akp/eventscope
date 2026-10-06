@@ -108,3 +108,15 @@ export const DEFAULT_JOBLOG_COLUMNS = [
   { id: 'other', label: 'Other expenses', type: 'cost' },
   { id: 'commReceived', label: 'Vendor commissions received', type: 'income' },
 ];
+
+// ============================================================
+// PLANS
+// ============================================================
+
+/** Subscription plans a tenant can be on (prices/limits come later, item 12). */
+export const PLANS = [
+  { id: 'trial', label: 'Free pilot' },
+  { id: 'basic', label: 'Basic' },
+  { id: 'standard', label: 'Standard' },
+  { id: 'premium', label: 'Premium' },
+];

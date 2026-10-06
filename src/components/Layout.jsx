@@ -11,7 +11,7 @@
 // ============================================================
 import React from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, FilePlus, FileText, CheckCircle2, PartyPopper, Settings, Plus, BarChart3, LogOut } from 'lucide-react';
+import { LayoutDashboard, FilePlus, FileText, CheckCircle2, PartyPopper, Settings, Plus, BarChart3, LogOut, Shield } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 /** Navigation items displayed in the desktop sidebar */
@@ -23,6 +23,7 @@ const sidebarNav = [
   { to: '/completed', icon: PartyPopper, label: 'Completed' },
   { to: '/reports', icon: BarChart3, label: 'Reports', ownerOnly: true },
   { to: '/settings', icon: Settings, label: 'Settings' },
+  { to: '/admin', icon: Shield, label: 'Admin', adminOnly: true },
 ];
 
 /** Condensed navigation items for the mobile bottom bar */
@@ -36,7 +37,7 @@ const mobileNav = [
 /** Main layout wrapper with sidebar, content area, and mobile nav */
 export default function Layout() {
   const navigate = useNavigate();
-  const { logout, tenant, settings, role, isSuspended, isOwner } = useApp();
+  const { logout, tenant, settings, role, isSuspended, isOwner, isPlatformAdmin } = useApp();
   const companyName = settings.companyName || tenant?.name || '';
 
   return (
@@ -54,7 +55,7 @@ export default function Layout() {
 
         {/* Nav links */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {sidebarNav.filter(item => !item.ownerOnly || isOwner).map((item) => (
+          {sidebarNav.filter(item => (!item.ownerOnly || isOwner) && (!item.adminOnly || isPlatformAdmin)).map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
