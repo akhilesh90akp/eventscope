@@ -10,6 +10,7 @@
  *   tenants/{tenantId}/config/categories     - service categories (owner-editable)
  *   tenants/{tenantId}/events/{eventId}      - one doc per event/draft
  *   platformAdmins/{uid}                     - EventScope staff
+ *   invites/{email}                          - pending teammate invite { tenantId, role, ... }
  * Firestore rules (firestore.rules) enforce the same boundaries server-side.
  *
  * Every write operation below returns a { success, error? } result instead
@@ -18,10 +19,42 @@
  */
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { collection, doc, setDoc, deleteDoc, onSnapshot, getDoc } from 'firebase/firestore';
+import { collection, doc, setDoc, deleteDoc, onSnapshot, getDoc, query, where, writeBatch } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { DEFAULT_SETTINGS, DEFAULT_CATEGORIES } from '../constants/data';
 import { genId } from '../utils/helpers';
+
+// ============================================================
+// HELPERS — INVITES
+// ============================================================
+
+/** Invites are keyed by the invitee's Google email, lower-cased. */
+export const inviteKey = (email) => (email || '').trim().toLowerCase();
+
+/**
+ * If an invite exists for this user's Google email, join that tenant:
+ * create users/{uid} and delete the invite in one atomic batch.
+ * firestore.rules only allows this when the invite matches the signed-in,
+ * Google-verified email. Returns true if the user joined a tenant.
+ */
+async function acceptInvite(user) {
+  if (!user?.email) return false;
+  const inviteRef = doc(db, 'invites', inviteKey(user.email));
+  const inviteSnap = await getDoc(inviteRef);
+  if (!inviteSnap.exists()) return false;
+  const invite = inviteSnap.data();
+  const batch = writeBatch(db);
+  batch.set(doc(db, 'users', user.uid), {
+    tenantId: invite.tenantId,
+    role: invite.role,
+    name: user.displayName || '',
+    email: inviteKey(user.email),
+    joinedAt: new Date().toISOString(),
+  });
+  batch.delete(inviteRef);
+  await batch.commit();
+  return true;
+}
 
 // ============================================================
 // CONTEXT
@@ -81,6 +114,10 @@ export function AppProvider({ children }) {
   // ============================================================
 
   // Step 1: when the login changes, find which tenant it belongs to.
+  // users/{uid} is watched live, so if the owner removes this person they
+  // drop to the "not part of a company" screen straight away.
+  // If there's no users/{uid} yet but an invite exists for this Google
+  // email, accept it: create the membership and delete the invite together.
   useEffect(() => {
     setMembership(null);
     setTenant(null);
@@ -91,26 +128,39 @@ export function AppProvider({ children }) {
     }
     setTenantStatus('loading');
     let cancelled = false;
-    (async () => {
-      try {
-        const [profileSnap, adminSnap] = await Promise.all([
-          getDoc(doc(db, 'users', user.uid)),
-          getDoc(doc(db, 'platformAdmins', user.uid)),
-        ]);
-        if (cancelled) return;
-        setIsPlatformAdmin(adminSnap.exists());
-        const profile = profileSnap.exists() ? profileSnap.data() : null;
-        if (!profile?.tenantId) {
-          setTenantStatus('none');
-          return;
-        }
+    let accepting = false;
+
+    getDoc(doc(db, 'platformAdmins', user.uid))
+      .then(snap => { if (!cancelled) setIsPlatformAdmin(snap.exists()); })
+      .catch(() => {});
+
+    const unsubProfile = onSnapshot(doc(db, 'users', user.uid), async (snap) => {
+      if (cancelled) return;
+      const profile = snap.exists() ? snap.data() : null;
+      if (profile?.tenantId) {
         setMembership({ tenantId: profile.tenantId, role: profile.role || 'staff' });
-      } catch (err) {
-        console.error('Error resolving tenant membership:', err.code, err.message);
-        if (!cancelled) setTenantStatus('error');
+        return;
       }
-    })();
-    return () => { cancelled = true; };
+      setMembership(null);
+      setTenant(null);
+      if (accepting) return;
+      accepting = true;
+      try {
+        const joined = await acceptInvite(user);
+        if (!joined && !cancelled) setTenantStatus('none');
+        // if joined, the users/{uid} listener fires again with the new membership
+      } catch (err) {
+        console.error('Error accepting invite:', err.code, err.message);
+        if (!cancelled) setTenantStatus('none');
+      } finally {
+        accepting = false;
+      }
+    }, (err) => {
+      console.error('Error resolving tenant membership:', err.code, err.message);
+      if (!cancelled) setTenantStatus('error');
+    });
+
+    return () => { cancelled = true; unsubProfile(); };
   }, [user]);
 
   // Step 2: once we know the tenant, load its data (and keep it live).
@@ -183,6 +233,88 @@ export function AppProvider({ children }) {
     if (isSuspended) return 'This account is suspended — changes are disabled. Please contact EventScope support.';
     if (ownerOnly && !isOwner) return 'Only the account owner can change settings.';
     return null;
+  };
+
+  // ============================================================
+  // TEAM (owner only): members + pending invites, kept live
+  // ============================================================
+  const [team, setTeam] = useState([]);
+  const [invites, setInvites] = useState([]);
+
+  useEffect(() => {
+    if (!tenantId || !isOwner) {
+      setTeam([]);
+      setInvites([]);
+      return;
+    }
+    const unsubTeam = onSnapshot(
+      query(collection(db, 'users'), where('tenantId', '==', tenantId)),
+      (snap) => setTeam(snap.docs.map(d => ({ uid: d.id, ...d.data() }))),
+      (err) => console.error('Team listener error:', err.code, err.message),
+    );
+    const unsubInvites = onSnapshot(
+      query(collection(db, 'invites'), where('tenantId', '==', tenantId)),
+      (snap) => setInvites(snap.docs.map(d => ({ email: d.id, ...d.data() }))),
+      (err) => console.error('Invites listener error:', err.code, err.message),
+    );
+    return () => { unsubTeam(); unsubInvites(); };
+  }, [tenantId, isOwner]);
+
+  /** Invites a teammate by Google email. Returns { success } or { success: false, error }. */
+  const inviteTeammate = async (rawEmail) => {
+    const blocked = writeBlockedReason({ ownerOnly: true });
+    if (blocked) return { success: false, error: blocked };
+    const email = inviteKey(rawEmail);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return { success: false, error: 'Please enter a valid email address.' };
+    }
+    if (team.some(m => m.email === email)) {
+      return { success: false, error: 'That person is already on your team.' };
+    }
+    try {
+      await setDoc(doc(db, 'invites', email), {
+        tenantId,
+        role: 'staff',
+        tenantName: settings.companyName || tenant?.name || '',
+        invitedBy: user.uid,
+        invitedByName: user.displayName || user.email || '',
+        createdAt: new Date().toISOString(),
+      });
+      return { success: true };
+    } catch (err) {
+      console.error('Error inviting teammate:', err.code, err.message);
+      const error = err.code === 'permission-denied'
+        ? 'That email already has a pending invite to another company, or you don’t have permission.'
+        : err.message;
+      return { success: false, error };
+    }
+  };
+
+  /** Cancels a pending invite. Returns { success } or { success: false, error }. */
+  const cancelInvite = async (email) => {
+    const blocked = writeBlockedReason({ ownerOnly: true });
+    if (blocked) return { success: false, error: blocked };
+    try {
+      await deleteDoc(doc(db, 'invites', inviteKey(email)));
+      return { success: true };
+    } catch (err) {
+      console.error('Error cancelling invite:', err.code, err.message);
+      return { success: false, error: err.message };
+    }
+  };
+
+  /** Removes a staff member from the company. Returns { success } or { success: false, error }. */
+  const removeTeammate = async (uid) => {
+    const blocked = writeBlockedReason({ ownerOnly: true });
+    if (blocked) return { success: false, error: blocked };
+    if (uid === user.uid) return { success: false, error: 'You can’t remove yourself.' };
+    try {
+      await deleteDoc(doc(db, 'users', uid));
+      return { success: true };
+    } catch (err) {
+      console.error('Error removing teammate:', err.code, err.message);
+      return { success: false, error: err.message };
+    }
   };
 
   // ============================================================
@@ -348,6 +480,7 @@ export function AppProvider({ children }) {
       user, authLoading, logout,
       tenant, tenantId, tenantStatus, role, isOwner, isPlatformAdmin,
       isSuspended, canEditEvents, canEditSettings,
+      team, invites, inviteTeammate, cancelInvite, removeTeammate,
       events, settings, categories, loaded,
       addEvent, updateEvent, deleteEvent,
       updateSettings,

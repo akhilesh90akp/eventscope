@@ -21,7 +21,7 @@ import Button from '../components/Button';
 import Input from '../components/Input';
 import Modal from '../components/Modal';
 import { resizeImageFile } from '../utils/helpers';
-import { Save, Plus, Trash2, Edit2, X, Building2, Landmark, FileText, Layers, Users, RefreshCw } from 'lucide-react';
+import { Save, Plus, Trash2, Edit2, X, Building2, Landmark, FileText, Layers, Users, RefreshCw, UserPlus } from 'lucide-react';
 
 // ============================================================
 // Settings — MAIN COMPONENT
@@ -29,7 +29,7 @@ import { Save, Plus, Trash2, Edit2, X, Building2, Landmark, FileText, Layers, Us
 
 /** Multi-tab settings page for company, bank, invoice, and service configuration */
 export default function Settings() {
-  const { settings, categories, updateSettings, addCategory, updateCategory, deleteCategory, addItemToCat, removeItemFromCat, logout, user, showToast, canEditSettings, isOwner, isSuspended, role } = useApp();
+  const { settings, categories, updateSettings, addCategory, updateCategory, deleteCategory, addItemToCat, removeItemFromCat, logout, user, showToast, canEditSettings, isOwner, isSuspended, role, team, invites, inviteTeammate, cancelInvite, removeTeammate } = useApp();
 
   // ------------------------------------------------------------
   // STATE
@@ -42,6 +42,8 @@ export default function Settings() {
   const [newItemInput, setNewItemInput] = useState('');
   const [newTerm, setNewTerm] = useState('');
   const [saving, setSaving] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviting, setInviting] = useState(false);
 
   // Settings load asynchronously after sign-in; re-sync the form when they
   // arrive (or change) so it never shows — and then saves — stale blanks.
@@ -72,6 +74,36 @@ export default function Settings() {
   // ------------------------------------------------------------
   // EVENT HANDLERS — SAVE / CATEGORIES
   // ------------------------------------------------------------
+
+  /** Invites a teammate by email (owner only) */
+  const handleInvite = async () => {
+    if (inviting || !inviteEmail.trim()) return;
+    setInviting(true);
+    try {
+      const result = await inviteTeammate(inviteEmail);
+      if (result.success) {
+        showToast(`Invite added — ask them to sign in with ${inviteEmail.trim()}`);
+        setInviteEmail('');
+      } else {
+        showToast(result.error, 'error');
+      }
+    } finally {
+      setInviting(false);
+    }
+  };
+
+  /** Cancels a pending invite */
+  const handleCancelInvite = async (email) => {
+    const result = await cancelInvite(email);
+    showToast(result.success ? 'Invite cancelled' : result.error, result.success ? 'success' : 'error');
+  };
+
+  /** Removes a staff member after confirmation */
+  const handleRemove = async (member) => {
+    if (!window.confirm(`Remove ${member.name || member.email} from your company? They will lose access immediately.`)) return;
+    const result = await removeTeammate(member.uid);
+    showToast(result.success ? 'Teammate removed' : result.error, result.success ? 'success' : 'error');
+  };
 
   /** Saves the current form state to global settings. Awaits the write; uses the app's toast, not a blocking alert(). */
   const handleSave = async () => {
@@ -335,10 +367,75 @@ export default function Settings() {
                 </div>
               </div>
             )}
-            <div className="text-center py-4">
-              <Users size={32} className="mx-auto text-bb-muted mb-2" />
-              <p className="text-sm text-bb-muted">Team member management coming soon</p>
-            </div>
+            {/* Team management — owner only */}
+            {isOwner ? (
+              <div className="space-y-4">
+                <div>
+                  <p className="text-sm font-semibold text-bb-text mb-1">Add a teammate</p>
+                  <p className="text-xs text-bb-muted mb-2">
+                    Enter their Gmail address. When they open EventScope and sign in with that Google account, they join your company as staff.
+                  </p>
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <Input
+                        type="email"
+                        placeholder="teammate@gmail.com"
+                        value={inviteEmail}
+                        onChange={e => setInviteEmail(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && handleInvite()}
+                      />
+                    </div>
+                    <Button icon={UserPlus} onClick={handleInvite} disabled={inviting || !canEditSettings}>
+                      {inviting ? 'Adding…' : 'Add'}
+                    </Button>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-sm font-semibold text-bb-text mb-2">Team ({team.length + invites.length})</p>
+                  <div className="divide-y divide-bb-border border border-bb-border rounded-lg">
+                    {[...team].sort((a, b) => (a.role === 'owner' ? -1 : b.role === 'owner' ? 1 : 0)).map(m => (
+                      <div key={m.uid} className="flex items-center gap-3 px-3 py-2.5">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-bb-text truncate">{m.name || m.email}{m.uid === user?.uid ? ' (you)' : ''}</p>
+                          <p className="text-xs text-bb-muted truncate">{m.email}</p>
+                        </div>
+                        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${m.role === 'owner' ? 'bg-violet-100 text-violet-700' : 'bg-gray-100 text-gray-600'}`}>
+                          {m.role === 'owner' ? 'Owner' : 'Staff'}
+                        </span>
+                        {m.role !== 'owner' && (
+                          <button
+                            onClick={() => handleRemove(m)}
+                            disabled={!canEditSettings}
+                            className="text-xs text-red-600 hover:underline cursor-pointer disabled:opacity-40"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    {invites.map(inv => (
+                      <div key={inv.email} className="flex items-center gap-3 px-3 py-2.5 bg-amber-50/50">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-bb-text truncate">{inv.email}</p>
+                          <p className="text-xs text-bb-muted">Waiting for them to sign in</p>
+                        </div>
+                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Invited</span>
+                        <button
+                          onClick={() => handleCancelInvite(inv.email)}
+                          disabled={!canEditSettings}
+                          className="text-xs text-bb-muted hover:text-red-600 hover:underline cursor-pointer disabled:opacity-40"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-bb-muted text-center py-2">Your company’s owner manages the team.</p>
+            )}
             <button
               onClick={logout}
               className="w-full px-4 py-3 bg-red-50 hover:bg-red-100 text-red-600 font-medium rounded-lg text-sm transition-colors cursor-pointer"

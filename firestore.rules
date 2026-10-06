@@ -8,6 +8,7 @@
 //
 //   platformAdmins/{uid}                  EventScope staff (managed in console)
 //   users/{uid}                           { tenantId, role: 'owner'|'staff', name, email }
+//   invites/{email}                       pending teammate invite { tenantId, role: 'staff', ... }
 //   tenants/{tenantId}                    { name, plan, status: 'active'|'suspended', ownerUid, createdAt }
 //   tenants/{tenantId}/config/settings    company profile, bank, invoice settings
 //   tenants/{tenantId}/config/categories  service categories
@@ -49,6 +50,25 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/tenants/$(tenantId)).data.status == 'active';
     }
 
+    function isInvitee(email) {
+      return signedIn()
+        && request.auth.token.email_verified == true
+        && request.auth.token.email.lower() == email;
+    }
+    // Self-join: no existing membership, an invite for my verified email
+    // exists, and the new users/{uid} doc copies exactly its tenant + role.
+    function joiningViaInvite(uid) {
+      let inviteId = request.auth.token.email.lower();
+      let invitePath = /databases/$(database)/documents/invites/$(inviteId);
+      return signedIn()
+        && request.auth.uid == uid
+        && request.auth.token.email_verified == true
+        && exists(invitePath)
+        && request.resource.data.tenantId == get(invitePath).data.tenantId
+        && request.resource.data.role == get(invitePath).data.role
+        && request.resource.data.keys().hasOnly(['tenantId', 'role', 'name', 'email', 'joinedAt']);
+    }
+
     // ---------- platform admins (EventScope staff) ----------
     // Added/removed by hand in the Firebase console, never from the app.
     match /platformAdmins/{uid} {
@@ -58,15 +78,41 @@ service cloud.firestore {
 
     // ---------- user → tenant membership ----------
     // Read: yourself, the owner of your tenant (team list), or a platform admin.
-    // Write: platform admins only for now. Step 4 (add teammates) and step 7
-    // (public sign-up) will add owner-invite and self-signup paths here.
+    // Create: a platform admin, OR the signed-in user joining via an invite
+    //   addressed to their Google-verified email (role/tenant must match it).
+    // Delete: a platform admin, or the tenant owner removing a staff member.
+    // Update: platform admins only (nobody can change their own role/tenant).
     match /users/{uid} {
       allow read: if signedIn() && (
         request.auth.uid == uid
         || isPlatformAdmin()
         || isOwner(resource.data.tenantId)
       );
-      allow write: if isPlatformAdmin();
+      allow create: if isPlatformAdmin() || joiningViaInvite(uid);
+      allow update: if isPlatformAdmin();
+      allow delete: if isPlatformAdmin()
+        || (isOwner(resource.data.tenantId) && resource.data.role == 'staff' && uid != request.auth.uid);
+    }
+
+    // ---------- teammate invites ----------
+    // Keyed by the invitee's email (lower-case). The owner creates/cancels
+    // invites for their own tenant (staff role only). The invitee can read
+    // and consume (delete) the invite addressed to their verified email.
+    match /invites/{email} {
+      allow read: if isPlatformAdmin()
+        || isOwner(resource.data.tenantId)
+        || isInvitee(email);
+      allow create: if isOwner(request.resource.data.tenantId)
+        && tenantActive(request.resource.data.tenantId)
+        && request.resource.data.role == 'staff'
+        && email == email.lower();
+      // Re-inviting overwrites only your own tenant's invite, never another's.
+      allow update: if isOwner(resource.data.tenantId)
+        && request.resource.data.tenantId == resource.data.tenantId
+        && request.resource.data.role == 'staff';
+      allow delete: if isPlatformAdmin()
+        || isOwner(resource.data.tenantId)
+        || isInvitee(email);
     }
 
     // ---------- tenants ----------

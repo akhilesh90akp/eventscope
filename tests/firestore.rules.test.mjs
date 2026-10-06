@@ -47,6 +47,7 @@ beforeEach(async () => {
     await setDoc(doc(db, 'users/sam'), { tenantId: 'acme', role: 'staff' });
     await setDoc(doc(db, 'users/zara'), { tenantId: 'zen', role: 'owner' });
     await setDoc(doc(db, 'users/fred'), { tenantId: 'frozen', role: 'owner' });
+    await setDoc(doc(db, 'invites/newhire@gmail.com'), { tenantId: 'acme', role: 'staff', invitedBy: 'alice' });
     for (const t of ['acme', 'zen', 'frozen']) {
       await setDoc(doc(db, `tenants/${t}/events/e1`), { clientName: `${t} client` });
       await setDoc(doc(db, `tenants/${t}/config/settings`), { companyName: t });
@@ -54,7 +55,8 @@ beforeEach(async () => {
   });
 });
 
-const as = (uid) => env.authenticatedContext(uid).firestore();
+const as = (uid, email) => env.authenticatedContext(uid, email ? { email, email_verified: true } : {}).firestore();
+const asUnverified = (uid, email) => env.authenticatedContext(uid, { email, email_verified: false }).firestore();
 const anon = () => env.unauthenticatedContext().firestore();
 
 // ============================================================
@@ -152,4 +154,62 @@ test('platform admin can see and manage every tenant', async () => {
 
 test('non-admins CANNOT list all tenants', async () => {
   await assertFails(getDocs(collection(as('alice'), 'tenants')));
+});
+
+// ============================================================
+// TEAM INVITES
+// ============================================================
+test('owner can invite staff to own tenant, and cancel', async () => {
+  const db = as('alice');
+  await assertSucceeds(setDoc(doc(db, 'invites/friend@gmail.com'), { tenantId: 'acme', role: 'staff' }));
+  await assertSucceeds(deleteDoc(doc(db, 'invites/friend@gmail.com')));
+});
+
+test('owner CANNOT invite into another tenant, or as owner', async () => {
+  await assertFails(setDoc(doc(as('alice'), 'invites/x@gmail.com'), { tenantId: 'zen', role: 'staff' }));
+  await assertFails(setDoc(doc(as('alice'), 'invites/x@gmail.com'), { tenantId: 'acme', role: 'owner' }));
+});
+
+test('owner CANNOT hijack another tenant\u2019s pending invite', async () => {
+  await assertFails(setDoc(doc(as('zara'), 'invites/newhire@gmail.com'), { tenantId: 'zen', role: 'staff' }));
+  await assertFails(deleteDoc(doc(as('zara'), 'invites/newhire@gmail.com')));
+});
+
+test('staff and suspended owners CANNOT invite', async () => {
+  await assertFails(setDoc(doc(as('sam'), 'invites/y@gmail.com'), { tenantId: 'acme', role: 'staff' }));
+  await assertFails(setDoc(doc(as('fred'), 'invites/y@gmail.com'), { tenantId: 'frozen', role: 'staff' }));
+});
+
+test('invitee with verified email can join via invite', async () => {
+  const db = as('newbie', 'NewHire@gmail.com');
+  await assertSucceeds(getDoc(doc(db, 'invites/newhire@gmail.com')));
+  await assertSucceeds(setDoc(doc(db, 'users/newbie'), { tenantId: 'acme', role: 'staff', name: 'N', email: 'newhire@gmail.com', joinedAt: 'x' }));
+  await assertSucceeds(deleteDoc(doc(db, 'invites/newhire@gmail.com')));
+});
+
+test('invitee CANNOT upgrade role or switch tenant while joining', async () => {
+  const db = as('newbie', 'newhire@gmail.com');
+  await assertFails(setDoc(doc(db, 'users/newbie'), { tenantId: 'acme', role: 'owner' }));
+  await assertFails(setDoc(doc(db, 'users/newbie'), { tenantId: 'zen', role: 'staff' }));
+});
+
+test('someone else CANNOT use an invite that isn\u2019t theirs', async () => {
+  await assertFails(getDoc(doc(as('stranger', 'stranger@gmail.com'), 'invites/newhire@gmail.com')));
+  await assertFails(setDoc(doc(as('stranger', 'stranger@gmail.com'), 'users/stranger'), { tenantId: 'acme', role: 'staff' }));
+  // unverified email claiming the invited address
+  await assertFails(setDoc(doc(asUnverified('faker', 'newhire@gmail.com'), 'users/faker'), { tenantId: 'acme', role: 'staff' }));
+});
+
+test('owner can remove staff, but not self or other tenants\u2019 members', async () => {
+  await assertFails(deleteDoc(doc(as('alice'), 'users/alice')));
+  await assertFails(deleteDoc(doc(as('alice'), 'users/zara')));
+  await assertFails(deleteDoc(doc(as('sam'), 'users/alice')));
+  await assertSucceeds(deleteDoc(doc(as('alice'), 'users/sam')));
+});
+
+test('owner can list own team and invites', async () => {
+  const { query, where } = await import('firebase/firestore');
+  await assertSucceeds(getDocs(query(collection(as('alice'), 'users'), where('tenantId', '==', 'acme'))));
+  await assertSucceeds(getDocs(query(collection(as('alice'), 'invites'), where('tenantId', '==', 'acme'))));
+  await assertFails(getDocs(query(collection(as('alice'), 'users'), where('tenantId', '==', 'zen'))));
 });
