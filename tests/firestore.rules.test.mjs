@@ -165,9 +165,9 @@ test('owner can invite staff to own tenant, and cancel', async () => {
   await assertSucceeds(deleteDoc(doc(db, 'invites/friend@gmail.com')));
 });
 
-test('owner CANNOT invite into another tenant, or as owner', async () => {
+test('owner CANNOT invite into another tenant, or with a made-up role', async () => {
   await assertFails(setDoc(doc(as('alice'), 'invites/x@gmail.com'), { tenantId: 'zen', role: 'staff' }));
-  await assertFails(setDoc(doc(as('alice'), 'invites/x@gmail.com'), { tenantId: 'acme', role: 'owner' }));
+  await assertFails(setDoc(doc(as('alice'), 'invites/x@gmail.com'), { tenantId: 'acme', role: 'admin' }));
 });
 
 test('owner CANNOT hijack another tenant\u2019s pending invite', async () => {
@@ -195,9 +195,38 @@ test('an owner invited by the admin joins as owner — and only as owner', async
   await assertSucceeds(setDoc(doc(db, 'users/boss'), { tenantId: 'zen', role: 'owner', name: 'B', email: 'boss@gmail.com', joinedAt: 'x' }));
 });
 
-test('owners still CANNOT invite other owners', async () => {
-  await assertFails(setDoc(doc(as('zara'), 'invites/co@gmail.com'), { tenantId: 'zen', role: 'owner' }));
-  await assertFails(updateDoc(doc(as('alice'), 'invites/newhire@gmail.com'), { role: 'owner' }));
+test('owner can invite a co-owner to own active tenant only', async () => {
+  await assertSucceeds(setDoc(doc(as('zara'), 'invites/co@gmail.com'), { tenantId: 'zen', role: 'owner' }));
+  await assertSucceeds(updateDoc(doc(as('alice'), 'invites/newhire@gmail.com'), { role: 'owner' }));
+  await assertFails(setDoc(doc(as('sam'), 'invites/co2@gmail.com'), { tenantId: 'acme', role: 'owner' }));
+  await assertFails(setDoc(doc(as('fred'), 'invites/co3@gmail.com'), { tenantId: 'frozen', role: 'owner' }));
+});
+
+// ============================================================
+// ROLES — promote staff, protect owners
+// ============================================================
+test('owner can promote own staff to owner (role only)', async () => {
+  await assertFails(updateDoc(doc(as('alice'), 'users/sam'), { role: 'owner', tenantId: 'zen' }));
+  await assertSucceeds(updateDoc(doc(as('alice'), 'users/sam'), { role: 'owner' }));
+});
+
+test('nobody else can change roles: staff, other tenants, self, or downgrading owners', async () => {
+  await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'users/olga'), { tenantId: 'acme', role: 'owner' }));
+  await assertFails(updateDoc(doc(as('sam'), 'users/sam'), { role: 'owner' }));      // staff promoting self
+  await assertFails(updateDoc(doc(as('zara'), 'users/sam'), { role: 'owner' }));     // other tenant's owner
+  await assertFails(updateDoc(doc(as('alice'), 'users/olga'), { role: 'staff' }));   // owner downgrading owner
+  await assertFails(updateDoc(doc(as('alice'), 'users/alice'), { role: 'staff' }));  // own role
+  await assertFails(deleteDoc(doc(as('alice'), 'users/olga')));                       // owner removing owner
+});
+
+test('suspended owners CANNOT promote', async () => {
+  await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'users/fstaff'), { tenantId: 'frozen', role: 'staff' }));
+  await assertFails(updateDoc(doc(as('fred'), 'users/fstaff'), { role: 'owner' }));
+});
+
+test('platform admin can change any role or remove anyone', async () => {
+  await assertSucceeds(updateDoc(doc(as('admin'), 'users/alice'), { role: 'staff' }));
+  await assertSucceeds(deleteDoc(doc(as('admin'), 'users/zara')));
 });
 
 test('invitee with verified email can join via invite', async () => {

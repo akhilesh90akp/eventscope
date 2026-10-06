@@ -7,7 +7,7 @@
  *
  *   platformAdmins/{uid}                      EventScope staff (added by hand in the console)
  *   users/{uid}                               { tenantId, role: 'owner'|'staff', name, email, joinedAt }
- *   invites/{email}                           pending invite { tenantId, role, ... } (owners invite staff; admins may invite owners)
+ *   invites/{email}                           pending invite { tenantId, role: 'owner'|'staff', ... }
  *   tenants/{tenantId}                        { name, plan, status, ownerUid, ownerEmail, createdAt } — platform-controlled
  *   tenants/{tenantId}/private/contact        owner's backup email + phone (owner + admins only)
  *   tenants/{tenantId}/config/settings        company profile + invoice settings (owner-editable)
@@ -29,7 +29,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import {
-  collection, doc, setDoc, deleteDoc, onSnapshot, getDoc, getDocs, query, where,
+  collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, getDoc, getDocs, query, where,
   writeBatch, getCountFromServer, terminate, clearIndexedDbPersistence,
 } from 'firebase/firestore';
 import { auth, db } from '../firebase';
@@ -463,10 +463,11 @@ export function AppProvider({ children }) {
     return () => { unsubTeam(); unsubInvites(); };
   }, [tenantId, isOwner]);
 
-  /** Invites a teammate by Google email. Returns { success } or { success: false, error }. */
-  const inviteTeammate = async (rawEmail) => {
+  /** Invites a teammate by Google email, as 'staff' (default) or 'owner'. Returns { success } or { success: false, error }. */
+  const inviteTeammate = async (rawEmail, inviteRole = 'staff') => {
     const blocked = writeBlockedReason({ ownerOnly: true });
     if (blocked) return { success: false, error: blocked };
+    if (!['staff', 'owner'].includes(inviteRole)) return { success: false, error: 'Unknown role.' };
     const email = inviteKey(rawEmail);
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return { success: false, error: 'Please enter a valid email address.' };
@@ -477,7 +478,7 @@ export function AppProvider({ children }) {
     try {
       await setDoc(doc(db, 'invites', email), {
         tenantId,
-        role: 'staff',
+        role: inviteRole,
         tenantName: settings.companyName || tenant?.name || '',
         invitedBy: user.uid,
         invitedByName: user.displayName || user.email || '',
@@ -505,6 +506,23 @@ export function AppProvider({ children }) {
     } catch (err) {
       console.error('Error cancelling invite:', err.code, err.message);
       return { success: false, error: friendlyError(err, 'cancel the invite') };
+    }
+  };
+
+  /**
+   * Makes a staff member an owner (one way — owners can't downgrade each
+   * other; EventScope admins can). Returns { success } or { success: false, error }.
+   */
+  const promoteToOwner = async (uid) => {
+    const blocked = writeBlockedReason({ ownerOnly: true });
+    if (blocked) return { success: false, error: blocked };
+    if (uid === user.uid) return { success: false, error: 'You can’t change your own role.' };
+    try {
+      await updateDoc(doc(db, 'users', uid), { role: 'owner' });
+      return { success: true };
+    } catch (err) {
+      console.error('Error promoting teammate:', err.code, err.message);
+      return { success: false, error: friendlyError(err, 'make them an owner') };
     }
   };
 
@@ -737,6 +755,34 @@ export function AppProvider({ children }) {
     }
   };
 
+  /** Live members + pending invites of one company (Admin → Team). Returns an unsubscribe function. */
+  const subscribeTenantTeam = (id, onChange) => {
+    let members = null;
+    let pending = null;
+    const emit = () => { if (members && pending) onChange({ members, invites: pending }); };
+    const logErr = (what) => (err) => console.error(`Admin ${what} listener error:`, err.code, err.message);
+    const unsubM = onSnapshot(query(collection(db, 'users'), where('tenantId', '==', id)),
+      (snap) => { members = snap.docs.map(d => ({ uid: d.id, ...d.data() })); emit(); }, logErr('team'));
+    const unsubI = onSnapshot(query(collection(db, 'invites'), where('tenantId', '==', id)),
+      (snap) => { pending = snap.docs.map(d => ({ email: d.id, ...d.data() })); emit(); }, logErr('invites'));
+    return () => { unsubM(); unsubI(); };
+  };
+
+  /** Admin: change anyone's role, remove anyone, or cancel any invite (support cases). Returns { success, error? }. */
+  const adminTeamAction = async (action, target) => {
+    if (!isPlatformAdmin) return { success: false, error: 'Admins only.' };
+    try {
+      if (action === 'setRole') await updateDoc(doc(db, 'users', target.uid), { role: target.role });
+      else if (action === 'remove') await deleteDoc(doc(db, 'users', target.uid));
+      else if (action === 'cancelInvite') await deleteDoc(doc(db, 'invites', target.email));
+      else return { success: false, error: 'Unknown action.' };
+      return { success: true };
+    } catch (err) {
+      console.error('Admin team action failed:', action, err.code, err.message);
+      return { success: false, error: friendlyError(err, 'update the team') };
+    }
+  };
+
   /**
    * IMPORT COMPANY — creates a brand-new company from a backup of an older
    * app (see utils/tenantImport.js), and invites its owners + staff by email.
@@ -820,12 +866,13 @@ export function AppProvider({ children }) {
       updateSettings,
       addCategory, updateCategory, deleteCategory, addItemToCat, removeItemFromCat,
       // Team
-      team, invites, inviteTeammate, cancelInvite, removeTeammate,
+      team, invites, inviteTeammate, cancelInvite, removeTeammate, promoteToOwner,
       // Job Log
       jobLogColumns: activeJobLogColumns, allJobLogColumns: jobLogColumns,
       financials, financialsLoaded, saveFinancials, saveJobLogColumns,
       // Platform admin
       subscribeAllTenants, getTenantCounts, adminUpdateTenant, adminImportCompany,
+      subscribeTenantTeam, adminTeamAction,
       // UI
       toast, showToast,
     }}>

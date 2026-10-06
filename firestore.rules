@@ -21,6 +21,8 @@
 //   - Plan/status are platform-controlled: a company can't upgrade or
 //     un-suspend itself. Suspended companies are read-only.
 //   - Staff can't change settings/categories/columns or manage the team.
+//   - Owners can add owners (invite or promote staff) but can't downgrade
+//     or remove another owner — only EventScope admins can.
 //   - Nobody can change their own role or company, or make themselves admin.
 //   - Joining a company needs an invite addressed to your verified Google email;
 //     creating one needs a verified email and no existing company.
@@ -125,6 +127,17 @@ service cloud.firestore {
         && request.resource.data.role in ['owner', 'staff'];
     }
 
+    // Owner makes one of their own staff an owner: role field only,
+    // staff → owner only, never themselves, company must be active.
+    function promotingMyStaff(uid) {
+      return isOwner(resource.data.tenantId)
+        && tenantActive(resource.data.tenantId)
+        && uid != request.auth.uid
+        && resource.data.role == 'staff'
+        && request.resource.data.role == 'owner'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role']);
+    }
+
     // ============================================================
     // PLATFORM ADMINS (EventScope staff)
     // Added/removed by hand in the Firebase console, never from the app.
@@ -138,8 +151,10 @@ service cloud.firestore {
     // USERS — login → tenant + role
     // Read: yourself, your tenant's owner (team list), or a platform admin.
     // Create: admin, invite self-join, or the owner link at sign-up.
-    // Update: admins only — nobody changes their own role or company.
-    // Delete: admin, or the owner removing one of their staff (not themselves).
+    // Update: admin, or an owner promoting one of their staff to owner (role
+    //         only, one way) — nobody changes their own role or company, and
+    //         owners can't downgrade or remove each other (EventScope support can).
+    // Delete: admin, or an owner removing one of their staff (not themselves).
     // ============================================================
     match /users/{uid} {
       allow read: if signedIn() && (
@@ -148,15 +163,15 @@ service cloud.firestore {
         || isOwner(resource.data.tenantId)
       );
       allow create: if isPlatformAdmin() || joiningViaInvite(uid) || joiningAsNewOwner(uid);
-      allow update: if isPlatformAdmin();
+      allow update: if isPlatformAdmin() || promotingMyStaff(uid);
       allow delete: if isPlatformAdmin()
         || (isOwner(resource.data.tenantId) && resource.data.role == 'staff' && uid != request.auth.uid);
     }
 
     // ============================================================
     // INVITES — keyed by the invitee's lower-case email
-    // The owner creates/cancels invites for their own active tenant (staff
-    // role only); re-inviting can only overwrite their own tenant's invite.
+    // An owner creates/cancels invites for their own active tenant (as staff
+    // or owner); re-inviting can only overwrite their own tenant's invite.
     // A platform admin may also invite (owner or staff), e.g. when importing.
     // The invitee can read and consume the invite for their verified email.
     // ============================================================
@@ -166,14 +181,14 @@ service cloud.firestore {
         || isInvitee(email);
       allow create: if (isOwner(request.resource.data.tenantId)
           && tenantActive(request.resource.data.tenantId)
-          && request.resource.data.role == 'staff'
+          && request.resource.data.role in ['staff', 'owner']
           && email == email.lower())
         || adminInvite(email);
       allow update: if adminInvite(email)
         || (isOwner(resource.data.tenantId)
           && tenantActive(resource.data.tenantId)
           && request.resource.data.tenantId == resource.data.tenantId
-          && request.resource.data.role == 'staff');
+          && request.resource.data.role in ['staff', 'owner']);
       allow delete: if isPlatformAdmin()
         || isOwner(resource.data.tenantId)
         || isInvitee(email);

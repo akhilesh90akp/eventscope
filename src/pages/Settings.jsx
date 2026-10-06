@@ -1,7 +1,7 @@
 /**
  * Settings — Application configuration page
  *
- * Tabs: Company, Bank, Invoice, Services, Team (invite/remove staff) and
+ * Tabs: Company, Bank, Invoice, Services, Team (invite staff/owners, promote, remove staff) and
  * Job Log columns.
  * Settings belong to the tenant (company). Only the owner can change them;
  * staff see them read-only (firestore.rules enforces the same).
@@ -30,7 +30,7 @@ import { Save, Plus, Trash2, Edit2, X, Building2, Landmark, FileText, Layers, Us
 
 /** Multi-tab settings page for company, bank, invoice, and service configuration */
 export default function Settings() {
-  const { settings, categories, updateSettings, addCategory, deleteCategory, addItemToCat, removeItemFromCat, logout, user, showToast, canEditSettings, isOwner, isSuspended, team, invites, inviteTeammate, cancelInvite, removeTeammate } = useApp();
+  const { settings, categories, updateSettings, addCategory, deleteCategory, addItemToCat, removeItemFromCat, logout, user, showToast, canEditSettings, isOwner, isSuspended, team, invites, inviteTeammate, cancelInvite, removeTeammate, promoteToOwner } = useApp();
 
   // ------------------------------------------------------------
   // STATE
@@ -44,6 +44,7 @@ export default function Settings() {
   const [newTerm, setNewTerm] = useState('');
   const [saving, setSaving] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState('staff');   // 'staff' | 'owner'
   const [inviting, setInviting] = useState(false);
 
   // ------------------------------------------------------------
@@ -134,10 +135,12 @@ export default function Settings() {
     if (inviting || !inviteEmail.trim()) return;
     setInviting(true);
     try {
-      const result = await inviteTeammate(inviteEmail);
+      if (inviteRole === 'owner' && !window.confirm(`Add ${inviteEmail.trim()} as an OWNER? Owners have full access — settings, team, reports and profit — and can't be removed by other owners.`)) return;
+      const result = await inviteTeammate(inviteEmail, inviteRole);
       if (result.success) {
         showToast(`Invite added — ask them to sign in with ${inviteEmail.trim()}`);
         setInviteEmail('');
+        setInviteRole('staff');
       } else {
         showToast(result.error, 'error');
       }
@@ -150,6 +153,13 @@ export default function Settings() {
   const handleCancelInvite = async (email) => {
     const result = await cancelInvite(email);
     showToast(result.success ? 'Invite cancelled' : result.error, result.success ? 'success' : 'error');
+  };
+
+  /** Makes a staff member an owner, after confirmation (one way for owners) */
+  const handlePromote = async (member) => {
+    if (!window.confirm(`Make ${member.name || member.email} an owner? They get full access, including settings, team, reports and profit. Owners can't downgrade or remove each other.`)) return;
+    const result = await promoteToOwner(member.uid);
+    showToast(result.success ? `${member.name || member.email} is now an owner` : result.error, result.success ? 'success' : 'error');
   };
 
   /** Removes a staff member after confirmation */
@@ -382,7 +392,8 @@ export default function Settings() {
                 <div>
                   <p className="text-sm font-semibold text-bb-text mb-1">Add a teammate</p>
                   <p className="text-xs text-bb-muted mb-2">
-                    Enter their Gmail address. When they open EventScope and sign in with that Google account, they join your company as staff.
+                    Enter their Gmail address. When they open EventScope and sign in with that Google account, they can join your company.
+                    Staff work on events, quotes and bills; owners also get settings, team, reports and profit.
                   </p>
                   <div className="flex gap-2">
                     <div className="flex-1">
@@ -394,6 +405,15 @@ export default function Settings() {
                         onKeyDown={e => e.key === 'Enter' && handleInvite()}
                       />
                     </div>
+                    <select
+                      value={inviteRole}
+                      onChange={e => setInviteRole(e.target.value)}
+                      aria-label="Role"
+                      className="bg-bb-input border border-bb-border rounded-lg pl-3 py-2.5 text-sm text-bb-text"
+                    >
+                      <option value="staff">Staff</option>
+                      <option value="owner">Owner</option>
+                    </select>
                     <Button icon={UserPlus} onClick={handleInvite} disabled={inviting || !canEditSettings}>
                       {inviting ? 'Adding…' : 'Add'}
                     </Button>
@@ -413,13 +433,22 @@ export default function Settings() {
                           {m.role === 'owner' ? 'Owner' : 'Staff'}
                         </span>
                         {m.role !== 'owner' && (
-                          <button
-                            onClick={() => handleRemove(m)}
-                            disabled={!canEditSettings}
-                            className="text-xs text-red-600 hover:underline cursor-pointer disabled:opacity-40"
-                          >
-                            Remove
-                          </button>
+                          <>
+                            <button
+                              onClick={() => handlePromote(m)}
+                              disabled={!canEditSettings}
+                              className="text-xs text-bb-accent hover:underline cursor-pointer disabled:opacity-40 whitespace-nowrap"
+                            >
+                              Make owner
+                            </button>
+                            <button
+                              onClick={() => handleRemove(m)}
+                              disabled={!canEditSettings}
+                              className="text-xs text-red-600 hover:underline cursor-pointer disabled:opacity-40"
+                            >
+                              Remove
+                            </button>
+                          </>
                         )}
                       </div>
                     ))}
@@ -429,7 +458,7 @@ export default function Settings() {
                           <p className="text-sm font-medium text-bb-text truncate">{inv.email}</p>
                           <p className="text-xs text-bb-muted">Waiting for them to sign in</p>
                         </div>
-                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Invited</span>
+                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 whitespace-nowrap">Invited · {inv.role === 'owner' ? 'Owner' : 'Staff'}</span>
                         <button
                           onClick={() => handleCancelInvite(inv.email)}
                           disabled={!canEditSettings}

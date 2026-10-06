@@ -24,7 +24,8 @@ src/
     Layout (sidebar + mobile nav), Button, Card, Input, Select, Modal, Toast,
     Badge, Toggle, LocationInput, ErrorBoundary,
     CostsPanel (costs on one event), JobLogColumnsEditor (Settings tab),
-    ImportCompanyDialog (Admin: create a company from an old app's backup)
+    ImportCompanyDialog (Admin: create a company from an old app's backup),
+    AdminTeamDialog (Admin: a company's members/invites — change role, remove)
   constants/
     data.js                 Defaults: event types, service categories, new-company
                             settings, Job Log columns, plans
