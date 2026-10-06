@@ -4,7 +4,7 @@
  * Visible only to logins listed in platformAdmins/{uid} (added by hand in the
  * Firebase console). Lists every company (tenant) with plan, status, team
  * size and event count, and lets the admin change plan or suspend /
- * reactivate. firestore.rules enforce all of this server-side; hiding the
+ * reactivate, or import a company from an old app's backup. firestore.rules enforce all of this server-side; hiding the
  * menu item is just for a clean UI.
  */
 
@@ -14,9 +14,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import Card from '../components/Card';
+import ImportCompanyDialog from '../components/ImportCompanyDialog';
 import { PLANS } from '../constants/data';
 import { formatDateReadable } from '../utils/helpers';
-import { Shield, Search, Lock } from 'lucide-react';
+import { Shield, Search, Lock, Upload } from 'lucide-react';
 
 // ============================================================
 // HELPERS
@@ -39,6 +40,7 @@ export default function Admin() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [busyId, setBusyId] = useState(null);
+  const [importOpen, setImportOpen] = useState(false);
 
   // ------------------------------------------------------------
   // DATA LOADING / EFFECTS
@@ -112,7 +114,12 @@ export default function Admin() {
         <Shield size={20} className="text-bb-accent" />
         <h1 className="text-xl font-bold text-bb-text">EventScope Admin</h1>
         <span className="text-[10px] font-bold uppercase tracking-wide bg-violet-100 text-violet-700 rounded-full px-2 py-0.5">Only you see this</span>
+        <button onClick={() => setImportOpen(true)}
+          className="ml-auto flex items-center gap-2 px-3 py-2 bg-white border border-bb-border rounded-lg text-sm font-semibold text-bb-text hover:border-bb-accent cursor-pointer">
+          <Upload size={16} className="text-bb-accent" /> Import company
+        </button>
       </div>
+      <ImportCompanyDialog isOpen={importOpen} onClose={() => setImportOpen(false)} />
 
       {/* Summary */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

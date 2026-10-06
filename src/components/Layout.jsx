@@ -47,13 +47,18 @@ const mobileNav = [
 /** Main layout wrapper with sidebar, content area, and mobile nav */
 export default function Layout() {
   const navigate = useNavigate();
-  const { logout, tenant, settings, role, isSuspended, isOwner, isPlatformAdmin } = useApp();
+  const { logout, user, tenant, tenantStatus, settings, role, isSuspended, isOwner, isPlatformAdmin } = useApp();
 
   // ------------------------------------------------------------
   // DERIVED DATA
   // ------------------------------------------------------------
-  const companyName = settings.companyName || tenant?.name || '';
-  const visibleNav = sidebarNav.filter(item => (!item.ownerOnly || isOwner) && (!item.adminOnly || isPlatformAdmin));
+  // A platform admin who isn't in any company yet sees only the Admin page
+  const adminOnly = isPlatformAdmin && tenantStatus !== 'ready';
+  const companyName = adminOnly ? 'EventScope Admin' : (settings.companyName || tenant?.name || '');
+  const roleLabel = adminOnly ? (user?.email || '') : role === 'owner' ? 'Owner' : role === 'staff' ? 'Staff' : '';
+  const visibleNav = sidebarNav.filter(item => (adminOnly
+    ? item.adminOnly
+    : (!item.ownerOnly || isOwner) && (!item.adminOnly || isPlatformAdmin)));
 
   // ------------------------------------------------------------
   // RENDER
@@ -100,7 +105,7 @@ export default function Layout() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-white truncate" title={companyName}>{companyName || 'Your company'}</p>
-              <p className="text-[11px] text-bb-sidebar-muted">{role === 'owner' ? 'Owner' : role === 'staff' ? 'Staff' : ''}</p>
+              <p className="text-[11px] text-bb-sidebar-muted truncate" title={roleLabel}>{roleLabel}</p>
             </div>
             <button
               onClick={logout}
@@ -128,8 +133,8 @@ export default function Layout() {
         </div>
       </main>
 
-      {/* === MOBILE BOTTOM NAV (below 1024px) === */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-bb-sidebar/95 backdrop-blur-md border-t border-bb-sidebar-border z-50">
+      {/* === MOBILE BOTTOM NAV (below 1024px) — not shown in admin-only mode === */}
+      <nav className={`${adminOnly ? 'hidden' : 'lg:hidden'} fixed bottom-0 left-0 right-0 h-16 bg-bb-sidebar/95 backdrop-blur-md border-t border-bb-sidebar-border z-50`}>
         <div className="grid grid-cols-5 items-center h-full w-full">
           {/* Left 2 items */}
           {mobileNav.slice(0, 2).map((item) => {

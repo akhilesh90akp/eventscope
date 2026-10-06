@@ -9,7 +9,7 @@
 // Keep in sync with the paths in src/context/AppContext.jsx:
 //   platformAdmins/{uid}                     EventScope staff (managed in the console)
 //   users/{uid}                              { tenantId, role: 'owner'|'staff', name, email, joinedAt }
-//   invites/{email}                          pending teammate invite { tenantId, role: 'staff', ... }
+//   invites/{email}                          pending invite { tenantId, role, ... } — owners invite staff; admins may invite owners
 //   tenants/{tenantId}                       { name, plan, status: 'active'|'suspended', ownerUid, ownerEmail, ... }
 //   tenants/{tenantId}/private/contact       owner's backup email + phone (owner + admins only)
 //   tenants/{tenantId}/config/{doc}          settings | categories | jobLog (owner-editable)
@@ -117,6 +117,14 @@ service cloud.firestore {
         && getAfter(tenant).data.ownerUid == request.auth.uid;
     }
 
+    // Platform admin adding people to a company (e.g. "Import company"):
+    // may invite as owner or staff, still keyed by lower-case email.
+    function adminInvite(email) {
+      return isPlatformAdmin()
+        && email == email.lower()
+        && request.resource.data.role in ['owner', 'staff'];
+    }
+
     // ============================================================
     // PLATFORM ADMINS (EventScope staff)
     // Added/removed by hand in the Firebase console, never from the app.
@@ -149,20 +157,23 @@ service cloud.firestore {
     // INVITES — keyed by the invitee's lower-case email
     // The owner creates/cancels invites for their own active tenant (staff
     // role only); re-inviting can only overwrite their own tenant's invite.
+    // A platform admin may also invite (owner or staff), e.g. when importing.
     // The invitee can read and consume the invite for their verified email.
     // ============================================================
     match /invites/{email} {
       allow read: if isPlatformAdmin()
         || isOwner(resource.data.tenantId)
         || isInvitee(email);
-      allow create: if isOwner(request.resource.data.tenantId)
-        && tenantActive(request.resource.data.tenantId)
-        && request.resource.data.role == 'staff'
-        && email == email.lower();
-      allow update: if isOwner(resource.data.tenantId)
-        && tenantActive(resource.data.tenantId)
-        && request.resource.data.tenantId == resource.data.tenantId
-        && request.resource.data.role == 'staff';
+      allow create: if (isOwner(request.resource.data.tenantId)
+          && tenantActive(request.resource.data.tenantId)
+          && request.resource.data.role == 'staff'
+          && email == email.lower())
+        || adminInvite(email);
+      allow update: if adminInvite(email)
+        || (isOwner(resource.data.tenantId)
+          && tenantActive(resource.data.tenantId)
+          && request.resource.data.tenantId == resource.data.tenantId
+          && request.resource.data.role == 'staff');
       allow delete: if isPlatformAdmin()
         || isOwner(resource.data.tenantId)
         || isInvitee(email);

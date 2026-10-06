@@ -180,6 +180,26 @@ test('staff and suspended owners CANNOT invite', async () => {
   await assertFails(setDoc(doc(as('fred'), 'invites/y@gmail.com'), { tenantId: 'frozen', role: 'staff' }));
 });
 
+test('platform admin can invite owners and staff (e.g. Import company)', async () => {
+  const db = as('admin');
+  await assertSucceeds(setDoc(doc(db, 'invites/boss@gmail.com'), { tenantId: 'zen', role: 'owner' }));
+  await assertSucceeds(setDoc(doc(db, 'invites/helper@gmail.com'), { tenantId: 'zen', role: 'staff' }));
+  await assertFails(setDoc(doc(db, 'invites/Mixed@gmail.com'), { tenantId: 'zen', role: 'owner' }));
+  await assertFails(setDoc(doc(db, 'invites/god@gmail.com'), { tenantId: 'zen', role: 'admin' }));
+});
+
+test('an owner invited by the admin joins as owner — and only as owner', async () => {
+  await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'invites/boss@gmail.com'), { tenantId: 'zen', role: 'owner' }));
+  const db = as('boss', 'boss@gmail.com');
+  await assertFails(setDoc(doc(db, 'users/boss'), { tenantId: 'acme', role: 'owner' }));
+  await assertSucceeds(setDoc(doc(db, 'users/boss'), { tenantId: 'zen', role: 'owner', name: 'B', email: 'boss@gmail.com', joinedAt: 'x' }));
+});
+
+test('owners still CANNOT invite other owners', async () => {
+  await assertFails(setDoc(doc(as('zara'), 'invites/co@gmail.com'), { tenantId: 'zen', role: 'owner' }));
+  await assertFails(updateDoc(doc(as('alice'), 'invites/newhire@gmail.com'), { role: 'owner' }));
+});
+
 test('invitee with verified email can join via invite', async () => {
   const db = as('newbie', 'NewHire@gmail.com');
   await assertSucceeds(getDoc(doc(db, 'invites/newhire@gmail.com')));

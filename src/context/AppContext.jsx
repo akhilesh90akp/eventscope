@@ -7,7 +7,7 @@
  *
  *   platformAdmins/{uid}                      EventScope staff (added by hand in the console)
  *   users/{uid}                               { tenantId, role: 'owner'|'staff', name, email, joinedAt }
- *   invites/{email}                           pending teammate invite { tenantId, role: 'staff', ... }
+ *   invites/{email}                           pending invite { tenantId, role, ... } (owners invite staff; admins may invite owners)
  *   tenants/{tenantId}                        { name, plan, status, ownerUid, ownerEmail, createdAt } — platform-controlled
  *   tenants/{tenantId}/private/contact        owner's backup email + phone (owner + admins only)
  *   tenants/{tenantId}/config/settings        company profile + invoice settings (owner-editable)
@@ -29,7 +29,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import {
-  collection, doc, setDoc, deleteDoc, onSnapshot, getDoc, query, where,
+  collection, doc, setDoc, deleteDoc, onSnapshot, getDoc, getDocs, query, where,
   writeBatch, getCountFromServer, terminate, clearIndexedDbPersistence,
 } from 'firebase/firestore';
 import { auth, db } from '../firebase';
@@ -399,6 +399,13 @@ export function AppProvider({ children }) {
     }
   };
 
+  /** Shows the Join screen for an invite that was just created for this login (Admin import) */
+  const showPendingInvite = (invite) => {
+    if (!invite || membership) return;
+    setPendingInvite(invite);
+    setTenantStatus('invited');
+  };
+
   /** Declines (deletes) the pending invite, then offers sign-up. Returns { success } or { success: false, error }. */
   const declinePendingInvite = async () => {
     if (!user || !pendingInvite) return { success: false, error: 'No invite to decline.' };
@@ -710,6 +717,72 @@ export function AppProvider({ children }) {
     }
   };
 
+  /**
+   * IMPORT COMPANY — creates a brand-new company from a backup of an older
+   * app (see utils/tenantImport.js), and invites its owners + staff by email.
+   * They join with the normal Join screen on their next sign-in.
+   *
+   * Order matters: events first, then the company record last — so if the
+   * connection drops halfway, no half-made company shows up, and running it
+   * again simply overwrites the same events.
+   * Returns { success, error? }.
+   */
+  const adminImportCompany = async ({ tenantId: newId, name, plan, backup, owners, staff }) => {
+    if (!isPlatformAdmin) return { success: false, error: 'Admins only.' };
+    if (!newId || !name || !backup?.ok) return { success: false, error: 'Missing company name or backup.' };
+    if (!owners?.length) return { success: false, error: 'Add at least one owner email.' };
+    try {
+      // 1. Refuse to touch an existing company
+      if ((await getDoc(doc(db, 'tenants', newId))).exists()) {
+        return { success: false, error: `A company with the id “${newId}” already exists. Pick another id.` };
+      }
+
+      // 2. Everyone must be free to join: not in a company, no invite elsewhere
+      const people = [...owners.map(e => [e, 'owner']), ...staff.filter(e => !owners.includes(e)).map(e => [e, 'staff'])];
+      const busy = [];
+      for (const [email] of people) {
+        const inCompany = await getDocs(query(collection(db, 'users'), where('email', '==', email)));
+        const invite = await getDoc(doc(db, 'invites', email));
+        if (!inCompany.empty) busy.push(`${email} (already in a company)`);
+        else if (invite.exists() && invite.data().tenantId !== newId) busy.push(`${email} (has an invite to another company)`);
+      }
+      if (busy.length) return { success: false, error: `Can’t add: ${busy.join(', ')}.` };
+
+      // 3. Events, in batches
+      for (let i = 0; i < backup.events.length; i += BATCH_LIMIT) {
+        const batch = writeBatch(db);
+        backup.events.slice(i, i + BATCH_LIMIT).forEach(e => batch.set(doc(db, 'tenants', newId, 'events', e.id), e.data));
+        await batch.commit();
+      }
+
+      // 4. Company record + settings + categories + invites, together
+      const now = new Date().toISOString();
+      const batch = writeBatch(db);
+      batch.set(doc(db, 'tenants', newId), {
+        name, plan, status: 'active', ownerUid: null, ownerEmail: owners[0],
+        createdAt: now, importedAt: now, importedFrom: backup.sourceProject || 'backup',
+      });
+      batch.set(doc(db, 'tenants', newId, 'config', 'settings'), { ...DEFAULT_SETTINGS, ...backup.settings, companyName: backup.settings.companyName || name });
+      batch.set(doc(db, 'tenants', newId, 'config', 'categories'), { list: backup.categories || DEFAULT_CATEGORIES });
+      people.forEach(([email, role]) => batch.set(doc(db, 'invites', email), {
+        tenantId: newId, role, tenantName: name,
+        invitedBy: user.uid, invitedByName: 'EventScope', createdAt: now,
+      }));
+      await batch.commit();
+
+      // 5. If the admin invited themselves, hand back their invite so the
+      //    dialog can open the Join screen once they click Done
+      const mine = people.find(([email]) => email === inviteKey(user.email));
+      const selfInvite = mine && !membership
+        ? { tenantId: newId, role: mine[1], tenantName: name, invitedByName: 'EventScope' }
+        : null;
+      return { success: true, invited: people.length, selfInvite };
+    } catch (err) {
+      console.error('Import failed:', err.code, err.message);
+      return { success: false, error: friendlyError(err, 'import the company') };
+    }
+  };
+
   // ------------------------------------------------------------
   // CONTEXT VALUE
   // ------------------------------------------------------------
@@ -720,7 +793,7 @@ export function AppProvider({ children }) {
       user, authLoading, logout,
       tenant, tenantId, tenantStatus, role, isOwner, isPlatformAdmin,
       isSuspended, canEditEvents, canEditSettings,
-      createCompany, pendingInvite, acceptPendingInvite, declinePendingInvite,
+      createCompany, pendingInvite, acceptPendingInvite, declinePendingInvite, showPendingInvite,
       // Company data
       events, settings, categories, loaded,
       addEvent, updateEvent, deleteEvent,
@@ -732,7 +805,7 @@ export function AppProvider({ children }) {
       jobLogColumns: activeJobLogColumns, allJobLogColumns: jobLogColumns,
       financials, financialsLoaded, saveFinancials, saveJobLogColumns,
       // Platform admin
-      subscribeAllTenants, getTenantCounts, adminUpdateTenant,
+      subscribeAllTenants, getTenantCounts, adminUpdateTenant, adminImportCompany,
       // UI
       toast, showToast,
     }}>

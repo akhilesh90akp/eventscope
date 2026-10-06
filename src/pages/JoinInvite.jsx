@@ -2,7 +2,8 @@
  * JoinInvite — "You've been invited" screen
  *
  * Shown when someone signs in, has no company yet, and an invite exists for
- * their Google email. They choose: Join (become staff of that company) or
+ * their Google email. They choose: Join (become staff — or owner, if an
+ * EventScope admin set the company up for them — of that company) or
  * Decline (the invite is deleted and they can set up their own company).
  * Joining is never automatic, so nobody can be pulled into a company — and
  * end up typing their clients' details into it — without choosing to.
@@ -46,6 +47,7 @@ export default function JoinInvite() {
   // ------------------------------------------------------------
   const company = pendingInvite?.tenantName || 'a company';
   const inviter = pendingInvite?.invitedByName;
+  const isOwnerInvite = pendingInvite?.role === 'owner';
 
   return (
     <div className="min-h-[100dvh] bg-bb-sidebar flex flex-col items-center justify-center p-4">
@@ -55,8 +57,10 @@ export default function JoinInvite() {
         <p className="text-xs font-semibold uppercase tracking-wide text-bb-accent mb-2">You’ve been invited</p>
         <h1 className="text-xl font-bold text-gray-900 mb-2">Join {company}?</h1>
         <p className="text-sm text-gray-500 mb-6">
-          {inviter ? <><b className="text-gray-700">{inviter}</b> added you</> : 'You were added'} as a team member.
-          You’ll be able to work on their events, quotations and bills.
+          {inviter ? <><b className="text-gray-700">{inviter}</b> added you</> : 'You were added'} as {isOwnerInvite ? 'an owner' : 'a team member'}.
+          {isOwnerInvite
+            ? ' You’ll have full access, including settings, team, reports and profit.'
+            : ' You’ll be able to work on their events, quotations and bills.'}
         </p>
 
         {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2 mb-4">{error}</p>}

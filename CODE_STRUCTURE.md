@@ -23,7 +23,8 @@ src/
   components/               Reusable UI pieces
     Layout (sidebar + mobile nav), Button, Card, Input, Select, Modal, Toast,
     Badge, Toggle, LocationInput, ErrorBoundary,
-    CostsPanel (costs on one event), JobLogColumnsEditor (Settings tab)
+    CostsPanel (costs on one event), JobLogColumnsEditor (Settings tab),
+    ImportCompanyDialog (Admin: create a company from an old app's backup)
   constants/
     data.js                 Defaults: event types, service categories, new-company
                             settings, Job Log columns, plans
@@ -32,11 +33,14 @@ src/
     helpers.js              Formatting, GST, IDs/links, dates, pricing, bill &
                             Job Log math, image resizing (no Firestore here)
     jobLogExcel.js          Job Log ⇄ .xlsx (exceljs, loaded on demand)
+    tenantImport.js         Reads/cleans a backup file for "Import company" (no Firestore)
 firestore.rules             Server-side security rules (source of truth for access)
 tests/
   firestore.rules.test.mjs  Rules tests (emulator; also run on GitHub)
   helpers.test.mjs          Unit tests for money/bill math
-public/                     Logos, icons, manifest, service worker
+  tenantImport.test.mjs     Unit tests for reading backup files
+public/                     Logos, icons, manifest, service worker,
+                            export-bluebell.html (one-time old-app export — delete after migration)
 ```
 
 **Where new code goes**
