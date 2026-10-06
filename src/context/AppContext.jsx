@@ -24,14 +24,11 @@ import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { collection, doc, setDoc, deleteDoc, onSnapshot, getDoc, query, where, writeBatch, getCountFromServer } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { DEFAULT_SETTINGS, DEFAULT_CATEGORIES, DEFAULT_JOBLOG_COLUMNS } from '../constants/data';
-import { genId } from '../utils/helpers';
+import { genId, inviteKey } from '../utils/helpers';
 
 // ============================================================
 // HELPERS — INVITES
 // ============================================================
-
-/** Invites are keyed by the invitee's Google email, lower-cased. */
-export const inviteKey = (email) => (email || '').trim().toLowerCase();
 
 /**
  * If an invite exists for this user's Google email, join that tenant:

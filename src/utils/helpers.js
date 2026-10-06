@@ -399,3 +399,6 @@ export const computeEventFinancials = (revenue, values = {}, columns = []) => {
 export const openJobLog = () => {
   window.open(`${import.meta.env.BASE_URL}#/job-log`, '_blank');
 };
+
+/** Invites are keyed by the invitee's Google email, lower-cased. */
+export const inviteKey = (email) => (email || '').trim().toLowerCase();

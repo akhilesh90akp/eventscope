@@ -30,7 +30,7 @@ import { Save, Plus, Trash2, Edit2, X, Building2, Landmark, FileText, Layers, Us
 
 /** Multi-tab settings page for company, bank, invoice, and service configuration */
 export default function Settings() {
-  const { settings, categories, updateSettings, addCategory, updateCategory, deleteCategory, addItemToCat, removeItemFromCat, logout, user, showToast, canEditSettings, isOwner, isSuspended, role, team, invites, inviteTeammate, cancelInvite, removeTeammate } = useApp();
+  const { settings, categories, updateSettings, addCategory, updateCategory, deleteCategory, addItemToCat, removeItemFromCat, logout, user, showToast, canEditSettings, isOwner, isSuspended, team, invites, inviteTeammate, cancelInvite, removeTeammate } = useApp();
 
   // ------------------------------------------------------------
   // STATE
