@@ -432,8 +432,8 @@ export default function JobLog() {
             <thead>
               <tr className="text-[10px] text-white text-center font-bold uppercase tracking-wide">
                 <th className="sticky top-0 left-0 z-20 bg-gray-500 h-6" />
-                <th className="sticky top-0 z-10 bg-gray-500 hidden md:table-cell" colSpan={BILL_INFO.length + 3}>From event &amp; bill</th>
-                <th className="sticky top-0 z-10 bg-gray-500 md:hidden">Bill</th>
+                <th className="sticky top-0 z-10 bg-gray-500 hidden md:table-cell" colSpan={BILL_INFO.length + 4}>From event &amp; bill</th>
+                <th className="sticky top-0 z-10 bg-gray-500 md:hidden" colSpan={1 + BILL_INFO.filter(b => b.mobile).length}>From event &amp; bill</th>
                 {costCols.length > 0 && <th className="sticky top-0 z-10 bg-amber-700" colSpan={costCols.length}>Costs</th>}
                 {incomeCols.length > 0 && <th className="sticky top-0 z-10 bg-emerald-700" colSpan={incomeCols.length}>Income</th>}
                 <th className="sticky top-0 z-10 bg-violet-800" colSpan={3}>Calculated</th>
@@ -441,7 +441,8 @@ export default function JobLog() {
               </tr>
               <tr className="text-[10px] sm:text-[11px] uppercase tracking-wide text-gray-600">
                 {[
-                  ['Event / client', 'sticky left-0 z-20 text-left min-w-[150px] md:min-w-[240px]'],
+                  ['Client / event', 'sticky left-0 z-20 text-left min-w-[150px] md:min-w-[220px]'],
+                  ['Contact', 'text-left'],
                   ['Location', 'text-left hidden md:table-cell'],
                   ['Type', 'text-left hidden md:table-cell'],
                   ['Invoice #', 'text-left hidden md:table-cell'],
@@ -458,13 +459,17 @@ export default function JobLog() {
               {rows.map((row, r) => (
                 <tr key={row.id}>
                   <td className={`sticky left-0 z-[5] ${stickyBg} border-b border-r border-bb-border px-2.5 py-1`}>
-                    <div className="leading-tight min-w-[140px] md:min-w-[220px] whitespace-normal">
+                    <div className="leading-tight min-w-[140px] md:min-w-[200px] whitespace-normal">
                       <b className="text-bb-text">{row.client}</b>
-                      {row.phone && <a href={`tel:${row.phone}`} className="ml-1.5 text-[11px] text-bb-accent hover:underline">{row.phone}</a>}
                       <div className="text-[10px] sm:text-[11px] text-bb-muted">
                         {row.date ? formatDateReadable(row.date) : ''}{row.time ? ` ${row.time}` : ''} · {row.event}{row.subEvents ? ` +${row.subEvents} more` : ''}
                       </div>
                     </div>
+                  </td>
+                  <td className={`${ro} px-2.5 whitespace-nowrap`}>
+                    {row.phone
+                      ? <a href={`tel:${row.phone}`} className="text-bb-accent hover:underline tabular-nums">{row.phone}</a>
+                      : <span className="text-gray-300">—</span>}
                   </td>
                   <td className={`hidden md:table-cell ${ro} px-2.5 whitespace-nowrap`}>{row.location}</td>
                   <td className={`hidden md:table-cell ${ro} px-2.5 whitespace-nowrap`}>{row.type}</td>
@@ -487,6 +492,7 @@ export default function JobLog() {
             <tfoot>
               <tr className="text-white font-bold">
                 <td className={`${foot} left-0 z-20 px-2.5 h-10 whitespace-nowrap`}>Total · {rows.length} event{rows.length === 1 ? '' : 's'}</td>
+                <td className={foot} />
                 <td className={`${foot} hidden md:table-cell`} colSpan={3} />
                 {BILL_INFO.map(b => (
                   <td key={b.key} className={`${foot} ${b.mobile ? '' : 'hidden md:table-cell'} text-right px-2.5 whitespace-nowrap tabular-nums ${b.key === 'balance' ? 'text-amber-300' : ''}`}>{rupees(totals[b.key])}</td>
