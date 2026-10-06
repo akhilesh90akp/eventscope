@@ -1,0 +1,120 @@
+<!doctype html>
+<!--
+  ONE-TIME TOOL — Download Blue Bell data from the OLD app's database
+  (Firebase project "bluebell-event"), as a single JSON backup file.
+
+  Read-only: it never writes or deletes anything. Works only for the person
+  who signs in — the old database rules let each Google account read only
+  its own data (users/{uid}/...).
+
+  Used for Phase 1, step 8 (move Blue Bell into the new project).
+  DELETE THIS FILE once the migration is confirmed.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex" />
+  <title>Download Blue Bell data</title>
+  <link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    body { margin: 0; min-height: 100vh; background: #2e1a47; font-family: Oxanium, system-ui, sans-serif; display: flex; align-items: center; justify-content: center; padding: 16px; box-sizing: border-box; }
+    .card { background: #fff; border-radius: 16px; padding: 28px; max-width: 420px; width: 100%; box-shadow: 0 20px 50px rgba(0,0,0,.35); }
+    h1 { font-size: 20px; margin: 0 0 6px; color: #111; }
+    p { font-size: 14px; color: #555; line-height: 1.5; margin: 0 0 16px; }
+    button { width: 100%; padding: 13px; border: 0; border-radius: 12px; font: 600 15px Oxanium, sans-serif; cursor: pointer; background: #7c3aed; color: #fff; margin-bottom: 8px; }
+    button.secondary { background: #fff; color: #333; border: 1px solid #ccc; }
+    button:disabled { opacity: .5; cursor: default; }
+    #status { font-size: 14px; color: #333; white-space: pre-line; background: #f5f3ff; border-radius: 10px; padding: 12px; margin: 12px 0; display: none; }
+    .err { color: #b91c1c !important; background: #fef2f2 !important; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Download Blue Bell data</h1>
+    <p>Sign in with the <b>Google account the old Blue Bell app uses</b>. This only reads your data and saves a backup file. Nothing in the old app is changed.</p>
+    <div id="status"></div>
+    <button id="signin">Sign in with Google</button>
+    <button id="download" style="display:none">Download backup file</button>
+    <button id="switch" class="secondary" style="display:none">Use a different Google account</button>
+  </div>
+
+  <script type="module">
+    // ============================================================
+    // IMPORTS — Firebase from Google's CDN (this page is outside the app build)
+    // ============================================================
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+    import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+    import { getFirestore, collection, getDocs, Timestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+    // ============================================================
+    // CONFIG — the OLD project (same values the live app uses today)
+    // ============================================================
+    const app = initializeApp({
+      apiKey: 'AIzaSyCGtwV4ePNuGIdzULROXZWPACdImEzuA-0',
+      authDomain: 'bluebell-event.firebaseapp.com',
+      projectId: 'bluebell-event',
+      appId: '1:282114023514:web:dcb8b436cd90e8741a3863',
+    }, 'bluebell-export');
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    // ============================================================
+    // HELPERS
+    // ============================================================
+    const $ = id => document.getElementById(id);
+    const show = (msg, isErr = false) => { const s = $('status'); s.style.display = 'block'; s.textContent = msg; s.classList.toggle('err', isErr); };
+
+    /** Firestore Timestamps → { __timestamp: ISO } so nothing is lost in JSON */
+    function clean(v) {
+      if (v instanceof Timestamp) return { __timestamp: v.toDate().toISOString() };
+      if (Array.isArray(v)) return v.map(clean);
+      if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, clean(x)]));
+      return v;
+    }
+    const readAll = async path => (await getDocs(collection(db, ...path))).docs.map(d => ({ id: d.id, data: clean(d.data()) }));
+
+    // ============================================================
+    // ACTIONS
+    // ============================================================
+    let backup = null;
+
+    $('signin').onclick = async () => {
+      $('signin').disabled = true;
+      try {
+        const { user } = await signInWithPopup(auth, new GoogleAuthProvider());
+        show(`Signed in as ${user.email}\nReading data…`);
+        const events = await readAll(['users', user.uid, 'events']);
+        const config = await readAll(['users', user.uid, 'config']);
+        backup = { exportedAt: new Date().toISOString(), sourceProject: 'bluebell-event', account: user.email, events, config };
+        if (events.length === 0) {
+          show(`Signed in as ${user.email}\n\nNo events found under this account. It's probably not the account the Blue Bell app uses — try a different one.`, true);
+        } else {
+          show(`Signed in as ${user.email}\n\n✓ ${events.length} events\n✓ ${config.length} settings records (${config.map(c => c.id).join(', ')})\n\nReady to download.`);
+          $('download').style.display = 'block';
+        }
+        $('signin').style.display = 'none';
+        $('switch').style.display = 'block';
+      } catch (e) {
+        show('Could not read the data: ' + (e.code || e.message), true);
+        $('signin').disabled = false;
+      }
+    };
+
+    $('download').onclick = () => {
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+      const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: 'bluebell-backup.json' });
+      a.click();
+      show($('status').textContent.replace('Ready to download.', 'Downloaded ✓  Attach bluebell-backup.json in the chat.'));
+    };
+
+    $('switch').onclick = async () => {
+      await signOut(auth);
+      backup = null;
+      $('download').style.display = 'none'; $('switch').style.display = 'none';
+      $('signin').style.display = 'block'; $('signin').disabled = false;
+      $('status').style.display = 'none';
+    };
+  </script>
+</body>
+</html>
