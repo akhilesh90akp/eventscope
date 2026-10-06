@@ -74,22 +74,26 @@ export default function Layout() {
           ))}
         </nav>
 
-        {/* Account + version footer */}
-        <div className="px-4 py-3 border-t border-bb-sidebar-border">
-          {companyName && (
-            <div className="px-2 mb-2">
-              <p className="text-xs font-semibold text-white truncate">{companyName}</p>
-              <p className="text-[10px] text-bb-sidebar-muted capitalize">{role}</p>
+        {/* Account footer: company + role on the left, logout on the right */}
+        <div className="px-3 pt-3 pb-2 border-t border-bb-sidebar-border">
+          <div className="flex items-center gap-2.5 px-1">
+            <div className="w-9 h-9 shrink-0 rounded-lg bg-white/10 text-[#e3ca7c] font-bold text-sm flex items-center justify-center">
+              {(companyName || '?').trim().charAt(0).toUpperCase()}
             </div>
-          )}
-          <button
-            onClick={logout}
-            className="flex items-center gap-2 w-full px-2 py-1.5 rounded-lg text-xs text-bb-sidebar-muted hover:text-white transition-colors cursor-pointer"
-          >
-            <LogOut size={14} />
-            Logout
-          </button>
-          <p className="text-[10px] text-bb-sidebar-muted text-center mt-2">EventScope v1.0</p>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-white truncate" title={companyName}>{companyName || 'Your company'}</p>
+              <p className="text-[11px] text-bb-sidebar-muted">{role === 'owner' ? 'Owner' : role === 'staff' ? 'Staff' : ''}</p>
+            </div>
+            <button
+              onClick={logout}
+              title="Log out"
+              aria-label="Log out"
+              className="w-9 h-9 shrink-0 rounded-lg flex items-center justify-center text-bb-sidebar-muted hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            >
+              <LogOut size={18} />
+            </button>
+          </div>
+          <p className="text-[9px] text-bb-sidebar-muted/50 text-center mt-2 tracking-wide">EventScope v1.0</p>
         </div>
       </aside>
 
