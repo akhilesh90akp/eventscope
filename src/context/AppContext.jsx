@@ -225,22 +225,74 @@ export function AppProvider({ children }) {
       setLoaded(true);
     });
 
-    // Load settings and categories (one-time read)
-    const loadConfig = async () => {
-      try {
-        const settingsDoc = await getDoc(doc(db, 'tenants', tenantId, 'config', 'settings'));
-        setSettings(settingsDoc.exists() ? { ...DEFAULT_SETTINGS, ...settingsDoc.data() } : DEFAULT_SETTINGS);
-        const catsDoc = await getDoc(doc(db, 'tenants', tenantId, 'config', 'categories'));
-        setCategories(catsDoc.exists() ? (catsDoc.data().list || DEFAULT_CATEGORIES) : DEFAULT_CATEGORIES);
-      } catch (err) {
-        console.error('Error loading config:', err);
-      }
-    };
-    loadConfig();
+    // Settings and categories — live, so a brand-new company's details,
+    // and edits made in another tab, show up without a reload
+    const unsubSettings = onSnapshot(doc(db, 'tenants', tenantId, 'config', 'settings'), (snap) => {
+      setSettings(snap.exists() ? { ...DEFAULT_SETTINGS, ...snap.data() } : DEFAULT_SETTINGS);
+    }, (err) => console.error('Settings listener error:', err.code, err.message));
+    const unsubCats = onSnapshot(doc(db, 'tenants', tenantId, 'config', 'categories'), (snap) => {
+      setCategories(snap.exists() ? (snap.data().list || DEFAULT_CATEGORIES) : DEFAULT_CATEGORIES);
+    }, (err) => console.error('Categories listener error:', err.code, err.message));
 
     // Cleanup: unsubscribe from listeners
-    return () => { unsubTenant(); unsubEvents(); unsubFin(); unsubCols(); };
+    return () => { unsubTenant(); unsubEvents(); unsubFin(); unsubCols(); unsubSettings(); unsubCats(); };
   }, [tenantId]);
+
+  // ============================================================
+  // PUBLIC SIGN-UP — create a new company (tenant) owned by this login
+  // ============================================================
+
+  /**
+   * Creates tenants/{id} + users/{uid} (owner) atomically, then the starting
+   * company settings. Only allowed by firestore.rules for a verified login
+   * with no company yet. Returns { success } or { success: false, error }.
+   */
+  const createCompany = async ({ name, phone, city }) => {
+    if (!user) return { success: false, error: 'Please sign in first.' };
+    const companyName = name.trim();
+    if (companyName.length < 2) return { success: false, error: 'Please enter your company name.' };
+    const slug = companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30) || 'company';
+    const newTenantId = `${slug}-${Math.random().toString(36).slice(2, 7)}`;
+    const now = new Date().toISOString();
+    try {
+      const batch = writeBatch(db);
+      batch.set(doc(db, 'tenants', newTenantId), {
+        name: companyName,
+        ownerUid: user.uid,
+        ownerEmail: inviteKey(user.email),
+        plan: 'trial',
+        status: 'active',
+        createdAt: now,
+        acceptedTermsAt: now,
+      });
+      batch.set(doc(db, 'users', user.uid), {
+        tenantId: newTenantId,
+        role: 'owner',
+        name: user.displayName || '',
+        email: inviteKey(user.email),
+        joinedAt: now,
+      });
+      await batch.commit();
+    } catch (err) {
+      console.error('Error creating company:', err.code, err.message);
+      return { success: false, error: err.code === 'permission-denied' ? 'This login already belongs to a company, or its email isn’t verified.' : err.message };
+    }
+    // Starting settings (we're the owner now). Not fatal if this fails —
+    // they can fill everything in from Settings.
+    try {
+      await setDoc(doc(db, 'tenants', newTenantId, 'config', 'settings'), {
+        ...DEFAULT_SETTINGS,
+        companyName,
+        phone: phone?.trim() || '',
+        whatsapp: phone?.trim() || '',
+        address: city?.trim() || '',
+        email: inviteKey(user.email),
+      });
+    } catch (err) {
+      console.warn('Company created, but starting settings failed:', err.message);
+    }
+    return { success: true };
+  };
 
   // ============================================================
   // DERIVED PERMISSIONS
@@ -601,7 +653,7 @@ export function AppProvider({ children }) {
       tenant, tenantId, tenantStatus, role, isOwner, isPlatformAdmin,
       isSuspended, canEditEvents, canEditSettings,
       team, invites, inviteTeammate, cancelInvite, removeTeammate,
-      subscribeAllTenants, getTenantCounts, adminUpdateTenant,
+      subscribeAllTenants, getTenantCounts, adminUpdateTenant, createCompany,
       jobLogColumns: activeJobLogColumns, allJobLogColumns: jobLogColumns,
       financials, financialsLoaded, saveFinancials, saveJobLogColumns,
       events, settings, categories, loaded,

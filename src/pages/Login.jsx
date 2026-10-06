@@ -81,6 +81,12 @@ export default function Login() {
           </div>
         )}
       </div>
+
+      <p className="text-[11px] text-bb-sidebar-muted mt-6 space-x-3 text-center">
+        <a href="#/privacy" className="hover:text-white">Privacy</a>
+        <a href="#/terms" className="hover:text-white">Terms</a>
+        <a href="#/data-protection" className="hover:text-white">How we protect your data</a>
+      </p>
     </div>
   );
 }

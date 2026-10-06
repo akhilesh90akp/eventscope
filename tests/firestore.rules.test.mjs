@@ -213,3 +213,37 @@ test('owner can list own team and invites', async () => {
   await assertSucceeds(getDocs(query(collection(as('alice'), 'invites'), where('tenantId', '==', 'acme'))));
   await assertFails(getDocs(query(collection(as('alice'), 'users'), where('tenantId', '==', 'zen'))));
 });
+
+// ============================================================
+// PUBLIC SIGN-UP
+// ============================================================
+const signupBatch = async (db, uid, tenantId, tenant = {}, user = {}) => {
+  const { writeBatch } = await import('firebase/firestore');
+  const b = writeBatch(db);
+  b.set(doc(db, `tenants/${tenantId}`), { name: 'New Co', ownerUid: uid, ownerEmail: 'n@gmail.com', plan: 'trial', status: 'active', createdAt: 'x', acceptedTermsAt: 'x', ...tenant });
+  b.set(doc(db, `users/${uid}`), { tenantId, role: 'owner', name: 'N', email: 'n@gmail.com', joinedAt: 'x', ...user });
+  return b.commit();
+};
+
+test('a new verified user can create their own company and become owner', async () => {
+  const db = as('newco', 'n@gmail.com');
+  await assertSucceeds(signupBatch(db, 'newco', 'newco-1'));
+  await assertSucceeds(setDoc(doc(db, 'tenants/newco-1/config/settings'), { companyName: 'New Co' }));
+});
+
+test('sign-up CANNOT start on a paid plan, suspended, or owned by someone else', async () => {
+  await assertFails(signupBatch(as('u1', 'a@gmail.com'), 'u1', 't1', { plan: 'premium' }));
+  await assertFails(signupBatch(as('u2', 'b@gmail.com'), 'u2', 't2', { ownerUid: 'someoneelse' }));
+});
+
+test('sign-up CANNOT take over an existing company', async () => {
+  await assertFails(signupBatch(as('u3', 'c@gmail.com'), 'u3', 'acme'));
+});
+
+test('existing members CANNOT create a second company', async () => {
+  await assertFails(signupBatch(as('alice', 'alice@gmail.com'), 'alice', 'alice-2'));
+});
+
+test('unverified emails CANNOT sign up', async () => {
+  await assertFails(signupBatch(asUnverified('u4', 'd@gmail.com'), 'u4', 't4'));
+});

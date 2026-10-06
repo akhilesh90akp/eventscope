@@ -12,7 +12,7 @@
 // ============================================================
 // IMPORTS
 // ============================================================
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { HashRouter, Routes, Route } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AppContext';
 import Toast from './components/Toast';
@@ -29,6 +29,8 @@ import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 import JobLog, { JobLogLoader } from './pages/JobLog';
 import Admin from './pages/Admin';
+import CreateCompany from './pages/CreateCompany';
+import Legal from './pages/Legal';
 
 // ============================================================
 // AppRoutes — auth gate + route table
@@ -73,8 +75,26 @@ function AccountStatusScreen({ title, message }) {
   );
 }
 
+/** Current hash path, kept in sync — lets public pages work before sign-in */
+function useHashPath() {
+  const [hash, setHash] = useState(window.location.hash);
+  useEffect(() => {
+    const onChange = () => setHash(window.location.hash);
+    window.addEventListener('hashchange', onChange);
+    return () => window.removeEventListener('hashchange', onChange);
+  }, []);
+  return hash.replace(/^#/, '') || '/';
+}
+
+const PUBLIC_PAGES = ['terms', 'privacy', 'data-protection'];
+
 function AppRoutes() {
   const { user, authLoading, tenantStatus, isPlatformAdmin, toast } = useApp();
+  const path = useHashPath();
+
+  // Public pages — readable without signing in (linked from login & sign-up)
+  const publicPage = PUBLIC_PAGES.find(p => path === `/${p}`);
+  if (publicPage) return <Legal page={publicPage} />;
 
   // Show loading while checking auth
   if (authLoading) return <LoadingScreen />;
@@ -99,14 +119,8 @@ function AppRoutes() {
       </HashRouter>
     );
   }
-  if (tenantStatus === 'none') {
-    return (
-      <AccountStatusScreen
-        title="You're not part of a company yet"
-        message="This login isn't linked to an EventScope account. Ask your company's owner to add you, or sign in with a different Google account."
-      />
-    );
-  }
+  // Signed in but not part of any company (and no invite): offer sign-up
+  if (tenantStatus === 'none') return <CreateCompany />;
   if (tenantStatus === 'error') {
     return (
       <AccountStatusScreen

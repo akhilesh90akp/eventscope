@@ -456,6 +456,12 @@ export default function Settings() {
 
       </fieldset>
 
+      <p className="text-center text-xs text-bb-muted space-x-3 pt-2">
+        <a href="#/privacy" target="_blank" rel="noreferrer" className="hover:text-bb-text">Privacy</a>
+        <a href="#/terms" target="_blank" rel="noreferrer" className="hover:text-bb-text">Terms</a>
+        <a href="#/data-protection" target="_blank" rel="noreferrer" className="hover:text-bb-text">How we protect your data</a>
+      </p>
+
       {/* Save Button - shown for editable tabs, and only to users who can edit */}
       {canEditSettings && !['services', 'team', 'joblog'].includes(tab) && (
         <Button icon={Save} fullWidth size="lg" onClick={handleSave} disabled={saving}>
