@@ -4,7 +4,8 @@
  * Visible only to logins listed in platformAdmins/{uid} (added by hand in the
  * Firebase console). Lists every company (tenant) with plan, status, team
  * size and event count, and lets the admin change plan or suspend /
- * reactivate, or import a company from an old app's backup. firestore.rules enforce all of this server-side; hiding the
+ * reactivate, manage a company's team (support), or import a company from
+ * an old app's backup. firestore.rules enforce all of this server-side; hiding the
  * menu item is just for a clean UI.
  */
 
@@ -15,6 +16,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import Card from '../components/Card';
 import ImportCompanyDialog from '../components/ImportCompanyDialog';
+import AdminTeamDialog from '../components/AdminTeamDialog';
 import { PLANS } from '../constants/data';
 import { formatDateReadable } from '../utils/helpers';
 import { Shield, Search, Lock, Upload } from 'lucide-react';
@@ -41,6 +43,7 @@ export default function Admin() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [busyId, setBusyId] = useState(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [teamFor, setTeamFor] = useState(null);       // tenant whose team dialog is open
 
   // ------------------------------------------------------------
   // DATA LOADING / EFFECTS
@@ -120,6 +123,7 @@ export default function Admin() {
         </button>
       </div>
       <ImportCompanyDialog isOpen={importOpen} onClose={() => setImportOpen(false)} />
+      <AdminTeamDialog tenant={teamFor} onClose={() => setTeamFor(null)} />
 
       {/* Summary */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -194,7 +198,12 @@ export default function Admin() {
                           {PLANS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
                         </select>
                       </td>
-                      <td className="py-2.5 px-2 text-right tabular-nums">{c ? c.members : '…'}</td>
+                      <td className="py-2.5 px-2 text-right tabular-nums">
+                        <button onClick={() => setTeamFor(t)} title="View / manage team"
+                          className="text-bb-accent font-semibold hover:underline cursor-pointer">
+                          {c ? c.members : '…'} · Manage
+                        </button>
+                      </td>
                       <td className="py-2.5 px-2 text-right tabular-nums">{c ? c.events : '…'}</td>
                       <td className="py-2.5 px-2">
                         <span className={`text-[11px] font-bold rounded-full px-2 py-0.5 ${status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
