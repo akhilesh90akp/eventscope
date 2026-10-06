@@ -21,7 +21,7 @@ const sidebarNav = [
   { to: '/drafts', icon: FileText, label: 'Drafts' },
   { to: '/confirmed', icon: CheckCircle2, label: 'Confirmed' },
   { to: '/completed', icon: PartyPopper, label: 'Completed' },
-  { to: '/reports', icon: BarChart3, label: 'Reports' },
+  { to: '/reports', icon: BarChart3, label: 'Reports', ownerOnly: true },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 
@@ -36,7 +36,7 @@ const mobileNav = [
 /** Main layout wrapper with sidebar, content area, and mobile nav */
 export default function Layout() {
   const navigate = useNavigate();
-  const { logout, tenant, settings, role, isSuspended } = useApp();
+  const { logout, tenant, settings, role, isSuspended, isOwner } = useApp();
   const companyName = settings.companyName || tenant?.name || '';
 
   return (
@@ -54,7 +54,7 @@ export default function Layout() {
 
         {/* Nav links */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {sidebarNav.map((item) => (
+          {sidebarNav.filter(item => !item.ownerOnly || isOwner).map((item) => (
             <NavLink
               key={item.to}
               to={item.to}

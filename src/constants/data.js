@@ -78,13 +78,6 @@ export const DEFAULT_SETTINGS = {
     'Total payment due in 30 days',
   ],
   thankYouMessage: 'Thank You For Your Business!',
-  // Google Sheets sync — see CODE_STRUCTURE.md and src/utils/sheetSync.js.
-  // sheetSyncUrl is the deployed Apps Script Web App /exec URL (push/pull API).
-  // sheetSyncSecret must match the SHARED_SECRET script property on that script.
-  // sheetViewUrl is the actual spreadsheet link, opened when the user taps "Open Sheet".
-  sheetSyncUrl: '',
-  sheetSyncSecret: '',
-  sheetViewUrl: '',
 };
 
 // ============================================================
@@ -93,3 +86,25 @@ export const DEFAULT_SETTINGS = {
 
 /** SAC (Services Accounting Code) for event management services */
 export const DEFAULT_SAC_CODE = '998596';
+
+// ============================================================
+// JOB LOG COLUMNS
+// ============================================================
+
+/**
+ * Default cost/income columns for a new tenant's Job Log. Owners can
+ * rename, reorder, hide or add columns in Settings → Job Log columns;
+ * the list is saved per tenant at tenants/{id}/config/jobLog.
+ * `id` is the stable key values are stored under — never reuse or change it.
+ * type: 'cost' (reduces profit) | 'income' (adds to profit).
+ */
+export const DEFAULT_JOBLOG_COLUMNS = [
+  { id: 'labour', label: 'Labour', type: 'cost' },
+  { id: 'rental', label: 'Rental', type: 'cost' },
+  { id: 'material', label: 'Material purchases', type: 'cost' },
+  { id: 'transport', label: 'Transportation', type: 'cost' },
+  { id: 'vendors', label: 'Paid to vendors', type: 'cost' },
+  { id: 'commPaid', label: 'Commissions paid', type: 'cost' },
+  { id: 'other', label: 'Other expenses', type: 'cost' },
+  { id: 'commReceived', label: 'Vendor commissions received', type: 'income' },
+];

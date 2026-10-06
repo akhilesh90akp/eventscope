@@ -21,12 +21,13 @@ import Button from '../components/Button';
 import Input from '../components/Input';
 import Badge from '../components/Badge';
 import Modal from '../components/Modal';
-import { formatCurrency, formatDateReadable, daysUntil, telLink, waLink, sortByActiveDate, getAllEventDates, getActiveDate } from '../utils/helpers';
+import CostsPanel from '../components/CostsPanel';
+import { formatCurrency, formatDateReadable, daysUntil, telLink, waLink, sortByActiveDate, getAllEventDates, getActiveDate, openJobLog } from '../utils/helpers';
 import {
   Search, Phone, MessageSquare, FileText, CheckCircle2,
   CalendarDays, MapPin, PackageOpen, Plus, Receipt, Edit3,
   ChevronDown, ChevronUp, Home, Navigation, Trash2, MoreVertical,
-  ArrowLeftRight,
+  ArrowLeftRight, ExternalLink,
 } from 'lucide-react';
 
 // ============================================================
@@ -67,7 +68,7 @@ function getEventDate(ev) {
  * Handles pricing, item addition, and marking events completed.
  */
 export default function ConfirmedEvents({ status = 'confirmed' }) {
-  const { events, categories, updateEvent, deleteEvent, showToast } = useApp();
+  const { events, categories, updateEvent, deleteEvent, showToast, isOwner } = useApp();
   const navigate = useNavigate();
 
   // ------------------------------------------------------------
@@ -257,7 +258,13 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-bold text-bb-text">{pageLabel} Events</h1>
+      <div className="flex items-center gap-3">
+        <h1 className="text-xl font-bold text-bb-text">{pageLabel} Events</h1>
+        <span className="flex-1" />
+        {status === 'completed' && isOwner && (
+          <Button size="sm" icon={ExternalLink} onClick={openJobLog}>Open Job Log</Button>
+        )}
+      </div>
 
       <Input
         placeholder="Search events..."
@@ -433,6 +440,9 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
                           </div>
                         )}
                       </div>
+
+                      {/* Costs & income — completed events only (same data as the Job Log) */}
+                      {ev.status === 'completed' && <CostsPanel event={ev} />}
 
                       {/* Action Buttons */}
                       <div className="flex flex-wrap gap-2 pt-2 border-t border-bb-border">

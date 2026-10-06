@@ -332,3 +332,70 @@ export const resizeImageFile = (file, maxWidth = 400) => new Promise((resolve, r
   };
   reader.readAsDataURL(file);
 });
+
+// ============================================================
+// REVENUE & JOB LOG MATH
+// ============================================================
+
+/**
+ * An event's revenue = its bill total. Uses totalAmount when set (saved by
+ * the quotation/pricing screens), otherwise sums itemPrices (qty × rate),
+ * falling back to looking prices up by item name for older events.
+ */
+export const getEventRevenue = (event) => {
+  if (event?.totalAmount && Number(event.totalAmount) > 0) return Number(event.totalAmount);
+  const prices = event?.itemPrices;
+  if (!prices || typeof prices !== 'object') return 0;
+  let total = 0;
+  Object.values(prices).forEach(p => {
+    if (p && typeof p === 'object' && (p.rate || p.qty)) {
+      total += (Number(p.qty) || 1) * (Number(p.rate) || 0);
+    }
+  });
+  if (total === 0 && event.mainEvent?.items) {
+    const allItems = [...(event.mainEvent.items || [])];
+    (event.subEvents || []).forEach(s => allItems.push(...(s.items || [])));
+    allItems.forEach(item => {
+      const p = prices[`main::${item}`] || prices[item] || {};
+      total += (Number(p.qty) || 1) * (Number(p.rate) || 0);
+    });
+  }
+  return total;
+};
+
+/** Parses a typed/pasted money value ("₹1,48,000", "148000", "") → number or null */
+export const parseMoney = (raw) => {
+  if (raw === null || raw === undefined) return null;
+  const cleaned = String(raw).replace(/[₹,\s]/g, '').replace(/^Rs\.?/i, '');
+  if (cleaned === '' || cleaned === '-' || cleaned === '—') return null;
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : null;
+};
+
+/**
+ * Totals for one event's Job Log row.
+ * values: { [columnId]: number|null }, columns: active Job Log columns.
+ * Returns { totalCost, income, profit, margin, hasAny }.
+ * Blank cells count as 0; `hasAny` is false when nothing has been entered
+ * yet, so the UI can show "pending" instead of a misleading profit.
+ */
+export const computeEventFinancials = (revenue, values = {}, columns = []) => {
+  let totalCost = 0;
+  let income = 0;
+  let hasAny = false;
+  columns.forEach(c => {
+    const v = values?.[c.id];
+    if (v === null || v === undefined || v === '') return;
+    hasAny = true;
+    if (c.type === 'income') income += Number(v) || 0;
+    else totalCost += Number(v) || 0;
+  });
+  const profit = revenue + income - totalCost;
+  const margin = revenue > 0 ? Math.round((profit / revenue) * 100) : null;
+  return { totalCost, income, profit, margin, hasAny };
+};
+
+/** Opens the Job Log grid in a new browser tab (it loads the app full-screen at #/job-log) */
+export const openJobLog = () => {
+  window.open(`${import.meta.env.BASE_URL}#/job-log`, '_blank');
+};

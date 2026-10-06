@@ -20,8 +20,9 @@ import Card from '../components/Card';
 import Button from '../components/Button';
 import Input from '../components/Input';
 import Modal from '../components/Modal';
+import JobLogColumnsEditor from '../components/JobLogColumnsEditor';
 import { resizeImageFile } from '../utils/helpers';
-import { Save, Plus, Trash2, Edit2, X, Building2, Landmark, FileText, Layers, Users, RefreshCw, UserPlus } from 'lucide-react';
+import { Save, Plus, Trash2, Edit2, X, Building2, Landmark, FileText, Layers, Users, Table2, UserPlus } from 'lucide-react';
 
 // ============================================================
 // Settings — MAIN COMPONENT
@@ -161,7 +162,7 @@ export default function Settings() {
     { key: 'invoice', label: 'Invoice', icon: FileText },
     { key: 'services', label: 'Services', icon: Layers },
     { key: 'team', label: 'Team', icon: Users },
-    { key: 'sync', label: 'Sheet Sync', icon: RefreshCw },
+    { key: 'joblog', label: 'Job Log columns', icon: Table2 },
   ];
 
   const openCat = categories.find(c => c.id === catModal);
@@ -447,41 +448,16 @@ export default function Settings() {
       )}
 
       <fieldset disabled={!canEditSettings} className="space-y-4 min-w-0">
-      {tab === 'sync' && (
+      {tab === 'joblog' && (
         <Card>
-          <div className="space-y-4">
-            <p className="text-sm text-bb-muted">
-              Connects completed events to your Google Sheet's Job Log tab.
-              Paste the values from your Apps Script deployment here — see
-              the setup instructions you were given for exact steps.
-            </p>
-            <Input
-              label="Apps Script Web App URL"
-              value={form.sheetSyncUrl || ''}
-              onChange={e => set('sheetSyncUrl', e.target.value)}
-              placeholder="https://script.google.com/macros/s/.../exec"
-            />
-            <Input
-              label="Shared Secret"
-              type="password"
-              value={form.sheetSyncSecret || ''}
-              onChange={e => set('sheetSyncSecret', e.target.value)}
-              placeholder="Must match SHARED_SECRET in the Apps Script"
-            />
-            <Input
-              label="Google Sheet Link"
-              value={form.sheetViewUrl || ''}
-              onChange={e => set('sheetViewUrl', e.target.value)}
-              placeholder="https://docs.google.com/spreadsheets/d/..."
-            />
-          </div>
+          <JobLogColumnsEditor />
         </Card>
       )}
 
       </fieldset>
 
       {/* Save Button - shown for editable tabs, and only to users who can edit */}
-      {canEditSettings && tab !== 'services' && tab !== 'team' && (
+      {canEditSettings && !['services', 'team', 'joblog'].includes(tab) && (
         <Button icon={Save} fullWidth size="lg" onClick={handleSave} disabled={saving}>
           {saving ? 'Saving...' : 'Save Settings'}
         </Button>

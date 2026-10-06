@@ -27,6 +27,7 @@ import BillGenerator from './pages/BillGenerator';
 import QuotationGenerator from './pages/QuotationGenerator';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
+import JobLog, { JobLogLoader } from './pages/JobLog';
 
 // ============================================================
 // AppRoutes — auth gate + route table
@@ -34,6 +35,8 @@ import Settings from './pages/Settings';
 
 /** Full-screen loading state on the brand background */
 function LoadingScreen() {
+  // The Job Log opens in its own tab; show its loader from the very first paint
+  if (window.location.hash.startsWith('#/job-log')) return <JobLogLoader />;
   return (
     <div className="min-h-[100dvh] bg-bb-sidebar flex items-center justify-center">
       <div className="text-center">
@@ -103,6 +106,8 @@ function AppRoutes() {
   return (
     <HashRouter>
       <Routes>
+        {/* Full-screen, no sidebar — opened in a new tab from Reports / Completed */}
+        <Route path="/job-log" element={<JobLog />} />
         <Route element={<Layout />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/new" element={<NewDraft />} />

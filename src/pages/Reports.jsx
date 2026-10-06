@@ -5,8 +5,10 @@
  * date range filters. Displays summary statistics and a tabular list
  * of events with their status and amounts. Supports print/PDF export.
  *
- * Read-only vs. Firestore: this page only reads `events`/`settings` from
- * AppContext — it does not write anything back.
+ * Owner only (staff don't see Reports in the nav, and the route shows a
+ * notice). Profit comes from the Job Log (tenants/{id}/financials) —
+ * revenue + income columns − cost columns — not from a Google Sheet.
+ * Read-only: this page doesn't write anything back.
  */
 
 // ============================================================
@@ -18,9 +20,8 @@ import Card from '../components/Card';
 import Button from '../components/Button';
 import Input from '../components/Input';
 import Badge from '../components/Badge';
-import { formatCurrency, formatDateReadable, getActiveDate } from '../utils/helpers';
-import { pushCompletedEventsToSheet, pullProfitsFromSheet } from '../utils/sheetSync';
-import { Download, Printer, Calendar, BarChart3, Sheet, RefreshCw } from 'lucide-react';
+import { formatCurrency, formatDateReadable, getActiveDate, getEventRevenue, computeEventFinancials, openJobLog } from '../utils/helpers';
+import { Download, Printer, Calendar, BarChart3, ExternalLink, Lock } from 'lucide-react';
 
 // ============================================================
 // Reports — MAIN COMPONENT
@@ -28,7 +29,7 @@ import { Download, Printer, Calendar, BarChart3, Sheet, RefreshCw } from 'lucide
 
 /** Displays event reports with date-based filtering and summary stats */
 export default function Reports() {
-  const { events, settings, updateEvent, showToast } = useApp();
+  const { events, settings, financials, jobLogColumns, isOwner } = useApp();
 
   // ------------------------------------------------------------
   // STATE
@@ -36,7 +37,6 @@ export default function Reports() {
   const [filter, setFilter] = useState('monthly'); // monthly | yearly | custom
   const [statusFilter, setStatusFilter] = useState('completed'); // all | completed | confirmed
   const [excludeGST, setExcludeGST] = useState(false);
-  const [syncing, setSyncing] = useState(false); // true while push/pull is in flight
 
   // Initialize month/year to current period
   const [month, setMonth] = useState(() => {
@@ -51,41 +51,8 @@ export default function Reports() {
   // HELPERS
   // ------------------------------------------------------------
 
-  // Helper: calculate event total from itemPrices
-  const getEventTotal = (event) => {
-    // First check if totalAmount was explicitly set
-    if (event.totalAmount && Number(event.totalAmount) > 0) return Number(event.totalAmount);
-    
-    // Calculate from itemPrices (handles both keyed and plain formats)
-    const prices = event.itemPrices;
-    if (!prices || typeof prices !== 'object') return 0;
-    
-    let total = 0;
-    
-    // Try iterating all price entries
-    Object.entries(prices).forEach(([key, p]) => {
-      if (p && typeof p === 'object' && (p.rate || p.qty)) {
-        const qty = Number(p.qty) || 1;
-        const rate = Number(p.rate) || 0;
-        total += qty * rate;
-      }
-    });
-    
-    // If still 0, try getting items from mainEvent + subEvents and look up prices
-    if (total === 0 && event.mainEvent?.items) {
-      const allItems = [...(event.mainEvent.items || [])];
-      (event.subEvents || []).forEach(s => { allItems.push(...(s.items || [])); });
-      allItems.forEach(item => {
-        // Try keyed format
-        const p = prices[`main::${item}`] || prices[item] || {};
-        const qty = Number(p.qty) || 1;
-        const rate = Number(p.rate) || 0;
-        total += qty * rate;
-      });
-    }
-    
-    return total;
-  };
+  // Revenue = bill total (shared with the Job Log so the numbers always match)
+  const getEventTotal = (event) => getEventRevenue(event);
 
   // ------------------------------------------------------------
   // DERIVED / CALCULATED VALUES
@@ -135,172 +102,20 @@ export default function Reports() {
     const confirmed = filteredEvents.filter(e => e.status === 'confirmed').length;
     const completed = filteredEvents.filter(e => e.status === 'completed').length;
     const revenue = filteredEvents.reduce((s, e) => s + getEventTotal(e), 0);
-    // Profit is pulled back from the Google Sheet's Job Log (event.profit),
-    // and only exists once a completed event has been pushed and synced back.
-    const profit = filteredEvents
-      .filter(e => e.status === 'completed')
-      .reduce((s, e) => s + (Number(e.profit) || 0), 0);
-    return { total, drafts, confirmed, completed, revenue, profit };
-  }, [filteredEvents]);
+    // Profit from the Job Log: completed events with at least one cost/income entered
+    let profit = 0;
+    let profitEvents = 0;
+    filteredEvents.filter(e => e.status === 'completed').forEach(e => {
+      const calc = computeEventFinancials(getEventTotal(e), financials[e.id]?.values, jobLogColumns);
+      if (calc.hasAny) { profit += calc.profit; profitEvents++; }
+    });
+    return { total, drafts, confirmed, completed, revenue, profit, profitEvents };
+  }, [filteredEvents, financials, jobLogColumns]);
 
 
   // ------------------------------------------------------------
   // EVENT HANDLERS
   // ------------------------------------------------------------
-
-  /**
-   * Pushes only completed events that are new or have changed since their
-   * last successful sync — re-sending every completed event on every click
-   * gets slower as the event history grows, and is unnecessary since most
-   * of it hasn't changed. "Changed" means updatedAt is newer than the
-   * event's own sheetSyncedAt from the last time it was pushed.
-   *
-   * Then opens the sheet in a new tab so the user can fill in cost columns.
-   * Awaits the result and surfaces the real error if the sheet isn't
-   * reachable or isn't configured.
-   *
-   * Opens the tab BEFORE awaiting the push (not after) and redirects it
-   * once the push completes, rather than calling window.open() after the
-   * await — most browsers only allow window.open() to succeed when it's
-   * called synchronously in direct response to the click; calling it
-   * after an await is commonly blocked as a pop-up with no visible error,
-   * which looked like "nothing happens" and prompted repeated clicking.
-   * A bare blank tab looks broken while it waits, so a small branded
-   * "Syncing..." loading screen is written into it immediately instead.
-   */
-  const handleSyncToSheet = async () => {
-    if (syncing) return;
-    setSyncing(true);
-
-    // Open the tab now, synchronously, while still inside the click
-    // handler's call stack — this is what keeps it from being blocked.
-    // Shows a loading screen immediately; redirected to the real sheet
-    // below once the sync completes.
-    //
-    // Deliberately NOT passing 'noopener'/'noreferrer' here — either one
-    // makes window.open() always return null by design (that's the whole
-    // point of "no opener": the caller doesn't get a handle back), which
-    // would make it indistinguishable from an actually-blocked popup. We
-    // genuinely need the real reference this time, to write the loading
-    // screen into it and redirect it once the sync finishes.
-    const sheetTab = settings.sheetViewUrl
-      ? window.open('', '_blank')
-      : null;
-    if (sheetTab) {
-      sheetTab.document.write(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>EventScope — Syncing...</title>
-            <style>
-              body { margin:0; height:100vh; display:flex; align-items:center;
-                justify-content:center; font-family:'Oxanium',system-ui,-apple-system,sans-serif;
-                background:#f7f5fa; }
-              .spinner { width:32px; height:32px; border:3px solid #e5ddf0;
-                border-top-color:#331948; border-radius:50%;
-                animation:spin 0.8s linear infinite; margin:0 auto 14px; }
-              @keyframes spin { to { transform:rotate(360deg); } }
-              p { color:#331948; font-size:15px; text-align:center; margin:0; }
-            </style>
-          </head>
-          <body>
-            <div>
-              <div class="spinner"></div>
-              <p>Syncing to Google Sheet&hellip;</p>
-            </div>
-          </body>
-        </html>
-      `);
-      sheetTab.document.close();
-    }
-
-    try {
-      const allCompleted = events.filter(e => e.status === 'completed');
-      const eventsToSync = allCompleted.filter(e =>
-        !e.sheetSyncedAt || (e.updatedAt && e.updatedAt > e.sheetSyncedAt)
-      );
-
-      if (eventsToSync.length === 0) {
-        showToast('Already up to date — nothing new to sync');
-        if (settings.sheetViewUrl) {
-          if (sheetTab) sheetTab.location.href = settings.sheetViewUrl;
-          else showToast('The sheet tab was blocked — allow pop-ups for this site to open it automatically', 'error');
-        }
-        return;
-      }
-
-      const result = await pushCompletedEventsToSheet(eventsToSync, settings.sheetSyncUrl, settings.sheetSyncSecret);
-      if (result.success) {
-        showToast(`Synced to sheet (${result.added} added, ${result.updated} updated)`);
-        // Record that these specific events are now caught up, so the next
-        // click only re-sends what's changed since. { touch: false } is
-        // essential here — otherwise this bookkeeping write would itself
-        // bump updatedAt and immediately re-flag every event as changed.
-        const syncedAt = new Date().toISOString();
-        await Promise.all(
-          eventsToSync.map(e => updateEvent(e.id, { sheetSyncedAt: syncedAt }, { touch: false }))
-        );
-        if (settings.sheetViewUrl) {
-          if (sheetTab) {
-            sheetTab.location.href = settings.sheetViewUrl;
-          } else {
-            // Popup was blocked even at the synchronous open — fall back
-            // to navigating the current tab there isn't safe (would lose
-            // the Reports page), so just tell the user directly.
-            showToast('Synced, but the sheet tab was blocked — allow pop-ups for this site to open it automatically', 'error');
-          }
-        }
-      } else {
-        if (sheetTab) sheetTab.close(); // don't leave a stray loading tab open on failure
-        showToast(result.error || 'Failed to sync to sheet', 'error');
-      }
-    } finally {
-      setSyncing(false);
-    }
-  };
-
-  /**
-   * Pulls the Profit figure back from the sheet for every completed event
-   * and writes it onto the matching event in Firestore. Awaits each write
-   * and reports how many events were updated, or the real error.
-   *
-   * Skips events whose pulled profit is unchanged from what's already
-   * stored, and uses { touch: false } for the writes it does make — this
-   * is a pulled/derived field, not an app-owned edit, so it must not bump
-   * updatedAt or it would falsely re-flag those events as needing a fresh
-   * push next time "Sync to Sheet" runs.
-   */
-  const handlePullFromSheet = async () => {
-    if (syncing) return;
-    setSyncing(true);
-    try {
-      const result = await pullProfitsFromSheet(settings.sheetSyncUrl, settings.sheetSyncSecret);
-      if (!result.success) {
-        showToast(result.error || 'Failed to pull from sheet', 'error');
-        return;
-      }
-      const changed = events.filter(e =>
-        e.status === 'completed' &&
-        result.profits[e.id] !== undefined &&
-        Number(e.profit) !== Number(result.profits[e.id])
-      );
-      if (changed.length === 0) {
-        showToast('Profit already up to date');
-        return;
-      }
-      const writes = await Promise.all(
-        changed.map(e => updateEvent(e.id, { profit: result.profits[e.id] }, { touch: false }))
-      );
-      const failedCount = writes.filter(w => !w.success).length;
-      if (failedCount > 0) {
-        showToast(`Pulled profit for ${changed.length - failedCount} events, ${failedCount} failed to save`, 'error');
-      } else {
-        showToast(`Profit updated for ${changed.length} events`);
-      }
-    } finally {
-      setSyncing(false);
-    }
-  };
 
   /** Generate PDF report */
   const handleDownload = () => {
@@ -329,20 +144,26 @@ export default function Reports() {
   // RENDER
   // ------------------------------------------------------------
 
+  // Owner only — staff reach this page only by typing the address
+  if (!isOwner) {
+    return (
+      <Card>
+        <div className="text-center py-10">
+          <Lock size={36} className="mx-auto text-bb-muted mb-3" />
+          <p className="font-semibold text-bb-text">Reports are only visible to the account owner</p>
+          <p className="text-sm text-bb-muted mt-1">Ask your company’s owner if you need these figures.</p>
+        </div>
+      </Card>
+    );
+  }
+
   return (
     <div>
       {/* Screen UI - hidden during print */}
       <div data-no-print className="space-y-4">
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <h1 className="text-xl font-bold text-bb-text">Reports</h1>
-          <div className="flex gap-2">
-            <Button size="sm" variant="secondary" icon={Sheet} onClick={handleSyncToSheet} disabled={syncing}>
-              {syncing ? 'Working...' : 'Sync to Sheet'}
-            </Button>
-            <Button size="sm" variant="secondary" icon={RefreshCw} onClick={handlePullFromSheet} disabled={syncing}>
-              {syncing ? 'Working...' : 'Pull Profit'}
-            </Button>
-          </div>
+          <Button size="sm" icon={ExternalLink} onClick={openJobLog}>Open Job Log</Button>
         </div>
 
         {/* Filter Tabs */}
@@ -416,7 +237,8 @@ export default function Reports() {
         </Card>
         <Card>
           <p className="text-xs text-bb-muted">Profit</p>
-          <p className="text-lg font-bold text-emerald-500">{formatCurrency(stats.profit)}</p>
+          <p className={`text-lg font-bold ${stats.profit >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>{formatCurrency(stats.profit)}</p>
+          <p className="text-[10px] text-bb-muted">{stats.profitEvents} of {stats.completed} completed with costs</p>
         </Card>
       </div>
 

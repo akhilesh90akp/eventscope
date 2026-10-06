@@ -13,6 +13,8 @@
 //   tenants/{tenantId}/config/settings    company profile, bank, invoice settings
 //   tenants/{tenantId}/config/categories  service categories
 //   tenants/{tenantId}/events/{eventId}   one doc per event/draft
+//   tenants/{tenantId}/config/jobLog      Job Log columns (owner-editable, like all config)
+//   tenants/{tenantId}/financials/{id}    costs/income per event (members)
 //
 // Isolation: a signed-in user can only reach the tenant named in their own
 // users/{uid} doc. Plan/status live on the tenant doc, which only platform
@@ -124,6 +126,13 @@ service cloud.firestore {
       match /config/{docId} {
         allow read: if isMember(tenantId) || isPlatformAdmin();
         allow write: if (isOwner(tenantId) && tenantActive(tenantId)) || isPlatformAdmin();
+      }
+
+      // Costs/income per event (Job Log): any member reads and edits, like
+      // events. Reports/profit views are owner-only in the app.
+      match /financials/{eventId} {
+        allow read: if isMember(tenantId) || isPlatformAdmin();
+        allow write: if (isMember(tenantId) && tenantActive(tenantId)) || isPlatformAdmin();
       }
 
       // Events/drafts: any member, while the tenant is active.

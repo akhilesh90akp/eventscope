@@ -9,6 +9,8 @@
  *   tenants/{tenantId}/config/settings       - company profile + invoice settings (owner-editable)
  *   tenants/{tenantId}/config/categories     - service categories (owner-editable)
  *   tenants/{tenantId}/events/{eventId}      - one doc per event/draft
+ *   tenants/{tenantId}/config/jobLog         - Job Log cost/income columns (owner-editable)
+ *   tenants/{tenantId}/financials/{eventId}  - { values: { [columnId]: number|null } } costs/income per event
  *   platformAdmins/{uid}                     - EventScope staff
  *   invites/{email}                          - pending teammate invite { tenantId, role, ... }
  * Firestore rules (firestore.rules) enforce the same boundaries server-side.
@@ -21,7 +23,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { collection, doc, setDoc, deleteDoc, onSnapshot, getDoc, query, where, writeBatch } from 'firebase/firestore';
 import { auth, db } from '../firebase';
-import { DEFAULT_SETTINGS, DEFAULT_CATEGORIES } from '../constants/data';
+import { DEFAULT_SETTINGS, DEFAULT_CATEGORIES, DEFAULT_JOBLOG_COLUMNS } from '../constants/data';
 import { genId } from '../utils/helpers';
 
 // ============================================================
@@ -78,6 +80,9 @@ export function AppProvider({ children }) {
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
   const [loaded, setLoaded] = useState(false);
+  const [jobLogColumns, setJobLogColumns] = useState(DEFAULT_JOBLOG_COLUMNS);
+  const [financials, setFinancials] = useState({});      // { [eventId]: { values, updatedAt, updatedBy } }
+  const [financialsLoaded, setFinancialsLoaded] = useState(false);
   const [toast, setToast] = useState({ message: '', type: 'success', visible: false });
   const toastTimer = useRef(null);
 
@@ -170,9 +175,30 @@ export function AppProvider({ children }) {
       setEvents([]);
       setSettings(DEFAULT_SETTINGS);
       setCategories(DEFAULT_CATEGORIES);
+      setJobLogColumns(DEFAULT_JOBLOG_COLUMNS);
+      setFinancials({});
+      setFinancialsLoaded(false);
       setLoaded(false);
       return;
     }
+
+    // Costs/income per event (Job Log + Costs section) — live, so edits in
+    // the Job Log tab show up instantly in the main app tab and vice versa
+    const unsubFin = onSnapshot(collection(db, 'tenants', tenantId, 'financials'), (snap) => {
+      const map = {};
+      snap.docs.forEach(d => { map[d.id] = d.data(); });
+      setFinancials(map);
+      setFinancialsLoaded(true);
+    }, (err) => {
+      console.error('Financials listener error:', err.code, err.message);
+      setFinancialsLoaded(true);
+    });
+
+    // Job Log column setup — live too, so a column rename shows everywhere
+    const unsubCols = onSnapshot(doc(db, 'tenants', tenantId, 'config', 'jobLog'), (snap) => {
+      const cols = snap.exists() ? snap.data().columns : null;
+      setJobLogColumns(Array.isArray(cols) && cols.length ? cols : DEFAULT_JOBLOG_COLUMNS);
+    }, (err) => console.error('Job Log columns listener error:', err.code, err.message));
 
     // Tenant doc (plan/status) — live, so a suspension shows up immediately
     const unsubTenant = onSnapshot(doc(db, 'tenants', tenantId), (snap) => {
@@ -213,7 +239,7 @@ export function AppProvider({ children }) {
     loadConfig();
 
     // Cleanup: unsubscribe from listeners
-    return () => { unsubTenant(); unsubEvents(); };
+    return () => { unsubTenant(); unsubEvents(); unsubFin(); unsubCols(); };
   }, [tenantId]);
 
   // ============================================================
@@ -225,6 +251,9 @@ export function AppProvider({ children }) {
   const isSuspended = tenant?.status === 'suspended';
   const canEditEvents = !!tenantId && !isSuspended;
   const canEditSettings = isOwner && !isSuspended;
+
+  // Columns the owner hasn't removed (removed ones keep their values, hidden)
+  const activeJobLogColumns = jobLogColumns.filter(c => !c.hidden);
 
   /** Shared guard for writes. Returns an error string, or null if the write may proceed. */
   const writeBlockedReason = ({ ownerOnly = false } = {}) => {
@@ -397,6 +426,65 @@ export function AppProvider({ children }) {
   };
 
   // ============================================================
+  // JOB LOG / FINANCIALS
+  // ============================================================
+
+  /**
+   * Saves one or more cost/income cells.
+   * changes: [{ eventId, columnId, value }] — value is a number or null (blank).
+   * Uses a batch so a paste or Excel upload saves all-or-nothing.
+   * Returns { success } or { success: false, error }.
+   */
+  const saveFinancials = async (changes) => {
+    const blocked = writeBlockedReason();
+    if (blocked) {
+      showToast(blocked, 'error');
+      return { success: false, error: blocked };
+    }
+    if (!changes.length) return { success: true };
+    const byEvent = {};
+    changes.forEach(({ eventId, columnId, value }) => {
+      (byEvent[eventId] = byEvent[eventId] || {})[columnId] = value;
+    });
+    const now = new Date().toISOString();
+    try {
+      const ids = Object.keys(byEvent);
+      // Firestore batches cap at 500 writes
+      for (let i = 0; i < ids.length; i += 450) {
+        const batch = writeBatch(db);
+        ids.slice(i, i + 450).forEach(eventId => {
+          batch.set(doc(db, 'tenants', tenantId, 'financials', eventId),
+            { values: byEvent[eventId], updatedAt: now, updatedBy: user.uid },
+            { merge: true });
+        });
+        await batch.commit();
+      }
+      return { success: true };
+    } catch (err) {
+      console.error('Error saving costs:', err.code, err.message);
+      showToast('Failed to save costs: ' + err.message, 'error');
+      return { success: false, error: err.message };
+    }
+  };
+
+  /** Saves the tenant's Job Log column setup (owner only). Returns { success } or { success: false, error }. */
+  const saveJobLogColumns = async (columns) => {
+    const blocked = writeBlockedReason({ ownerOnly: true });
+    if (blocked) {
+      showToast(blocked, 'error');
+      return { success: false, error: blocked };
+    }
+    try {
+      await setDoc(doc(db, 'tenants', tenantId, 'config', 'jobLog'), { columns });
+      return { success: true };
+    } catch (err) {
+      console.error('Error saving Job Log columns:', err.code, err.message);
+      showToast('Failed to save columns: ' + err.message, 'error');
+      return { success: false, error: err.message };
+    }
+  };
+
+  // ============================================================
   // SETTINGS OPERATIONS
   // ============================================================
 
@@ -481,6 +569,8 @@ export function AppProvider({ children }) {
       tenant, tenantId, tenantStatus, role, isOwner, isPlatformAdmin,
       isSuspended, canEditEvents, canEditSettings,
       team, invites, inviteTeammate, cancelInvite, removeTeammate,
+      jobLogColumns: activeJobLogColumns, allJobLogColumns: jobLogColumns,
+      financials, financialsLoaded, saveFinancials, saveJobLogColumns,
       events, settings, categories, loaded,
       addEvent, updateEvent, deleteEvent,
       updateSettings,
