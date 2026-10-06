@@ -458,7 +458,7 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
                             <MessageSquare size={14} /> WhatsApp
                           </a>
                         )}
-                        <Button size="sm" variant="ghost" icon={Edit3} onClick={() => navigate(`/edit/${ev.id}`)}>Edit</Button>
+                        <Button size="sm" variant="secondary" icon={Edit3} onClick={() => navigate(`/edit/${ev.id}`)}>Edit</Button>
                         <Button size="sm" variant="secondary" icon={Plus} onClick={() => { setAddItemModal(ev.id); setAddItemTarget('main'); }}>Add Item</Button>
                         <Button size="sm" variant="secondary" onClick={() => openPriceModal(ev)}>Set Prices</Button>
                         <Button size="sm" variant="secondary" icon={FileText} onClick={() => navigate(`/quotation/${ev.id}`)}>Quote</Button>
@@ -490,7 +490,7 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
                         </a>
                       )}
                       <span className="w-px h-5 bg-bb-border" />
-                      <Button size="sm" variant="ghost" icon={Edit3} onClick={() => navigate(`/edit/${ev.id}`)}>Edit</Button>
+                      <Button size="sm" variant="secondary" icon={Edit3} onClick={() => navigate(`/edit/${ev.id}`)}>Edit</Button>
                       <Button size="sm" variant="outline" icon={Trash2} className="border-red-500 text-red-500 hover:bg-red-50" onClick={() => setDeleteId(ev.id)}>Delete</Button>
                       <span className="w-px h-5 bg-bb-border" />
                       <Button size="sm" variant="secondary" icon={Plus} onClick={() => { setAddItemModal(ev.id); setAddItemTarget('main'); }}>Add Item</Button>

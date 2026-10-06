@@ -23,7 +23,7 @@ export default function CreateCompany() {
   // ------------------------------------------------------------
   // STATE
   // ------------------------------------------------------------
-  const [form, setForm] = useState({ name: '', phone: '', city: '' });
+  const [form, setForm] = useState({ name: '', phone: '', city: '', recoveryEmail: '' });
   const [agreed, setAgreed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -37,6 +37,9 @@ export default function CreateCompany() {
     e.preventDefault();
     if (saving) return;
     setError('');
+    const rec = form.recoveryEmail.trim().toLowerCase();
+    if (rec && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rec)) { setError('Please enter a valid backup email, or leave it empty.'); return; }
+    if (rec && rec === (user?.email || '').toLowerCase()) { setError('Your backup email should be different from the Google account you signed in with.'); return; }
     if (!agreed) { setError('Please accept the Terms of Service and Privacy Policy.'); return; }
     setSaving(true);
     const result = await createCompany(form);
@@ -73,6 +76,12 @@ export default function CreateCompany() {
             <input className={field} value={form.city} onChange={e => set('city', e.target.value)} placeholder="e.g. Kochi" />
           </div>
         </div>
+
+        <label className="block text-sm font-semibold text-gray-700 mb-1">Backup email</label>
+        <input className={`${field} mb-1`} type="email" value={form.recoveryEmail} onChange={e => set('recoveryEmail', e.target.value)} placeholder="Another email we can reach you on" />
+        <p className="text-[11px] text-gray-500 mb-4">
+          If you ever lose access to <b>{user?.email}</b>, we’ll use this to confirm it’s you and move your company to a new login. Never shown to your team.
+        </p>
 
         <label className="flex items-start gap-2 text-sm text-gray-600 mb-5 cursor-pointer">
           <input type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)} className="mt-0.5 accent-[#7c3aed]" />

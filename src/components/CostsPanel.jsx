@@ -36,7 +36,11 @@ export default function CostsPanel({ event }) {
   const values = financials[event.id]?.values || {};
   const revenue = getEventRevenue(event);
   const calc = computeEventFinancials(revenue, values, jobLogColumns);
-  const ordered = [...jobLogColumns.filter(c => c.type !== 'income'), ...jobLogColumns.filter(c => c.type === 'income')];
+  const ordered = [
+    ...jobLogColumns.filter(c => c.type === 'cost' || !c.type),
+    ...jobLogColumns.filter(c => c.type === 'income'),
+    ...jobLogColumns.filter(c => c.type === 'text'),
+  ];
 
   // ------------------------------------------------------------
   // EVENT HANDLERS
@@ -47,6 +51,14 @@ export default function CostsPanel({ event }) {
     if (!(col.id in drafts)) return;
     const text = drafts[col.id];
     setDrafts(d => { const n = { ...d }; delete n[col.id]; return n; });
+    if (col.type === 'text') {
+      const value = text.trim() || null;
+      if (value === (values[col.id] || null)) return;
+      setSaving(true);
+      await saveFinancials([{ eventId: event.id, columnId: col.id, value }]);
+      setSaving(false);
+      return;
+    }
     const value = parseMoney(text);
     if (text.trim() !== '' && value === null) {
       showToast(`“${text}” isn’t a number — not saved`, 'error');
@@ -73,14 +85,16 @@ export default function CostsPanel({ event }) {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {ordered.map(col => {
           const stored = values[col.id];
-          const shown = col.id in drafts ? drafts[col.id] : (stored === null || stored === undefined ? '' : Number(stored).toLocaleString('en-IN'));
+          const isText = col.type === 'text';
+          const shown = col.id in drafts ? drafts[col.id]
+            : (stored === null || stored === undefined ? '' : isText ? stored : Number(stored).toLocaleString('en-IN'));
           return (
-            <label key={col.id} className="block">
+            <label key={col.id} className={`block ${isText ? 'col-span-2 sm:col-span-4' : ''}`}>
               <span className="block text-[11px] font-semibold text-gray-600 mb-1">{col.label}</span>
               <div className={`flex items-center rounded-lg border h-9 px-2 ${col.type === 'income' ? 'bg-emerald-50 border-emerald-200' : 'bg-bb-input border-bb-border'} focus-within:ring-2 focus-within:ring-bb-accent`}>
-                <span className="text-bb-muted text-sm mr-1">₹</span>
+                {!isText && <span className="text-bb-muted text-sm mr-1">₹</span>}
                 <input
-                  inputMode="decimal"
+                  inputMode={isText ? 'text' : 'decimal'}
                   disabled={!canEditEvents}
                   value={shown}
                   placeholder="—"

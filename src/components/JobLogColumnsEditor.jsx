@@ -81,7 +81,7 @@ export default function JobLogColumnsEditor() {
     <div className="space-y-4">
       <p className="text-sm text-bb-muted">
         These are the columns in your Job Log and the Costs section of each completed event.
-        Costs reduce profit; income adds to it. Removing a column hides it — its past values are kept.
+        Costs reduce profit; income adds to it; notes are free text (vendor names, remarks). Removing a column hides it — its past values are kept.
       </p>
 
       <div className="space-y-2">
@@ -99,10 +99,11 @@ export default function JobLogColumnsEditor() {
             <select
               value={c.type}
               onChange={e => update(c.id, { type: e.target.value })}
-              className={`text-xs font-bold rounded-full px-2 py-1 border-0 ${c.type === 'income' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}
+              className={`text-xs font-bold rounded-full px-2 py-1 border-0 ${c.type === 'income' ? 'bg-emerald-100 text-emerald-800' : c.type === 'text' ? 'bg-slate-100 text-slate-700' : 'bg-amber-100 text-amber-800'}`}
             >
               <option value="cost">Cost</option>
               <option value="income">Income</option>
+              <option value="text">Note (text)</option>
             </select>
             <button type="button" onClick={() => update(c.id, { hidden: true })} className="text-xs text-red-600 hover:underline px-1 cursor-pointer">Remove</button>
           </div>
@@ -120,6 +121,7 @@ export default function JobLogColumnsEditor() {
         <select value={newType} onChange={e => setNewType(e.target.value)} className="text-sm border border-bb-border rounded-lg px-2 py-2 bg-white">
           <option value="cost">Cost</option>
           <option value="income">Income</option>
+          <option value="text">Note (text)</option>
         </select>
         <Button icon={Plus} variant="secondary" onClick={add}>Add column</Button>
       </div>

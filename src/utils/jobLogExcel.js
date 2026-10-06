@@ -18,7 +18,6 @@
 // ============================================================
 const ID_HEADER = 'Event ID';
 const MONEY_FMT = '"₹"#,##,##0;[Red]-"₹"#,##,##0';
-const FIXED_HEADERS = ['Date', 'Client', 'Event', 'Location', 'Type', 'Revenue'];
 
 // ============================================================
 // HELPERS
@@ -49,6 +48,17 @@ const downloadBlob = (blob, filename) => {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 };
 
+/** Reads a cell's value as trimmed text ('' if empty) */
+const cellText = (cell) => {
+  let v = cell?.value;
+  if (v && typeof v === 'object') {
+    if ('result' in v) v = v.result;
+    else if ('richText' in v) v = v.richText.map(t => t.text).join('');
+    else if ('text' in v) v = v.text;
+  }
+  return v === null || v === undefined ? '' : String(v).trim();
+};
+
 /** Reads a cell's value as a plain number or null (handles formulas/rich text) */
 const cellNumber = (cell) => {
   let v = cell?.value;
@@ -70,55 +80,59 @@ const cellNumber = (cell) => {
 // ============================================================
 
 /**
- * rows: [{ id, date, client, event, location, type, revenue, values }]
- * columns: active Job Log columns [{ id, label, type }]
+ * rows: Job Log rows (see JobLog.jsx) — id, date, time, client, phone, event,
+ *   location, type, invoiceNo, revenue, gst, billTotal, advance, balance, values
+ * columns: active Job Log columns [{ id, label, type: 'cost'|'income'|'text' }]
  */
 export async function exportJobLogToExcel({ rows, columns, companyName, periodLabel }) {
   const ExcelJS = await loadExcelJS();
   const wb = new ExcelJS.Workbook();
   wb.creator = 'EventScope';
-  const ws = wb.addWorksheet('Job Log', { views: [{ state: 'frozen', xSplit: 3, ySplit: 1 }] });
+  const ws = wb.addWorksheet('Job Log', { views: [{ state: 'frozen', xSplit: 4, ySplit: 1 }] });
 
-  const costCols = columns.filter(c => c.type !== 'income');
+  const costCols = columns.filter(c => c.type === 'cost' || !c.type);
   const incomeCols = columns.filter(c => c.type === 'income');
-  const ordered = [...costCols, ...incomeCols];
-  const headers = [ID_HEADER, ...FIXED_HEADERS, ...ordered.map(c => c.label), 'Total cost', 'Profit', 'Margin'];
+  const textCols = columns.filter(c => c.type === 'text');
+  const money = [...costCols, ...incomeCols];
+
+  const INFO = ['Date', 'Time', 'Client', 'Phone', 'Event', 'Location', 'Type', 'Invoice #'];
+  const BILL = ['Revenue (excl. GST)', 'GST', 'Bill total', 'Received', 'Balance due'];
+  const headers = [ID_HEADER, ...INFO, ...BILL, ...money.map(c => c.label), 'Total cost', 'Profit', 'Margin', ...textCols.map(c => c.label)];
   ws.addRow(headers);
 
   // Column positions (1-based)
-  const revenueCol = 1 + FIXED_HEADERS.length;            // after Event ID
-  const firstValCol = revenueCol + 1;
+  const revenueCol = 2 + INFO.length;
+  const firstBill = revenueCol, lastBill = revenueCol + BILL.length - 1;
+  const firstValCol = lastBill + 1;
   const firstIncomeCol = firstValCol + costCols.length;
-  const lastValCol = firstValCol + ordered.length - 1;
+  const lastValCol = firstValCol + money.length - 1;
   const totalCostCol = lastValCol + 1;
   const profitCol = totalCostCol + 1;
   const marginCol = profitCol + 1;
+  const firstTextCol = marginCol + 1;
 
   rows.forEach((r, i) => {
-    const excelRow = i + 2;
-    const values = ordered.map(c => {
-      const v = r.values?.[c.id];
-      return v === null || v === undefined ? null : Number(v);
-    });
+    const n = i + 2;
     const R = colLetter(revenueCol);
-    const costRange = costCols.length
-      ? `SUM(${colLetter(firstValCol)}${excelRow}:${colLetter(firstIncomeCol - 1)}${excelRow})` : '0';
-    const incomeRange = incomeCols.length
-      ? `SUM(${colLetter(firstIncomeCol)}${excelRow}:${colLetter(lastValCol)}${excelRow})` : '0';
+    const costSum = costCols.length ? `SUM(${colLetter(firstValCol)}${n}:${colLetter(firstIncomeCol - 1)}${n})` : '0';
+    const incomeSum = incomeCols.length ? `SUM(${colLetter(firstIncomeCol)}${n}:${colLetter(lastValCol)}${n})` : '0';
+    const num = (v) => (v === null || v === undefined || v === '' ? null : Number(v));
     ws.addRow([
-      r.id, r.date, r.client, r.event, r.location, r.type, r.revenue,
-      ...values,
-      { formula: costRange },
-      { formula: `${R}${excelRow}+${incomeRange}-${colLetter(totalCostCol)}${excelRow}` },
-      { formula: `IF(${R}${excelRow}>0,${colLetter(profitCol)}${excelRow}/${R}${excelRow},"")` },
+      r.id, r.date, r.time || '', r.client, r.phone || '', r.event, r.location, r.type, r.invoiceNo || '',
+      r.revenue, r.gst || 0, r.billTotal, r.advance || 0, r.balance || 0,
+      ...money.map(c => num(r.values?.[c.id])),
+      { formula: costSum },
+      { formula: `${R}${n}+${incomeSum}-${colLetter(totalCostCol)}${n}` },
+      { formula: `IF(${R}${n}>0,${colLetter(profitCol)}${n}/${R}${n},"")` },
+      ...textCols.map(c => r.values?.[c.id] || ''),
     ]);
   });
 
   // Totals row
   const last = rows.length + 1;
   if (rows.length) {
-    const totalRow = ws.addRow(['', 'Total', `${rows.length} events`]);
-    for (let c = revenueCol; c <= profitCol; c++) {
+    const totalRow = ws.addRow(['', 'Total', '', `${rows.length} events`]);
+    for (let c = firstBill; c <= profitCol; c++) {
       totalRow.getCell(c).value = { formula: `SUM(${colLetter(c)}2:${colLetter(c)}${last})` };
     }
     totalRow.getCell(marginCol).value = {
@@ -136,14 +150,13 @@ export async function exportJobLogToExcel({ rows, columns, companyName, periodLa
   header.height = 30;
   ws.columns.forEach((col, idx) => {
     const n = idx + 1;
-    col.width = n === 1 ? 14 : n <= 6 ? 20 : 15;
-    if (n >= revenueCol && n <= profitCol) col.numFmt = MONEY_FMT;
+    col.width = n === 1 ? 14 : n < revenueCol ? 18 : n >= firstTextCol ? 36 : 15;
+    if (n >= firstBill && n <= profitCol) col.numFmt = MONEY_FMT;
     if (n === marginCol) col.numFmt = '0%';
   });
   ws.getColumn(1).hidden = true; // Event ID: needed to upload changes back; keep it, don't edit it
   for (let c = firstValCol; c <= lastValCol; c++) {
-    const isIncome = c >= firstIncomeCol;
-    ws.getRow(1).getCell(c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isIncome ? 'FF047857' : 'FFB45309' } };
+    header.getCell(c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: c >= firstIncomeCol ? 'FF047857' : 'FFB45309' } };
   }
 
   const buf = await wb.xlsx.writeBuffer();
@@ -174,13 +187,13 @@ export async function readJobLogFromExcel(file, { columns, knownEventIds }) {
   const norm = (s) => String(s ?? '').trim().toLowerCase();
   const headerRow = ws.getRow(1);
   let idCol = null;
-  const colMap = {}; // excel col index -> Job Log column id
+  const colMap = {}; // excel col index -> Job Log column
   const matchedColumns = [];
   headerRow.eachCell((cell, colNumber) => {
     const h = norm(cell.value);
     if (h === norm(ID_HEADER)) idCol = colNumber;
     const match = columns.find(c => norm(c.label) === h);
-    if (match) { colMap[colNumber] = match.id; matchedColumns.push(match.label); }
+    if (match) { colMap[colNumber] = match; matchedColumns.push(match.label); }
   });
   if (!idCol) return { changes: [], matchedColumns, unknownEventRows: 0, badCells: 0, missingIdColumn: true };
 
@@ -193,7 +206,13 @@ export async function readJobLogFromExcel(file, { columns, knownEventIds }) {
     const eventId = String(row.getCell(idCol).value ?? '').trim();
     if (!eventId) return; // totals row / blank row
     if (!known.has(eventId)) { unknownEventRows++; return; }
-    Object.entries(colMap).forEach(([colNumber, columnId]) => {
+    Object.entries(colMap).forEach(([colNumber, col]) => {
+      const columnId = col.id;
+      if (col.type === 'text') {
+        const t = cellText(row.getCell(Number(colNumber)));
+        if (t) changes.push({ eventId, columnId, value: t });
+        return;
+      }
       const v = cellNumber(row.getCell(Number(colNumber)));
       if (v === undefined) { badCells++; return; }
       if (v === null) return;

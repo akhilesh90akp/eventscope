@@ -80,6 +80,7 @@ function Privacy() {
       <H>What we collect</H>
       <UL items={[
         'Your sign-in details from Google: name, email address and profile photo.',
+        'A backup email and phone number, if you give them at sign-up — used only to verify it’s you if you lose access to your Google account, and to contact you about your account.',
         'Your company details that you enter: business name, address, GSTIN/PAN, phone, bank details for invoices, logo.',
         'Your business records: clients, events, quotations, bills, costs and income.',
         'Basic technical information needed to run the app (for example, error logs).',

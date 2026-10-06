@@ -96,7 +96,7 @@ export const DEFAULT_SAC_CODE = '998596';
  * rename, reorder, hide or add columns in Settings → Job Log columns;
  * the list is saved per tenant at tenants/{id}/config/jobLog.
  * `id` is the stable key values are stored under — never reuse or change it.
- * type: 'cost' (reduces profit) | 'income' (adds to profit).
+ * type: 'cost' (reduces profit) | 'income' (adds to profit) | 'text' (notes — not money).
  */
 export const DEFAULT_JOBLOG_COLUMNS = [
   { id: 'labour', label: 'Labour', type: 'cost' },
@@ -107,6 +107,7 @@ export const DEFAULT_JOBLOG_COLUMNS = [
   { id: 'commPaid', label: 'Commissions paid', type: 'cost' },
   { id: 'other', label: 'Other expenses', type: 'cost' },
   { id: 'commReceived', label: 'Vendor commissions received', type: 'income' },
+  { id: 'notes', label: 'Notes', type: 'text' },
 ];
 
 // ============================================================

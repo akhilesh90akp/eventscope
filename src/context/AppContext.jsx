@@ -244,7 +244,7 @@ export function AppProvider({ children }) {
    * company settings. Only allowed by firestore.rules for a verified login
    * with no company yet. Returns { success } or { success: false, error }.
    */
-  const createCompany = async ({ name, phone, city }) => {
+  const createCompany = async ({ name, phone, city, recoveryEmail }) => {
     if (!user) return { success: false, error: 'Please sign in first.' };
     const companyName = name.trim();
     if (companyName.length < 2) return { success: false, error: 'Please enter your company name.' };
@@ -261,6 +261,8 @@ export function AppProvider({ children }) {
         status: 'active',
         createdAt: now,
         acceptedTermsAt: now,
+        ownerPhone: phone?.trim() || '',
+        recoveryEmail: inviteKey(recoveryEmail),
       });
       batch.set(doc(db, 'users', user.uid), {
         tenantId: newTenantId,

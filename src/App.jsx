@@ -152,7 +152,7 @@ function AppRoutes() {
           <Route path="/admin" element={<Admin />} />
         </Route>
       </Routes>
-      <Toast message={toast.message} type={toast.type} isVisible={toast.visible} />
+      <Toast message={toast.message} type={toast.type} isVisible={toast.visible} withSidebar={!path.startsWith('/job-log')} />
     </HashRouter>
   );
 }

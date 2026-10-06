@@ -337,12 +337,8 @@ export const resizeImageFile = (file, maxWidth = 400) => new Promise((resolve, r
 // REVENUE & JOB LOG MATH
 // ============================================================
 
-/**
- * An event's revenue = its bill total. Uses totalAmount when set (saved by
- * the quotation/pricing screens), otherwise sums itemPrices (qty × rate),
- * falling back to looking prices up by item name for older events.
- */
-export const getEventRevenue = (event) => {
+/** Sum of item prices for an event (before discount and GST) */
+const getEventSubtotal = (event) => {
   if (event?.totalAmount && Number(event.totalAmount) > 0) return Number(event.totalAmount);
   const prices = event?.itemPrices;
   if (!prices || typeof prices !== 'object') return 0;
@@ -362,6 +358,32 @@ export const getEventRevenue = (event) => {
   }
   return total;
 };
+
+/**
+ * Money summary for an event's bill, computed the same way the Bill page
+ * does: subtotal − discount = revenue (excl. GST); GST on top; rounded bill
+ * total; advance received; balance still due.
+ * Revenue excludes GST on purpose — GST is collected for the government.
+ */
+export const getEventBill = (event) => {
+  const bd = event?.billDetails || {};
+  const subtotal = getEventSubtotal(event);
+  const discount = Number(bd.discount) || 0;
+  const revenue = Math.max(0, subtotal - discount);
+  const gstOn = bd.gstEnabled !== undefined ? !!bd.gstEnabled : false;
+  const gst = gstOn ? calcGST(revenue, Number(bd.gstRate) || 0, !!bd.interState).tax : 0;
+  const billTotal = roundOff(revenue + gst).rounded;
+  const advance = Number(bd.advance) || 0;
+  return {
+    subtotal, discount, revenue, gst, billTotal, advance,
+    balance: Math.max(0, billTotal - advance),
+    invoiceNo: bd.invoiceNo || '',
+    hasBill: !!event?.billDetails,
+  };
+};
+
+/** An event's revenue = bill subtotal − discount, excluding GST (see getEventBill) */
+export const getEventRevenue = (event) => getEventBill(event).revenue;
 
 /** Parses a typed/pasted money value ("₹1,48,000", "148000", "") → number or null */
 export const parseMoney = (raw) => {
@@ -384,6 +406,7 @@ export const computeEventFinancials = (revenue, values = {}, columns = []) => {
   let income = 0;
   let hasAny = false;
   columns.forEach(c => {
+    if (c.type === 'text') return; // notes etc. — not money
     const v = values?.[c.id];
     if (v === null || v === undefined || v === '') return;
     hasAny = true;

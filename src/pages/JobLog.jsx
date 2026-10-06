@@ -19,7 +19,7 @@
 // ============================================================
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { getEventRevenue, computeEventFinancials, parseMoney, formatDateReadable } from '../utils/helpers';
+import { getEventBill, computeEventFinancials, parseMoney, formatDateReadable } from '../utils/helpers';
 import { exportJobLogToExcel, readJobLogFromExcel } from '../utils/jobLogExcel';
 import { Download, Upload, Loader2 } from 'lucide-react';
 
@@ -35,6 +35,15 @@ const monthLabel = (key) => {
   const [y, m] = key.split('-');
   return new Date(Number(y), Number(m) - 1, 1).toLocaleString('en-IN', { month: 'short', year: 'numeric' });
 };
+
+/** Read-only money columns from the event's bill (mobile: revenue + balance only) */
+const BILL_INFO = [
+  { key: 'revenue', label: 'Revenue', mobile: true },
+  { key: 'gst', label: 'GST' },
+  { key: 'billTotal', label: 'Bill total' },
+  { key: 'advance', label: 'Received' },
+  { key: 'balance', label: 'Balance due', mobile: true },
+];
 
 // ============================================================
 // SUB-COMPONENTS
@@ -83,9 +92,12 @@ export default function JobLog() {
   // ------------------------------------------------------------
   // DERIVED DATA
   // ------------------------------------------------------------
-  const costCols = useMemo(() => jobLogColumns.filter(c => c.type !== 'income'), [jobLogColumns]);
+  const costCols = useMemo(() => jobLogColumns.filter(c => c.type === 'cost' || !c.type), [jobLogColumns]);
+  const textCols = useMemo(() => jobLogColumns.filter(c => c.type === 'text'), [jobLogColumns]);
   const incomeCols = useMemo(() => jobLogColumns.filter(c => c.type === 'income'), [jobLogColumns]);
-  const editCols = useMemo(() => [...costCols, ...incomeCols], [costCols, incomeCols]);
+  // Order of typed columns in the grid: costs, income, then notes (after the calculated block)
+  const moneyCols = useMemo(() => [...costCols, ...incomeCols], [costCols, incomeCols]);
+  const editCols = useMemo(() => [...moneyCols, ...textCols], [moneyCols, textCols]);
 
   const completed = useMemo(
     () => events.filter(e => e.status === 'completed').sort((a, b) => eventDate(a).localeCompare(eventDate(b))),
@@ -98,33 +110,40 @@ export default function JobLog() {
     .filter(e => period === 'all' || monthKey(eventDate(e)) === period)
     .filter(e => typeFilter === 'all' || e.eventType === typeFilter)
     .map(e => {
-      const revenue = getEventRevenue(e);
+      const bill = getEventBill(e);
       const values = financials[e.id]?.values || {};
       return {
         id: e.id,
         date: eventDate(e),
+        time: e.mainEvent?.time || '',
         client: e.clientName || '',
+        phone: e.clientPhone || e.clientWhatsapp || '',
         event: e.mainEvent?.name || e.eventType || '',
+        subEvents: (e.subEvents || []).length,
         location: e.mainEvent?.location || e.eventLocation || '',
         type: e.eventType || '',
-        revenue,
+        ...bill,
         values,
-        calc: computeEventFinancials(revenue, values, jobLogColumns),
+        calc: computeEventFinancials(bill.revenue, values, jobLogColumns),
       };
     }), [completed, period, typeFilter, financials, jobLogColumns]);
 
   const totals = useMemo(() => {
-    const t = { revenue: 0, cost: 0, income: 0, profit: 0, byCol: {} };
+    const t = { revenue: 0, gst: 0, billTotal: 0, advance: 0, balance: 0, cost: 0, income: 0, profit: 0, byCol: {} };
     rows.forEach(r => {
       t.revenue += r.revenue;
+      t.gst += r.gst;
+      t.billTotal += r.billTotal;
+      t.advance += r.advance;
+      t.balance += r.balance;
       t.cost += r.calc.totalCost;
       t.income += r.calc.income;
       t.profit += r.calc.profit;
-      editCols.forEach(c => { t.byCol[c.id] = (t.byCol[c.id] || 0) + (Number(r.values[c.id]) || 0); });
+      moneyCols.forEach(c => { t.byCol[c.id] = (t.byCol[c.id] || 0) + (Number(r.values[c.id]) || 0); });
     });
     t.margin = t.revenue > 0 ? Math.round((t.profit / t.revenue) * 100) : null;
     return t;
-  }, [rows, editCols]);
+  }, [rows, moneyCols]);
 
   // ------------------------------------------------------------
   // EVENT HANDLERS — SAVING
@@ -150,6 +169,12 @@ export default function JobLog() {
     if (!(key in drafts)) return;
     const text = drafts[key];
     setDrafts(d => { const n = { ...d }; delete n[key]; return n; });
+    if (col.type === 'text') {
+      const value = text.trim() || null;
+      if (value === (row.values[col.id] || null)) return;
+      save([{ eventId: row.id, columnId: col.id, value }]);
+      return;
+    }
     const value = parseMoney(text);
     if (text.trim() !== '' && value === null) {
       showToast(`“${text}” isn’t a number — not saved`, 'error');
@@ -201,6 +226,10 @@ export default function JobLog() {
       cells.forEach((cellText, j) => {
         const col = editCols[c + j];
         if (!col) return;
+        if (col.type === 'text') {
+          changes.push({ eventId: row.id, columnId: col.id, value: cellText.trim() || null });
+          return;
+        }
         const value = parseMoney(cellText);
         if (cellText.trim() !== '' && value === null) { skipped++; return; }
         changes.push({ eventId: row.id, columnId: col.id, value });
@@ -292,6 +321,40 @@ export default function JobLog() {
   // RENDER
   // ------------------------------------------------------------
 
+  const ro = 'bg-[#f9fafb] text-gray-600 border-b border-r border-gray-100';
+  const foot = 'sticky bottom-0 z-10 bg-bb-sidebar';
+
+  /** One editable cell (money or text) */
+  const renderInput = (row, col, r, c) => {
+    const key = draftKey(row.id, col.id);
+    const stored = row.values[col.id];
+    const isText = col.type === 'text';
+    const shown = key in drafts ? drafts[key] : (isText ? (stored || '') : rupees(stored));
+    const bg = col.type === 'income' ? 'bg-emerald-50/60' : isText ? 'bg-slate-50/60' : 'bg-white';
+    return (
+      <td key={col.id} className={`border-b border-r border-gray-100 p-0 ${bg}`}>
+        <input
+          data-r={r}
+          data-c={c}
+          inputMode={isText ? 'text' : 'decimal'}
+          disabled={readOnly}
+          value={shown}
+          placeholder="—"
+          title={isText ? (stored || '') : undefined}
+          onFocus={e => {
+            setDrafts(d => ({ ...d, [key]: stored === null || stored === undefined ? '' : String(stored) }));
+            requestAnimationFrame(() => e.target.select());
+          }}
+          onChange={e => setDrafts(d => ({ ...d, [key]: e.target.value }))}
+          onBlur={() => commitCell(row, col)}
+          onKeyDown={e => handleKeyDown(e, r, c, row, col)}
+          onPaste={e => handlePaste(e, r, c)}
+          className={`w-full h-9 px-2.5 bg-transparent outline-none placeholder:text-gray-300 focus:bg-white focus:ring-2 focus:ring-inset focus:ring-bb-accent focus:text-bb-accent focus:font-bold hover:bg-amber-50/60 ${isText ? 'min-w-[220px] text-left' : 'min-w-[96px] text-right tabular-nums'}`}
+        />
+      </td>
+    );
+  };
+
   const savedLabel = lastError ? 'Not saved — check connection' : pending ? 'Saving…' : 'All changes saved';
   const readOnly = !canEditEvents;
   const stickyBg = 'bg-[#f9fafb]';
@@ -342,13 +405,14 @@ export default function JobLog() {
       </div>
 
       {/* === SUMMARY CARDS === */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-2 sm:gap-3 px-3 sm:px-5 pb-3">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-2 sm:gap-3 px-3 sm:px-5 pb-3">
         {[
           ['Revenue', rupees(totals.revenue), ''],
           ['Total cost', rupees(totals.cost), ''],
           ['Commission received', rupees(totals.income), 'text-emerald-700 hidden md:block'],
           ['Profit', rupees(totals.profit), totals.profit >= 0 ? 'text-emerald-600' : 'text-red-600'],
           ['Margin', totals.margin === null ? '—' : `${totals.margin}%`, ''],
+          ['Balance due', rupees(totals.balance), 'text-amber-700'],
         ].map(([label, value, cls]) => (
           <div key={label} className={`bg-white border border-bb-border rounded-xl px-3 py-2 sm:px-4 sm:py-3 ${cls.includes('hidden') ? 'hidden md:block' : ''}`}>
             <p className="text-[10px] sm:text-[11px] uppercase tracking-wide text-bb-muted">{label}</p>
@@ -368,20 +432,23 @@ export default function JobLog() {
             <thead>
               <tr className="text-[10px] text-white text-center font-bold uppercase tracking-wide">
                 <th className="sticky top-0 left-0 z-20 bg-gray-500 h-6" />
-                <th className="sticky top-0 z-10 bg-gray-500 hidden md:table-cell" colSpan={3}>From event &amp; bill</th>
+                <th className="sticky top-0 z-10 bg-gray-500 hidden md:table-cell" colSpan={BILL_INFO.length + 3}>From event &amp; bill</th>
                 <th className="sticky top-0 z-10 bg-gray-500 md:hidden">Bill</th>
                 {costCols.length > 0 && <th className="sticky top-0 z-10 bg-amber-700" colSpan={costCols.length}>Costs</th>}
                 {incomeCols.length > 0 && <th className="sticky top-0 z-10 bg-emerald-700" colSpan={incomeCols.length}>Income</th>}
                 <th className="sticky top-0 z-10 bg-violet-800" colSpan={3}>Calculated</th>
+                {textCols.length > 0 && <th className="sticky top-0 z-10 bg-slate-600" colSpan={textCols.length}>Notes</th>}
               </tr>
               <tr className="text-[10px] sm:text-[11px] uppercase tracking-wide text-gray-600">
                 {[
-                  ['Event', 'sticky left-0 z-20 text-left min-w-[130px] md:min-w-[230px]'],
+                  ['Event / client', 'sticky left-0 z-20 text-left min-w-[150px] md:min-w-[240px]'],
                   ['Location', 'text-left hidden md:table-cell'],
                   ['Type', 'text-left hidden md:table-cell'],
-                  ['Revenue', 'text-right'],
-                  ...editCols.map(c => [c.label, 'text-right']),
+                  ['Invoice #', 'text-left hidden md:table-cell'],
+                  ...BILL_INFO.map(b => [b.label, `text-right ${b.mobile ? '' : 'hidden md:table-cell'}`]),
+                  ...moneyCols.map(c => [c.label, 'text-right']),
                   ['Total cost', 'text-right'], ['Profit', 'text-right'], ['Margin', 'text-right'],
+                  ...textCols.map(c => [c.label, 'text-left']),
                 ].map(([label, cls], i) => (
                   <th key={i} className={`sticky top-6 z-10 bg-[#faf8fd] font-bold px-2.5 h-9 border-b border-bb-border whitespace-nowrap ${cls}`}>{label}</th>
                 ))}
@@ -391,60 +458,46 @@ export default function JobLog() {
               {rows.map((row, r) => (
                 <tr key={row.id}>
                   <td className={`sticky left-0 z-[5] ${stickyBg} border-b border-r border-bb-border px-2.5 py-1`}>
-                    <div className="leading-tight min-w-[120px] md:min-w-[210px] whitespace-normal">
+                    <div className="leading-tight min-w-[140px] md:min-w-[220px] whitespace-normal">
                       <b className="text-bb-text">{row.client}</b>
-                      <div className="text-[10px] sm:text-[11px] text-bb-muted">{row.date ? formatDateReadable(row.date) : ''} · {row.event}</div>
+                      {row.phone && <a href={`tel:${row.phone}`} className="ml-1.5 text-[11px] text-bb-accent hover:underline">{row.phone}</a>}
+                      <div className="text-[10px] sm:text-[11px] text-bb-muted">
+                        {row.date ? formatDateReadable(row.date) : ''}{row.time ? ` ${row.time}` : ''} · {row.event}{row.subEvents ? ` +${row.subEvents} more` : ''}
+                      </div>
                     </div>
                   </td>
-                  <td className="hidden md:table-cell bg-[#f9fafb] text-gray-600 border-b border-r border-gray-100 px-2.5 whitespace-nowrap">{row.location}</td>
-                  <td className="hidden md:table-cell bg-[#f9fafb] text-gray-600 border-b border-r border-gray-100 px-2.5 whitespace-nowrap">{row.type}</td>
-                  <td className="bg-[#f9fafb] font-bold text-right border-b border-r border-gray-100 px-2.5 whitespace-nowrap tabular-nums">{rupees(row.revenue)}</td>
-                  {editCols.map((col, c) => {
-                    const key = draftKey(row.id, col.id);
-                    const stored = row.values[col.id];
-                    const shown = key in drafts ? drafts[key] : rupees(stored);
-                    return (
-                      <td key={col.id} className={`border-b border-r border-gray-100 p-0 ${col.type === 'income' ? 'bg-emerald-50/60' : 'bg-white'}`}>
-                        <input
-                          data-r={r}
-                          data-c={c}
-                          inputMode="decimal"
-                          disabled={readOnly}
-                          value={shown}
-                          placeholder="—"
-                          onFocus={e => {
-                            setDrafts(d => ({ ...d, [key]: stored === null || stored === undefined ? '' : String(stored) }));
-                            requestAnimationFrame(() => e.target.select());
-                          }}
-                          onChange={e => setDrafts(d => ({ ...d, [key]: e.target.value }))}
-                          onBlur={() => commitCell(row, col)}
-                          onKeyDown={e => handleKeyDown(e, r, c, row, col)}
-                          onPaste={e => handlePaste(e, r, c)}
-                          className="w-full min-w-[96px] h-9 px-2.5 text-right tabular-nums bg-transparent outline-none placeholder:text-gray-300 focus:bg-white focus:ring-2 focus:ring-inset focus:ring-bb-accent focus:text-bb-accent focus:font-bold hover:bg-amber-50/60"
-                        />
-                      </td>
-                    );
-                  })}
+                  <td className={`hidden md:table-cell ${ro} px-2.5 whitespace-nowrap`}>{row.location}</td>
+                  <td className={`hidden md:table-cell ${ro} px-2.5 whitespace-nowrap`}>{row.type}</td>
+                  <td className={`hidden md:table-cell ${ro} px-2.5 whitespace-nowrap`}>{row.invoiceNo || <span className="text-gray-300">no bill</span>}</td>
+                  {BILL_INFO.map(b => (
+                    <td key={b.key} className={`${ro} ${b.mobile ? '' : 'hidden md:table-cell'} text-right px-2.5 whitespace-nowrap tabular-nums ${b.key === 'revenue' ? 'font-bold text-bb-text' : ''} ${b.key === 'balance' && row.balance > 0 ? 'text-amber-700 font-semibold' : ''}`}>
+                      {b.key === 'gst' && !row.gst ? '' : rupees(row[b.key])}
+                    </td>
+                  ))}
+                  {moneyCols.map((col) => renderInput(row, col, r, editCols.indexOf(col)))}
                   <td className="bg-violet-50/70 font-semibold text-right border-b border-r border-gray-100 px-2.5 whitespace-nowrap tabular-nums">{row.calc.hasAny ? rupees(row.calc.totalCost) : ''}</td>
                   <td className={`bg-violet-50/70 font-semibold text-right border-b border-r border-gray-100 px-2.5 whitespace-nowrap tabular-nums ${row.calc.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                     {row.calc.hasAny ? rupees(row.calc.profit) : <span className="text-gray-400 font-normal">pending</span>}
                   </td>
-                  <td className="bg-violet-50/70 font-semibold text-right border-b border-gray-100 px-2.5 whitespace-nowrap tabular-nums">{row.calc.hasAny && row.calc.margin !== null ? `${row.calc.margin}%` : ''}</td>
+                  <td className="bg-violet-50/70 font-semibold text-right border-b border-r border-gray-100 px-2.5 whitespace-nowrap tabular-nums">{row.calc.hasAny && row.calc.margin !== null ? `${row.calc.margin}%` : ''}</td>
+                  {textCols.map((col) => renderInput(row, col, r, editCols.indexOf(col)))}
                 </tr>
               ))}
             </tbody>
             <tfoot>
               <tr className="text-white font-bold">
-                <td className="sticky bottom-0 left-0 z-20 bg-bb-sidebar px-2.5 h-10 whitespace-nowrap">Total · {rows.length} event{rows.length === 1 ? '' : 's'}</td>
-                <td className="sticky bottom-0 z-10 bg-bb-sidebar hidden md:table-cell" />
-                <td className="sticky bottom-0 z-10 bg-bb-sidebar hidden md:table-cell" />
-                <td className="sticky bottom-0 z-10 bg-bb-sidebar text-right px-2.5 whitespace-nowrap tabular-nums">{rupees(totals.revenue)}</td>
-                {editCols.map(c => (
-                  <td key={c.id} className="sticky bottom-0 z-10 bg-bb-sidebar text-right px-2.5 whitespace-nowrap tabular-nums">{rupees(totals.byCol[c.id] || 0)}</td>
+                <td className={`${foot} left-0 z-20 px-2.5 h-10 whitespace-nowrap`}>Total · {rows.length} event{rows.length === 1 ? '' : 's'}</td>
+                <td className={`${foot} hidden md:table-cell`} colSpan={3} />
+                {BILL_INFO.map(b => (
+                  <td key={b.key} className={`${foot} ${b.mobile ? '' : 'hidden md:table-cell'} text-right px-2.5 whitespace-nowrap tabular-nums ${b.key === 'balance' ? 'text-amber-300' : ''}`}>{rupees(totals[b.key])}</td>
                 ))}
-                <td className="sticky bottom-0 z-10 bg-bb-sidebar text-right px-2.5 whitespace-nowrap tabular-nums">{rupees(totals.cost)}</td>
-                <td className="sticky bottom-0 z-10 bg-bb-sidebar text-right px-2.5 whitespace-nowrap tabular-nums text-emerald-300">{rupees(totals.profit)}</td>
-                <td className="sticky bottom-0 z-10 bg-bb-sidebar text-right px-2.5 whitespace-nowrap tabular-nums">{totals.margin === null ? '' : `${totals.margin}%`}</td>
+                {moneyCols.map(c => (
+                  <td key={c.id} className={`${foot} text-right px-2.5 whitespace-nowrap tabular-nums`}>{rupees(totals.byCol[c.id] || 0)}</td>
+                ))}
+                <td className={`${foot} text-right px-2.5 whitespace-nowrap tabular-nums`}>{rupees(totals.cost)}</td>
+                <td className={`${foot} text-right px-2.5 whitespace-nowrap tabular-nums text-emerald-300`}>{rupees(totals.profit)}</td>
+                <td className={`${foot} text-right px-2.5 whitespace-nowrap tabular-nums`}>{totals.margin === null ? '' : `${totals.margin}%`}</td>
+                {textCols.map(c => <td key={c.id} className={foot} />)}
               </tr>
             </tfoot>
           </table>
