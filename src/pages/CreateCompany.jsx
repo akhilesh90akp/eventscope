@@ -12,6 +12,7 @@
 // ============================================================
 import React, { useState } from 'react';
 import AuthBackground from '../components/AuthBackground';
+import AnimatedLogo from '../components/AnimatedLogo';
 import { useApp } from '../context/AppContext';
 
 // ============================================================
@@ -57,7 +58,7 @@ export default function CreateCompany() {
   return (
     <div className="relative isolate min-h-[100dvh] bg-bb-sidebar flex flex-col items-center justify-center p-4 py-10">
       <AuthBackground />
-      <img src={import.meta.env.BASE_URL + 'eventscope-logo.svg'} alt="EventScope — Every event, in focus" className="h-24 w-auto mb-8 object-contain" />
+      <AnimatedLogo className="h-24 w-auto mb-8" />
 
       <form onSubmit={handleSubmit} className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 sm:p-8">
         <h1 className="text-xl font-bold text-gray-900 mb-1">Set up your company</h1>

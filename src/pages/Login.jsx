@@ -8,6 +8,7 @@
 // ============================================================
 import React, { useState } from 'react';
 import AuthBackground from '../components/AuthBackground';
+import AnimatedLogo from '../components/AnimatedLogo';
 import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { auth } from '../firebase';
 
@@ -55,7 +56,7 @@ export default function Login() {
     <div className="relative isolate min-h-[100dvh] bg-bb-sidebar flex flex-col items-center justify-center p-4">
       <AuthBackground />
       {/* Brand logo sits on the purple background (it's white, so it can't go on the white card) */}
-      <img src={import.meta.env.BASE_URL + "eventscope-logo.svg"} alt="EventScope — Every event, in focus" className="h-28 w-auto mb-10 object-contain" />
+      <AnimatedLogo className="h-28 w-auto mb-10" />
 
       <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl p-8 text-center">
         <h1 className="text-xl font-bold text-gray-900 mb-1">Welcome</h1>

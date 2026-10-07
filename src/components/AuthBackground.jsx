@@ -1,10 +1,11 @@
 /**
  * AuthBackground — Looping video behind the sign-in, sign-up and invite screens
  *
- * A muted, looping wedding-decor clip (Pixabay, free for commercial use)
+ * A muted, looping event/concert clip (Pixabay, free for commercial use;
+ * cross-faded so the loop is seamless)
  * under a brand-purple overlay so the logo and white card stay readable.
  * Shows only the still image when the person prefers reduced motion or has
- * Data Saver on. Files: public/login-bg.webm (~1.1 MB), login-bg.mp4 (~1.8 MB,
+ * Data Saver on. Files: public/login-bg.webm (~1.5 MB), login-bg.mp4 (~2.1 MB,
  * Safari) and login-bg.jpg (still frame). The browser downloads only one video.
  *
  * Usage: put <AuthBackground /> inside a full-screen wrapper that has
@@ -57,7 +58,7 @@ export default function AuthBackground() {
         </video>
       )}
       {/* Brand-purple overlay — keeps text readable over the bright footage */}
-      <div className="absolute inset-0 bg-bb-sidebar/80" />
+      <div className="absolute inset-0 bg-bb-sidebar/70" />
     </div>
   );
 }

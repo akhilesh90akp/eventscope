@@ -26,7 +26,8 @@ src/
     CostsPanel (costs on one event), JobLogColumnsEditor (Settings tab),
     ImportCompanyDialog (Admin: create a company from an old app's backup),
     AdminTeamDialog (Admin: a company's members/invites — change role, remove),
-    AuthBackground (video behind sign-in / sign-up / invite screens)
+    AuthBackground (video behind sign-in / sign-up / invite screens),
+    AnimatedLogo (logo that builds itself once on those screens)
   constants/
     data.js                 Defaults: event types, service categories, new-company
                             settings, Job Log columns, plans

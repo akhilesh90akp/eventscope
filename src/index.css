@@ -80,6 +80,50 @@ select {
 }
 select:disabled { opacity: 0.6; }
 
+/* === Logo intro (components/AnimatedLogo.jsx) === */
+/* Plays once: letters drop in (staggered inline), star spins in and
+   twinkles, tagline fades up. Total ≈ 2 s. */
+.logo-intro .logo-letter,
+.logo-intro .logo-star,
+.logo-intro .logo-tagline {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.logo-intro .logo-letter {
+  opacity: 0;
+  animation: logo-letter-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+.logo-intro .logo-star {
+  opacity: 0;
+  animation:
+    logo-star-in 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.85s forwards,
+    logo-star-twinkle 0.5s ease-in-out 1.5s 1;
+}
+.logo-intro .logo-tagline {
+  opacity: 0;
+  animation: logo-tagline-in 0.6s ease-out 1.2s forwards;
+}
+@keyframes logo-letter-in {
+  from { opacity: 0; transform: translateY(-40%) scale(0.9); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes logo-star-in {
+  from { opacity: 0; transform: scale(0) rotate(-180deg); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes logo-star-twinkle {
+  50% { transform: scale(1.35) rotate(20deg); filter: drop-shadow(0 0 12px #e3ca7c); }
+}
+@keyframes logo-tagline-in {
+  from { opacity: 0; transform: translateY(30%); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .logo-intro .logo-letter,
+  .logo-intro .logo-star,
+  .logo-intro .logo-tagline { animation: none; opacity: 1; }
+}
+
 /* === Print Styles === */
 /* Hide navigation and adjust layout for PDF/print output */
 @media print {
