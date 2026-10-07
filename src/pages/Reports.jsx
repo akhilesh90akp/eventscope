@@ -156,7 +156,8 @@ export default function Reports() {
       <div data-no-print className="space-y-4">
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <h1 className="text-xl font-bold text-bb-text">Reports</h1>
-          <Button size="sm" icon={ExternalLink} onClick={openJobLog}>Open Job Log</Button>
+          {/* Job Log is a wide grid — laptop/tablet only (md and up) */}
+          <span className="hidden md:inline-flex"><Button size="sm" icon={ExternalLink} onClick={openJobLog}>Open Job Log</Button></span>
         </div>
 
         {/* Filter Tabs */}

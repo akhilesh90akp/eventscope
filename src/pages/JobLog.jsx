@@ -71,11 +71,43 @@ export function JobLogLoader({ detail }) {
   );
 }
 
+/** Shown instead of the grid on phones — the Job Log needs a wide screen */
+function PhoneNotice() {
+  return (
+    <div className="min-h-[100dvh] bg-bb-sidebar flex flex-col items-center justify-center gap-5 p-6 text-center">
+      <img src={import.meta.env.BASE_URL + 'eventscope-logo.svg'} alt="EventScope" className="h-20 w-auto" />
+      <div className="bg-white rounded-2xl p-6 max-w-xs">
+        <p className="font-bold text-gray-900 mb-1">Job Log works on a laptop or tablet</p>
+        <p className="text-sm text-gray-500 mb-4">It’s a wide spreadsheet. On your phone you can still add costs from each event’s card.</p>
+        <a href="#/" className="inline-block px-5 py-2.5 bg-bb-accent text-white rounded-lg text-sm font-semibold">Back to Home</a>
+      </div>
+    </div>
+  );
+}
+
+/** True on tablet/laptop widths (768px+); updates when the window is resized */
+function useWideScreen() {
+  const query = '(min-width: 768px)';
+  const [wide, setWide] = useState(() => window.matchMedia(query).matches);
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const onChange = () => setWide(mq.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+  return wide;
+}
+
 // ============================================================
-// JobLog — MAIN COMPONENT
+// JobLog — PAGE (phone gate) + MAIN COMPONENT (the grid)
 // ============================================================
 
+/** Route component: the grid on tablet/laptop, a short notice on phones */
 export default function JobLog() {
+  return useWideScreen() ? <JobLogGrid /> : <PhoneNotice />;
+}
+
+function JobLogGrid() {
   const {
     events, loaded, financials, financialsLoaded, jobLogColumns, saveFinancials,
     settings, tenant, isOwner, canEditEvents, showToast,

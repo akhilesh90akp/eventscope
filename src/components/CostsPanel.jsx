@@ -122,7 +122,7 @@ export default function CostsPanel({ event }) {
           </span>
         )}
         {isOwner && (
-          <button onClick={openJobLog} className="ml-auto inline-flex items-center gap-1 text-xs font-semibold text-bb-accent hover:underline cursor-pointer">
+          <button onClick={openJobLog} className="ml-auto hidden md:inline-flex items-center gap-1 text-xs font-semibold text-bb-accent hover:underline cursor-pointer">
             Open Job Log <ExternalLink size={12} />
           </button>
         )}

@@ -264,8 +264,9 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
       <div className="flex items-center gap-3">
         <h1 className="text-xl font-bold text-bb-text">{pageLabel} Events</h1>
         <span className="flex-1" />
+        {/* Job Log is a wide grid — laptop/tablet only (md and up) */}
         {status === 'completed' && isOwner && (
-          <Button size="sm" icon={ExternalLink} onClick={openJobLog}>Open Job Log</Button>
+          <span className="hidden md:inline-flex"><Button size="sm" icon={ExternalLink} onClick={openJobLog}>Open Job Log</Button></span>
         )}
       </div>
 

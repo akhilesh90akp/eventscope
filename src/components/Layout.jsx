@@ -121,7 +121,7 @@ export default function Layout() {
       </aside>
 
       {/* === MAIN CONTENT === */}
-      <main className="lg:ml-[240px] min-h-[100dvh] pb-20 lg:pb-6">
+      <main className="lg:ml-[240px] min-h-[100dvh] pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-6">
         {/* Suspended account banner (tenant set to read-only by EventScope) */}
         {isSuspended && (
           <div className="bg-amber-50 border-b border-amber-200 text-amber-800 text-sm px-4 py-3 text-center">
@@ -133,8 +133,9 @@ export default function Layout() {
         </div>
       </main>
 
-      {/* === MOBILE BOTTOM NAV (below 1024px) — not shown in admin-only mode === */}
-      <nav className={`${adminOnly ? 'hidden' : 'lg:hidden'} fixed bottom-0 left-0 right-0 h-16 bg-bb-sidebar/95 backdrop-blur-md border-t border-bb-sidebar-border z-50`}>
+      {/* === MOBILE BOTTOM NAV (below 1024px) — not shown in admin-only mode.
+           Extra bottom padding keeps it clear of the iPhone home bar. === */}
+      <nav className={`${adminOnly ? 'hidden' : 'lg:hidden'} fixed bottom-0 left-0 right-0 h-[calc(4rem+env(safe-area-inset-bottom))] pb-[env(safe-area-inset-bottom)] bg-bb-sidebar/95 backdrop-blur-md border-t border-bb-sidebar-border z-50`}>
         <div className="grid grid-cols-5 items-center h-full w-full">
           {/* Left 2 items */}
           {mobileNav.slice(0, 2).map((item) => {
