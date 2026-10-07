@@ -16,6 +16,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
+import BackButton from '../components/BackButton';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import Input from '../components/Input';
@@ -25,7 +26,7 @@ import { EVENT_TYPES } from '../constants/data';
 import { genId } from '../utils/helpers';
 import {
   User, Phone, MessageSquare, MapPin, Calendar, Clock,
-  IndianRupee, ChevronDown, ChevronUp, X, Plus, Save, StickyNote, ArrowLeft, Layers,
+  IndianRupee, ChevronDown, ChevronUp, X, Plus, Save, StickyNote, Layers,
 } from 'lucide-react';
 
 // ============================================================
@@ -405,9 +406,7 @@ export default function EditDraft() {
   return (
     <div className="space-y-4 pb-8">
       <div className="flex items-center gap-3">
-        <button onClick={() => navigate(-1)} className="p-2 rounded-lg hover:bg-bb-card text-bb-muted hover:text-bb-text transition-colors cursor-pointer">
-          <ArrowLeft size={20} />
-        </button>
+        <BackButton />
         <h1 className="text-xl font-bold text-bb-text">Edit Draft</h1>
       </div>
 

@@ -16,6 +16,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
+import BackButton from '../components/BackButton';
 import Card from '../components/Card';
 import StickyBar from '../components/StickyBar';
 import Button from '../components/Button';
@@ -264,6 +265,8 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
+        {/* Completed isn't in the bottom bar, so it gets a back arrow */}
+        {status === 'completed' && <BackButton />}
         <h1 className="text-xl font-bold text-bb-text">{pageLabel} Events</h1>
         <span className="flex-1" />
         {/* Job Log is a wide grid — laptop/tablet only (md and up) */}
@@ -542,9 +545,10 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
               ? (ev?.mainEvent?.name || ev?.eventType || 'Main Event')
               : ((ev?.subEvents || []).find(s => s.id === eventPrefix)?.name || 'Sub Event');
             return (
-              <div key={key} className="flex items-center gap-3 p-2 bg-bb-input rounded-lg">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-bb-text truncate">{itemName}</p>
+              // Phone: name (and event) on their own line, qty × rate = amount below
+              <div key={key} className="flex flex-wrap sm:flex-nowrap items-center gap-x-3 gap-y-2 p-2 bg-bb-input rounded-lg">
+                <div className="basis-full sm:basis-auto sm:flex-1 min-w-0">
+                  <p className="text-sm text-bb-text break-words sm:truncate">{itemName}</p>
                   {Object.keys(prices).length > 1 && ev?.mainEvent && (ev.subEvents || []).length > 0 && (
                     <p className="text-xs text-bb-muted truncate">{groupLabel}</p>
                   )}
@@ -566,7 +570,7 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
                   onChange={e => setPrices(p => ({ ...p, [key]: { ...p[key], rate: Number(e.target.value) || 0 } }))}
                   className="w-24 bg-bb-bg border border-bb-border rounded px-2 py-1 text-sm text-bb-text text-right"
                 />
-                <span className="text-xs text-bb-muted w-20 text-right">
+                <span className="text-xs text-bb-muted w-20 text-right ml-auto sm:ml-0">
                   = ₹{(val.qty * val.rate).toLocaleString('en-IN')}
                 </span>
               </div>

@@ -14,6 +14,7 @@
 // ============================================================
 import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import BackButton from '../components/BackButton';
 import Card from '../components/Card';
 import ImportCompanyDialog from '../components/ImportCompanyDialog';
 import AdminTeamDialog from '../components/AdminTeamDialog';
@@ -32,7 +33,7 @@ const isNew = (t) => t.createdAt && Date.now() - new Date(t.createdAt).getTime()
 // ============================================================
 
 export default function Admin() {
-  const { isPlatformAdmin, subscribeAllTenants, getTenantCounts, adminUpdateTenant, showToast } = useApp();
+  const { isPlatformAdmin, tenantStatus, subscribeAllTenants, getTenantCounts, adminUpdateTenant, showToast } = useApp();
 
   // ------------------------------------------------------------
   // STATE
@@ -114,6 +115,7 @@ export default function Admin() {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
+        {tenantStatus === 'ready' && <BackButton />}
         <Shield size={20} className="text-bb-accent" />
         <h1 className="text-xl font-bold text-bb-text">EventScope Admin</h1>
         <span className="text-[10px] font-bold uppercase tracking-wide bg-violet-100 text-violet-700 rounded-full px-2 py-0.5">Only you see this</span>

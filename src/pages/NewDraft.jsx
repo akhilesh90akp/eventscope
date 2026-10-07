@@ -17,6 +17,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
+import BackButton from '../components/BackButton';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import Input from '../components/Input';
@@ -307,7 +308,10 @@ export default function NewDraft() {
 
   return (
     <div className="space-y-4 pb-8">
-      <h1 className="text-xl font-bold text-bb-text">New Draft</h1>
+      <div className="flex items-center gap-2">
+        <BackButton />
+        <h1 className="text-xl font-bold text-bb-text">New Draft</h1>
+      </div>
 
       {/* Client Info */}
       <Card>

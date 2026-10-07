@@ -17,6 +17,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
+import BackButton from '../components/BackButton';
 import Button from '../components/Button';
 import Input from '../components/Input';
 import Select from '../components/Select';
@@ -24,7 +25,7 @@ import Toggle from '../components/Toggle';
 import Card from '../components/Card';
 import { formatCurrency, formatDateReadable, calcGST, roundOff, genInvoiceNo, waLink, buildLineEntries, computeSectionTotal } from '../utils/helpers';
 import { DEFAULT_SAC_CODE } from '../constants/data';
-import { ArrowLeft, Printer, MessageSquare, Save } from 'lucide-react';
+import { Printer, MessageSquare, Save } from 'lucide-react';
 
 // ============================================================
 // HELPERS
@@ -342,9 +343,7 @@ export default function BillGenerator() {
       {/* Controls - hidden in print */}
       <div data-no-print className="space-y-4">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate(-1)} className="p-2 rounded-lg hover:bg-bb-card text-bb-muted hover:text-bb-text transition-colors cursor-pointer">
-            <ArrowLeft size={20} />
-          </button>
+          <BackButton />
           <h1 className="text-xl font-bold text-bb-text">Invoice</h1>
         </div>
 

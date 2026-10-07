@@ -34,6 +34,7 @@ import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from 
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useApp } from '../context/AppContext';
+import BackButton from '../components/BackButton';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import Input from '../components/Input';
@@ -45,7 +46,7 @@ import {
   buildLineEntries, flattenLineEntries, computeSectionTotal,
 } from '../utils/helpers';
 import {
-  ArrowLeft, Printer, MessageSquare, X, Plus, Save, Package,
+  Printer, MessageSquare, X, Plus, Save, Package,
   ChevronDown, ChevronRight, GripVertical, Layers, Ungroup,
 } from 'lucide-react';
 
@@ -545,9 +546,7 @@ export default function QuotationGenerator() {
       {/* Controls - hidden in print */}
       <div data-no-print className="space-y-4">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate(-1)} className="p-2 rounded-lg hover:bg-bb-card text-bb-muted hover:text-bb-text transition-colors cursor-pointer">
-            <ArrowLeft size={20} />
-          </button>
+          <BackButton />
           <h1 className="text-xl font-bold text-bb-text">Quotation</h1>
         </div>
 
@@ -622,7 +621,8 @@ export default function QuotationGenerator() {
                                       const memberName = k.split('::').slice(1).join('::');
                                       const p = itemPrices[k] || { qty: 1, rate: 0 };
                                       return (
-                                        <div key={k} className="flex items-center gap-2">
+                                        // Phone: name on its own line, qty × rate below; one line on wider screens
+                                        <div key={k} className="flex flex-wrap sm:flex-nowrap items-center gap-2">
                                           <input
                                             type="checkbox"
                                             checked={selectedBundleMembers.has(k)}
@@ -630,7 +630,8 @@ export default function QuotationGenerator() {
                                             className="w-4 h-4 accent-bb-accent shrink-0"
                                             title="Select to pull this item out of the group"
                                           />
-                                          <p className="flex-1 min-w-0 text-sm text-bb-text truncate">{memberName}</p>
+                                          <p className="flex-1 min-w-0 text-sm text-bb-text break-words sm:truncate">{memberName}</p>
+                                          <div className="basis-full sm:basis-auto flex items-center gap-2 pl-6 sm:pl-0">
                                           <input
                                             type="number" min="1" placeholder="Qty"
                                             value={p.qty === '' ? '' : (p.qty || 1)}
@@ -648,6 +649,7 @@ export default function QuotationGenerator() {
                                               />
                                             </>
                                           )}
+                                          </div>
                                         </div>
                                       );
                                     })}
@@ -673,7 +675,9 @@ export default function QuotationGenerator() {
                           const { key, name } = entry;
                           return (
                             <SortableEntry key={key} id={key}>
-                              <div className="flex items-center gap-2 p-2 bg-bb-input rounded-lg">
+                              {/* Phone: name gets its own line (with the ✕), qty × rate below.
+                                  Wider screens: everything on one line. */}
+                              <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 p-2 bg-bb-input rounded-lg">
                                 <input
                                   type="checkbox"
                                   checked={selected.has(name)}
@@ -681,7 +685,8 @@ export default function QuotationGenerator() {
                                   className="w-4 h-4 accent-bb-accent shrink-0"
                                   title="Select for grouping"
                                 />
-                                <p className="flex-1 min-w-0 text-sm text-bb-text truncate">{name}</p>
+                                <p className="flex-1 min-w-0 text-sm text-bb-text break-words sm:truncate">{name}</p>
+                                <div className="order-last sm:order-none basis-full sm:basis-auto flex items-center gap-2 pl-6 sm:pl-0">
                                 <input
                                   type="number" min="1" placeholder="Qty"
                                   value={itemPrices[key]?.qty === '' ? '' : (itemPrices[key]?.qty || 1)}
@@ -697,8 +702,13 @@ export default function QuotationGenerator() {
                                       onChange={e => setItemPrices(p => ({ ...p, [key]: { ...p[key], rate: Number(e.target.value) || 0 } }))}
                                       className="w-24 bg-bb-bg border border-bb-border rounded px-2 py-1 text-sm text-bb-text text-right"
                                     />
+                                    {/* Line amount — phones only (no room on the one-line desktop row) */}
+                                    <span className="sm:hidden ml-auto text-xs text-bb-muted">
+                                      = ₹{((Number(itemPrices[key]?.qty) || 0) * (itemPrices[key]?.rate || 0)).toLocaleString('en-IN')}
+                                    </span>
                                   </>
                                 )}
+                                </div>
                                 <button
                                   onClick={() => window.confirm(`Remove “${name}” from this quotation?`) && handleRemoveItem(group.id, name)}
                                   className="p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"

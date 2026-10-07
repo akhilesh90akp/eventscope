@@ -16,6 +16,7 @@
 // ============================================================
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
+import BackButton from '../components/BackButton';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import Input from '../components/Input';
@@ -155,7 +156,10 @@ export default function Reports() {
       {/* Screen UI - hidden during print */}
       <div data-no-print className="space-y-4">
         <div className="flex items-center justify-between gap-2 flex-wrap">
-          <h1 className="text-xl font-bold text-bb-text">Reports</h1>
+          <div className="flex items-center gap-2">
+            <BackButton />
+            <h1 className="text-xl font-bold text-bb-text">Reports</h1>
+          </div>
           {/* Job Log is a wide grid — laptop/tablet only (md and up) */}
           <span className="hidden md:inline-flex"><Button size="sm" icon={ExternalLink} onClick={openJobLog}>Open Job Log</Button></span>
         </div>
