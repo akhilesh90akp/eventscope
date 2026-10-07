@@ -171,13 +171,8 @@ export default function Layout() {
 
       {/* === MOBILE SLIDE-IN MENU === */}
       <div className={`lg:hidden fixed inset-0 z-[60] ${menuOpen ? '' : 'pointer-events-none'}`} aria-hidden={!menuOpen}>
-        {/* Backdrop — tap to close */}
-        <div
-          onClick={() => setMenuOpen(false)}
-          className={`absolute inset-0 bg-black/50 transition-opacity duration-200 ${menuOpen ? 'opacity-100' : 'opacity-0'}`}
-        />
-        {/* Panel (slides in from the right, next to the hamburger) */}
-        <aside className={`absolute top-0 right-0 bottom-0 w-[78%] max-w-[300px] bg-bb-sidebar flex flex-col shadow-2xl
+        {/* Panel — full screen on phones/tablets, slides in from the right */}
+        <aside className={`absolute inset-0 bg-bb-sidebar flex flex-col
           transition-transform duration-200 ease-out ${menuOpen ? 'translate-x-0' : 'translate-x-full'}`}>
           <div className="pt-[env(safe-area-inset-top)] border-b border-bb-sidebar-border">
             <div className="h-14 px-4 flex items-center justify-between">

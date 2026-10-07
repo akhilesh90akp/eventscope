@@ -118,10 +118,10 @@ export default function Admin() {
         {tenantStatus === 'ready' && <BackButton />}
         <Shield size={20} className="text-bb-accent" />
         <h1 className="text-xl font-bold text-bb-text">EventScope Admin</h1>
-        <span className="text-[10px] font-bold uppercase tracking-wide bg-violet-100 text-violet-700 rounded-full px-2 py-0.5">Only you see this</span>
-        <button onClick={() => setImportOpen(true)}
-          className="ml-auto flex items-center gap-2 px-3 py-2 bg-white border border-bb-border rounded-lg text-sm font-semibold text-bb-text hover:border-bb-accent cursor-pointer">
-          <Upload size={16} className="text-bb-accent" /> Import company
+        <span className="hidden sm:inline text-[10px] font-bold uppercase tracking-wide bg-violet-100 text-violet-700 rounded-full px-2 py-0.5">Only you see this</span>
+        <button onClick={() => setImportOpen(true)} aria-label="Import company" title="Import company"
+          className="ml-auto flex items-center gap-2 p-2 sm:px-3 bg-white border border-bb-border rounded-lg text-sm font-semibold text-bb-text hover:border-bb-accent cursor-pointer">
+          <Upload size={16} className="text-bb-accent" /> <span className="hidden sm:inline">Import company</span>
         </button>
       </div>
       <ImportCompanyDialog isOpen={importOpen} onClose={() => setImportOpen(false)} />
@@ -144,7 +144,7 @@ export default function Admin() {
 
       {/* Filters */}
       <div className="flex flex-wrap gap-2 items-center">
-        <div className="flex items-center gap-2 bg-white border border-bb-border rounded-lg px-3 py-2 flex-1 min-w-[220px]">
+        <div className="flex items-center gap-2 bg-white border border-bb-border rounded-lg px-3 py-2 basis-full sm:basis-auto flex-1 min-w-0 sm:min-w-[220px]">
           <Search size={16} className="text-bb-muted" />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search company or owner email" className="flex-1 outline-none text-sm bg-transparent" />
         </div>
@@ -156,13 +156,62 @@ export default function Admin() {
         ))}
       </div>
 
-      {/* Companies table */}
-      <Card>
-        {tenants === null ? (
-          <p className="text-sm text-bb-muted text-center py-8">Loading companies…</p>
-        ) : list.length === 0 ? (
-          <p className="text-sm text-bb-muted text-center py-8">No companies match.</p>
-        ) : (
+      {/* Companies — cards on phones (the table is too wide), table from tablet up */}
+      {tenants === null || list.length === 0 ? (
+        <Card>
+          <p className="text-sm text-bb-muted text-center py-8">{tenants === null ? 'Loading companies…' : 'No companies match.'}</p>
+        </Card>
+      ) : (
+      <>
+      <div className="md:hidden space-y-3">
+        {list.map(t => {
+          const status = t.status || 'active';
+          const c = counts[t.id];
+          return (
+            <Card key={t.id}>
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-semibold text-bb-text flex items-center gap-2 flex-wrap">
+                    {t.name || t.id}
+                    {isNew(t) && <span className="text-[10px] font-bold bg-violet-100 text-violet-700 rounded-full px-1.5">NEW</span>}
+                  </p>
+                  <p className="text-xs text-bb-muted truncate">{t.ownerEmail || t.id}</p>
+                </div>
+                <span className={`shrink-0 text-[11px] font-bold rounded-full px-2 py-0.5 ${status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                  {status === 'active' ? 'Active' : 'Suspended'}
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-xs text-bb-muted my-3">
+                <div>Signed up<p className="text-sm text-bb-text">{t.createdAt ? formatDateReadable(t.createdAt) : '—'}</p></div>
+                <div>Team<p className="text-sm text-bb-text">{c ? c.members : '…'}</p></div>
+                <div>Events<p className="text-sm text-bb-text">{c ? c.events : '…'}</p></div>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <select
+                  value={t.plan || 'trial'}
+                  disabled={busyId === t.id}
+                  onChange={e => update(t, { plan: e.target.value })}
+                  aria-label="Plan"
+                  className="text-sm border border-bb-border rounded-lg pl-2 py-1.5 bg-white"
+                >
+                  {PLANS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+                </select>
+                <button onClick={() => setTeamFor(t)} className="text-sm font-semibold text-bb-accent px-2 py-1.5 cursor-pointer">Manage team</button>
+                {status === 'active' ? (
+                  <button disabled={busyId === t.id} onClick={() => update(t, { status: 'suspended' }, `Suspend ${t.name || t.id}? Their team can still view data but can't make changes.`)}
+                    className="ml-auto text-sm font-semibold text-amber-700 px-2 py-1.5 cursor-pointer disabled:opacity-40">Suspend</button>
+                ) : (
+                  <button disabled={busyId === t.id} onClick={() => update(t, { status: 'active' })}
+                    className="ml-auto text-sm font-semibold text-emerald-700 px-2 py-1.5 cursor-pointer disabled:opacity-40">Reactivate</button>
+                )}
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+
+      <Card className="hidden md:block">
+        {(
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -229,6 +278,8 @@ export default function Admin() {
           </div>
         )}
       </Card>
+      </>
+      )}
     </div>
   );
 }
