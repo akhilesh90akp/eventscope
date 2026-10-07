@@ -81,8 +81,9 @@ select {
 select:disabled { opacity: 0.6; }
 
 /* === Logo intro (components/AnimatedLogo.jsx) === */
-/* Plays once: letters drop in (staggered inline), star spins in and
-   twinkles, tagline fades up. Total ≈ 2 s. */
+/* Plays once: letters drop in (staggered inline), then the star falls in
+   like a shooting star with a trail, flashes on landing and keeps a soft
+   glow; the tagline fades up. Total ≈ 2.3 s. */
 .logo-intro .logo-letter,
 .logo-intro .logo-star,
 .logo-intro .logo-tagline {
@@ -93,26 +94,48 @@ select:disabled { opacity: 0.6; }
   opacity: 0;
   animation: logo-letter-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
-.logo-intro .logo-star {
-  opacity: 0;
-  animation:
-    logo-star-in 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.85s forwards,
-    logo-star-twinkle 0.5s ease-in-out 1.5s 1;
-}
 .logo-intro .logo-tagline {
   opacity: 0;
-  animation: logo-tagline-in 0.6s ease-out 1.2s forwards;
+  animation: logo-tagline-in 0.6s ease-out 1.35s forwards;
+}
+/* Shooting star: the group travels in from the top-left */
+.logo-intro .logo-star-fall {
+  opacity: 0;
+  animation: logo-star-fall 0.7s cubic-bezier(0.2, 0.7, 0.3, 1) 0.85s forwards;
+}
+.logo-intro .logo-star-trail {
+  transform-box: view-box;
+  transform-origin: 45px 45px;           /* shrinks back into the star */
+  animation: logo-trail-out 0.45s ease-out 1.4s forwards;
+}
+.logo-intro .logo-star {
+  filter: drop-shadow(0 0 6px rgba(255, 228, 150, 0.85));
+  animation:
+    logo-star-spin 0.7s ease-out 0.85s both,
+    logo-star-flash 0.8s ease-out 1.5s forwards;
 }
 @keyframes logo-letter-in {
   from { opacity: 0; transform: translateY(-40%) scale(0.9); }
   to   { opacity: 1; transform: none; }
 }
-@keyframes logo-star-in {
-  from { opacity: 0; transform: scale(0) rotate(-180deg); }
-  to   { opacity: 1; transform: none; }
+@keyframes logo-star-fall {
+  0%   { opacity: 0; transform: translate(-220px, -220px); }
+  15%  { opacity: 1; }
+  100% { opacity: 1; transform: none; }
 }
-@keyframes logo-star-twinkle {
-  50% { transform: scale(1.35) rotate(20deg); filter: drop-shadow(0 0 12px #e3ca7c); }
+@keyframes logo-star-spin {
+  from { transform: rotate(-270deg) scale(0.6); }
+  to   { transform: none; }
+}
+@keyframes logo-trail-out {
+  from { opacity: 1; transform: none; }
+  to   { opacity: 0; transform: scale(0); }
+}
+/* Landing flash, then settles to a steady soft glow */
+@keyframes logo-star-flash {
+  0%   { transform: none; filter: drop-shadow(0 0 6px rgba(255, 228, 150, 0.85)); }
+  30%  { transform: scale(1.45); filter: drop-shadow(0 0 22px #fff4c8) drop-shadow(0 0 40px #e3ca7c) brightness(1.3); }
+  100% { transform: none; filter: drop-shadow(0 0 6px rgba(255, 228, 150, 0.85)); }
 }
 @keyframes logo-tagline-in {
   from { opacity: 0; transform: translateY(30%); }
@@ -120,8 +143,10 @@ select:disabled { opacity: 0.6; }
 }
 @media (prefers-reduced-motion: reduce) {
   .logo-intro .logo-letter,
+  .logo-intro .logo-star-fall,
   .logo-intro .logo-star,
   .logo-intro .logo-tagline { animation: none; opacity: 1; }
+  .logo-intro .logo-star-trail { display: none; }
 }
 
 /* === Print Styles === */

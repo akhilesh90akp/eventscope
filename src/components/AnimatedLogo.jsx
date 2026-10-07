@@ -3,7 +3,8 @@
  *
  * Same artwork as public/eventscope-logo.svg, drawn inline so each letter
  * can animate: letters drop in one by one (EVENT, then SCOPE), the gold
- * star spins in and twinkles, then the tagline fades up. Plays once
+ * star falls in like a shooting star (with a trail), flashes and keeps a
+ * soft glow, then the tagline fades up. Plays once
  * (~2 s); no motion for people who prefer reduced motion (see index.css
  * "Logo intro"). Used on the sign-in, sign-up and invite screens.
  */
@@ -100,19 +101,32 @@ const TAGLINE = [
 
 const STAGGER_MS = 70;
 
+/** Shooting-star trail: from the star's centre (45,45) back up-left */
+const TRAIL = { x1: 45, y1: 45, x2: -175, y2: -175 };
+
 // ============================================================
 // AnimatedLogo — MAIN COMPONENT
 // ============================================================
 
 export default function AnimatedLogo({ className = '' }) {
   return (
-    <svg viewBox="0 0 809 447" className={`logo-intro ${className}`} role="img" aria-label="EventScope — Every event, in focus">
+    <svg viewBox="0 0 809 447" overflow="visible" className={`logo-intro ${className}`} role="img" aria-label="EventScope — Every event, in focus">
+      <defs>
+        <linearGradient id="logo-trail" gradientUnits="userSpaceOnUse" x1={TRAIL.x2} y1={TRAIL.y2} x2={TRAIL.x1} y2={TRAIL.y1}>
+          <stop offset="0" stopColor="#E3CA7C" stopOpacity="0" />
+          <stop offset="1" stopColor="#FFF4C8" stopOpacity="1" />
+        </linearGradient>
+      </defs>
       {LETTERS.map((shapes, i) => (
         <g key={i} className="logo-letter" style={{ animationDelay: `${i * STAGGER_MS}ms` }}>
           {shapes.map((d, j) => <path key={j} d={d} fill="white" />)}
         </g>
       ))}
-      <path className="logo-star" d={STAR} fill="#E3CA7C" />
+      {/* Star + its trail move together; the trail fades as the star lands */}
+      <g className="logo-star-fall">
+        <line className="logo-star-trail" {...TRAIL} stroke="url(#logo-trail)" strokeWidth="10" strokeLinecap="round" />
+        <path className="logo-star" d={STAR} fill="#E3CA7C" />
+      </g>
       <g className="logo-tagline">
         {TAGLINE.map((d, i) => <path key={i} d={d} fill="white" />)}
       </g>
