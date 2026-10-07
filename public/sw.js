@@ -7,7 +7,7 @@
  * - API calls (Firebase, etc.): Network-only (never cache)
  */
 
-const CACHE_NAME = 'eventscope-v2';
+const CACHE_NAME = 'eventscope-v3'; // bump to drop old cached files (e.g. icons)
 const BASE = '/eventscope/';
 
 // Assets to pre-cache on install
