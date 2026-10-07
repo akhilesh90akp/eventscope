@@ -2,8 +2,10 @@
 #   1. Unit tests for money/bill/Job Log math (tests/helpers.test.mjs)
 #   2. Firestore security-rules tests against the Firebase emulator
 #      (tests/firestore.rules.test.mjs)
-# A red ✗ means a calculation or a security rule is broken — don't deploy
-# firestore.rules to the real project until this is green.
+#   3. Only on main, and only if 1+2 pass: publish firestore.rules to the
+#      live Firebase project (eventscope-app). Uses the repository secret
+#      FIREBASE_SERVICE_ACCOUNT (a Google service-account JSON key).
+# A red ✗ means a calculation or a security rule is broken — nothing is published.
 name: Tests
 
 on:
@@ -34,3 +36,25 @@ jobs:
         run: |
           npm install -g firebase-tools@14
           npm run test:rules
+
+  # Publishes the tested rules to the real database — never on pull requests
+  publish-rules:
+    needs: tests
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Publish Firestore rules to eventscope-app
+        env:
+          SA_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$SA_KEY" ]; then echo "::error::Secret FIREBASE_SERVICE_ACCOUNT is missing"; exit 1; fi
+          KEYFILE="$RUNNER_TEMP/sa.json"
+          printf '%s' "$SA_KEY" > "$KEYFILE"
+          export GOOGLE_APPLICATION_CREDENTIALS="$KEYFILE"
+          npm install -g firebase-tools@14
+          firebase deploy --only firestore:rules --project eventscope-app --non-interactive
+          rm -f "$KEYFILE"
