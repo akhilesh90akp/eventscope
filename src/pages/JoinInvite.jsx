@@ -13,6 +13,7 @@
 // IMPORTS
 // ============================================================
 import React, { useState } from 'react';
+import AuthBackground from '../components/AuthBackground';
 import { useApp } from '../context/AppContext';
 
 // ============================================================
@@ -50,7 +51,8 @@ export default function JoinInvite() {
   const isOwnerInvite = pendingInvite?.role === 'owner';
 
   return (
-    <div className="min-h-[100dvh] bg-bb-sidebar flex flex-col items-center justify-center p-4">
+    <div className="relative isolate min-h-[100dvh] bg-bb-sidebar flex flex-col items-center justify-center p-4">
+      <AuthBackground />
       <img src={import.meta.env.BASE_URL + 'eventscope-logo.svg'} alt="EventScope — Every event, in focus" className="h-24 w-auto mb-8 object-contain" />
 
       <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl p-8 text-center">

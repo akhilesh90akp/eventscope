@@ -7,6 +7,7 @@
 // IMPORTS
 // ============================================================
 import React, { useState } from 'react';
+import AuthBackground from '../components/AuthBackground';
 import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { auth } from '../firebase';
 
@@ -51,7 +52,8 @@ export default function Login() {
   // ------------------------------------------------------------
 
   return (
-    <div className="min-h-[100dvh] bg-bb-sidebar flex flex-col items-center justify-center p-4">
+    <div className="relative isolate min-h-[100dvh] bg-bb-sidebar flex flex-col items-center justify-center p-4">
+      <AuthBackground />
       {/* Brand logo sits on the purple background (it's white, so it can't go on the white card) */}
       <img src={import.meta.env.BASE_URL + "eventscope-logo.svg"} alt="EventScope — Every event, in focus" className="h-28 w-auto mb-10 object-contain" />
 

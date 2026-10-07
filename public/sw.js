@@ -66,6 +66,9 @@ self.addEventListener('fetch', (event) => {
   // Never cache API/auth requests
   if (NEVER_CACHE.some((domain) => request.url.includes(domain))) return;
 
+  // Videos (login background) stream with Range requests — let the browser handle them
+  if (request.headers.has('range') || /\.(mp4|webm)(\?.*)?$/.test(request.url)) return;
+
   // Navigation requests (HTML pages): Network-first
   // This prevents blank screens when a new version is deployed
   if (request.mode === 'navigate') {

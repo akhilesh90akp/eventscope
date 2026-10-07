@@ -11,6 +11,7 @@
 // IMPORTS
 // ============================================================
 import React, { useState } from 'react';
+import AuthBackground from '../components/AuthBackground';
 import { useApp } from '../context/AppContext';
 
 // ============================================================
@@ -54,7 +55,8 @@ export default function CreateCompany() {
   const field = 'w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-bb-accent focus:ring-2 focus:ring-bb-accent/20';
 
   return (
-    <div className="min-h-[100dvh] bg-bb-sidebar flex flex-col items-center justify-center p-4 py-10">
+    <div className="relative isolate min-h-[100dvh] bg-bb-sidebar flex flex-col items-center justify-center p-4 py-10">
+      <AuthBackground />
       <img src={import.meta.env.BASE_URL + 'eventscope-logo.svg'} alt="EventScope — Every event, in focus" className="h-24 w-auto mb-8 object-contain" />
 
       <form onSubmit={handleSubmit} className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 sm:p-8">

@@ -25,7 +25,8 @@ src/
     Badge, Toggle, LocationInput, ErrorBoundary,
     CostsPanel (costs on one event), JobLogColumnsEditor (Settings tab),
     ImportCompanyDialog (Admin: create a company from an old app's backup),
-    AdminTeamDialog (Admin: a company's members/invites — change role, remove)
+    AdminTeamDialog (Admin: a company's members/invites — change role, remove),
+    AuthBackground (video behind sign-in / sign-up / invite screens)
   constants/
     data.js                 Defaults: event types, service categories, new-company
                             settings, Job Log columns, plans
@@ -40,7 +41,7 @@ tests/
   firestore.rules.test.mjs  Rules tests (emulator; also run on GitHub)
   helpers.test.mjs          Unit tests for money/bill math
   tenantImport.test.mjs     Unit tests for reading backup files
-public/                     Logos, icons, manifest, service worker,
+public/                     Logos, icons, manifest, service worker, login-bg.* (video),
                             export-bluebell.html (one-time old-app export — delete after migration)
 ```
 
