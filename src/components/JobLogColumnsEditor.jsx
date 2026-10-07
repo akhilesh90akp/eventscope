@@ -14,7 +14,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import Button from './Button';
 import { genId } from '../utils/helpers';
-import { ArrowUp, ArrowDown, Save, Plus, RotateCcw } from 'lucide-react';
+import { ArrowUp, ArrowDown, Save, Plus, RotateCcw, Trash2 } from 'lucide-react';
 
 // ============================================================
 // JobLogColumnsEditor — MAIN COMPONENT
@@ -113,7 +113,15 @@ export default function JobLogColumnsEditor() {
               <option value="income">Income</option>
               <option value="text">Note (text)</option>
             </select>
-            <button type="button" onClick={() => update(c.id, { hidden: true })} className="text-xs text-red-600 hover:underline px-1 cursor-pointer">Remove</button>
+            <button
+              type="button"
+              onClick={() => window.confirm(`Remove the “${c.label || 'untitled'}” column? Values already entered are kept, and you can restore it later.`) && update(c.id, { hidden: true })}
+              className="p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
+              title="Remove column"
+              aria-label={`Remove ${c.label} column`}
+            >
+              <Trash2 size={16} />
+            </button>
           </div>
         ))}
       </div>

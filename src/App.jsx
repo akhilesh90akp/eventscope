@@ -18,6 +18,7 @@ import React, { useEffect, useState } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AppContext';
 import Toast from './components/Toast';
+import AnimatedLogo from './components/AnimatedLogo';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -61,14 +62,14 @@ function useHashPath() {
 // SUB-COMPONENTS
 // ============================================================
 
-/** Full-screen loading state on the brand background */
+/** Full-screen loading state on the brand background (logo builds itself, star falls in) */
 function LoadingScreen() {
   // The Job Log opens in its own tab; show its loader from the very first paint
   if (window.location.hash.startsWith('#/job-log')) return <JobLogLoader />;
   return (
     <div className="min-h-[100dvh] bg-bb-sidebar flex items-center justify-center">
       <div className="text-center">
-        <img src={import.meta.env.BASE_URL + 'eventscope-logo.svg'} alt="EventScope — Every event, in focus" className="h-24 w-auto mx-auto mb-6 animate-pulse" />
+        <AnimatedLogo className="h-24 w-auto mx-auto mb-6" />
         <p className="text-bb-sidebar-muted text-sm">Loading...</p>
       </div>
     </div>

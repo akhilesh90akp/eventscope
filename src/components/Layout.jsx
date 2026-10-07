@@ -1,9 +1,10 @@
 /**
  * Layout — Application shell with navigation
  *
- * Desktop: sidebar (logo, nav, account row with logout). Mobile: bottom
- * navigation bar with a floating "new event" button. Shows a banner when
- * the company is suspended. Page content renders via React Router's Outlet.
+ * Desktop (1024px+): sidebar (logo, nav, account row with logout).
+ * Mobile/tablet: purple title bar (logo + hamburger → slide-in menu with the
+ * same nav and account row) plus the bottom bar with a floating "new event"
+ * button. Shows a banner when the company is suspended. Page content renders via React Router's Outlet.
  * Menu items marked ownerOnly / adminOnly are hidden from everyone else
  * (firestore.rules still enforce access server-side).
  */
@@ -11,9 +12,9 @@
 // ============================================================
 // IMPORTS
 // ============================================================
-import React from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, FilePlus, FileText, CheckCircle2, PartyPopper, Settings, Plus, BarChart3, LogOut, Shield } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { LayoutDashboard, FilePlus, FileText, CheckCircle2, PartyPopper, Settings, Plus, BarChart3, LogOut, Shield, Menu, X } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 // ============================================================
@@ -41,13 +42,90 @@ const mobileNav = [
 ];
 
 // ============================================================
+// SUB-COMPONENTS
+// ============================================================
+
+const LOGO = import.meta.env.BASE_URL + 'eventscope-logo-horizontal.svg';
+
+/**
+ * Nav links + account row (company, role, logout). Shared by the desktop
+ * sidebar and the mobile slide-in menu so both always list the same pages.
+ */
+function NavPanel({ items, companyName, roleLabel, onLogout }) {
+  return (
+    <>
+      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+        {items.map((item) => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            end={item.to === '/'}
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
+              ${isActive
+                ? 'bg-bb-sidebar-active text-white'
+                : 'text-bb-sidebar-muted hover:text-white hover:bg-bb-sidebar-active'
+              }`
+            }
+          >
+            <item.icon size={18} />
+            {item.label}
+          </NavLink>
+        ))}
+      </nav>
+
+      {/* Account footer: company + role on the left, logout on the right */}
+      <div className="px-3 pt-3 pb-[calc(0.5rem+env(safe-area-inset-bottom))] border-t border-bb-sidebar-border">
+        <div className="flex items-center gap-2.5 px-1">
+          <div className="w-9 h-9 shrink-0 rounded-lg bg-white/10 text-[#e3ca7c] font-bold text-sm flex items-center justify-center">
+            {(companyName || '?').trim().charAt(0).toUpperCase()}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-white truncate" title={companyName}>{companyName || 'Your company'}</p>
+            <p className="text-[11px] text-bb-sidebar-muted truncate" title={roleLabel}>{roleLabel}</p>
+          </div>
+          <button
+            onClick={onLogout}
+            title="Log out"
+            aria-label="Log out"
+            className="w-9 h-9 shrink-0 rounded-lg flex items-center justify-center text-bb-sidebar-muted hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+          >
+            <LogOut size={18} />
+          </button>
+        </div>
+        <p className="text-[9px] text-bb-sidebar-muted/50 text-center mt-2 tracking-wide">EventScope v1.0</p>
+      </div>
+    </>
+  );
+}
+
+// ============================================================
 // Layout — MAIN COMPONENT
 // ============================================================
 
-/** Main layout wrapper with sidebar, content area, and mobile nav */
+/** Main layout wrapper with sidebar / title bar + menu, content area, and mobile nav */
 export default function Layout() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { logout, user, tenant, tenantStatus, settings, role, isSuspended, isOwner, isPlatformAdmin } = useApp();
+
+  // ------------------------------------------------------------
+  // STATE
+  // ------------------------------------------------------------
+  const [menuOpen, setMenuOpen] = useState(false);   // mobile slide-in menu
+
+  // ------------------------------------------------------------
+  // EFFECTS
+  // ------------------------------------------------------------
+
+  // Close the mobile menu whenever the page changes
+  useEffect(() => { setMenuOpen(false); }, [location.pathname]);
+
+  // Lock page scroll behind the open menu
+  useEffect(() => {
+    document.body.style.overflow = menuOpen ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [menuOpen]);
 
   // ------------------------------------------------------------
   // DERIVED DATA
@@ -59,69 +137,66 @@ export default function Layout() {
   const visibleNav = sidebarNav.filter(item => (adminOnly
     ? item.adminOnly
     : (!item.ownerOnly || isOwner) && (!item.adminOnly || isPlatformAdmin)));
+  const panelProps = { items: visibleNav, companyName, roleLabel, onLogout: logout };
 
   // ------------------------------------------------------------
   // RENDER
   // ------------------------------------------------------------
   return (
-    <div className="min-h-[100dvh] bg-bb-bg overflow-x-hidden">
+    <div className="min-h-[100dvh] bg-bb-bg overflow-x-clip">
       {/* === SIDEBAR (Desktop only: 1024px+) === */}
       <aside className="hidden lg:flex flex-col fixed top-0 left-0 bottom-0 w-[240px] bg-bb-sidebar border-r border-bb-sidebar-border z-50">
         {/* Logo - EventScope horizontal logo (white + gold star, no tagline) */}
         <div className="px-4 py-5 border-b border-bb-sidebar-border">
-          <img
-            src={import.meta.env.BASE_URL + "eventscope-logo-horizontal.svg"}
-            alt="EventScope"
-            className="w-full max-w-[150px] h-auto object-contain"
-          />
+          <img src={LOGO} alt="EventScope" className="w-full max-w-[150px] h-auto object-contain" />
         </div>
-
-        {/* Nav links */}
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {visibleNav.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.to === '/'}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
-                ${isActive
-                  ? 'bg-bb-sidebar-active text-white'
-                  : 'text-bb-sidebar-muted hover:text-white hover:bg-bb-sidebar-active'
-                }`
-              }
-            >
-              <item.icon size={18} />
-              {item.label}
-            </NavLink>
-          ))}
-        </nav>
-
-        {/* Account footer: company + role on the left, logout on the right */}
-        <div className="px-3 pt-3 pb-2 border-t border-bb-sidebar-border">
-          <div className="flex items-center gap-2.5 px-1">
-            <div className="w-9 h-9 shrink-0 rounded-lg bg-white/10 text-[#e3ca7c] font-bold text-sm flex items-center justify-center">
-              {(companyName || '?').trim().charAt(0).toUpperCase()}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-white truncate" title={companyName}>{companyName || 'Your company'}</p>
-              <p className="text-[11px] text-bb-sidebar-muted truncate" title={roleLabel}>{roleLabel}</p>
-            </div>
-            <button
-              onClick={logout}
-              title="Log out"
-              aria-label="Log out"
-              className="w-9 h-9 shrink-0 rounded-lg flex items-center justify-center text-bb-sidebar-muted hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-            >
-              <LogOut size={18} />
-            </button>
-          </div>
-          <p className="text-[9px] text-bb-sidebar-muted/50 text-center mt-2 tracking-wide">EventScope v1.0</p>
-        </div>
+        <NavPanel {...panelProps} />
       </aside>
 
+      {/* === MOBILE TITLE BAR (below 1024px) — logo + hamburger, stays on top === */}
+      <header className="lg:hidden sticky top-0 z-40 bg-bb-sidebar border-b border-bb-sidebar-border pt-[env(safe-area-inset-top)]">
+        <div className="h-14 px-4 flex items-center justify-between">
+          <button onClick={() => navigate(adminOnly ? '/admin' : '/')} aria-label="Home" className="cursor-pointer">
+            <img src={LOGO} alt="EventScope" className="h-[18px] w-auto" />
+          </button>
+          <button
+            onClick={() => setMenuOpen(true)}
+            aria-label="Open menu"
+            className="w-10 h-10 -mr-2 rounded-lg flex items-center justify-center text-white hover:bg-white/10 cursor-pointer"
+          >
+            <Menu size={24} />
+          </button>
+        </div>
+      </header>
+
+      {/* === MOBILE SLIDE-IN MENU === */}
+      <div className={`lg:hidden fixed inset-0 z-[60] ${menuOpen ? '' : 'pointer-events-none'}`} aria-hidden={!menuOpen}>
+        {/* Backdrop — tap to close */}
+        <div
+          onClick={() => setMenuOpen(false)}
+          className={`absolute inset-0 bg-black/50 transition-opacity duration-200 ${menuOpen ? 'opacity-100' : 'opacity-0'}`}
+        />
+        {/* Panel (slides in from the right, next to the hamburger) */}
+        <aside className={`absolute top-0 right-0 bottom-0 w-[78%] max-w-[300px] bg-bb-sidebar flex flex-col shadow-2xl
+          transition-transform duration-200 ease-out ${menuOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+          <div className="pt-[env(safe-area-inset-top)] border-b border-bb-sidebar-border">
+            <div className="h-14 px-4 flex items-center justify-between">
+              <img src={LOGO} alt="EventScope" className="h-[18px] w-auto" />
+              <button
+                onClick={() => setMenuOpen(false)}
+                aria-label="Close menu"
+                className="w-10 h-10 -mr-2 rounded-lg flex items-center justify-center text-white hover:bg-white/10 cursor-pointer"
+              >
+                <X size={22} />
+              </button>
+            </div>
+          </div>
+          <NavPanel {...panelProps} />
+        </aside>
+      </div>
+
       {/* === MAIN CONTENT === */}
-      <main className="lg:ml-[240px] min-h-[100dvh] pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-6">
+      <main className="lg:ml-[240px] pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-6">
         {/* Suspended account banner (tenant set to read-only by EventScope) */}
         {isSuspended && (
           <div className="bg-amber-50 border-b border-amber-200 text-amber-800 text-sm px-4 py-3 text-center">

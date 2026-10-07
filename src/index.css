@@ -46,6 +46,9 @@ html, body, #root {
   min-height: 100vh;
   min-height: 100dvh;
   overflow-x: hidden;
+  /* "clip" (where supported) stops sideways scroll WITHOUT turning these into
+     scroll containers — "hidden" would break sticky title bars/search bars */
+  overflow-x: clip;
 }
 
 body {
@@ -149,11 +152,21 @@ select:disabled { opacity: 0.6; }
   .logo-intro .logo-star-trail { display: none; }
 }
 
+/* === Quotation / Bill preview on small screens === */
+/* The document keeps its real (A4-like) width so nothing is squeezed or cut
+   off; on a phone you scroll it sideways instead. */
+.doc-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px;
+}
+.doc-scroll > .print-doc { min-width: 720px; }
+
 /* === Print Styles === */
 /* Hide navigation and adjust layout for PDF/print output */
 @media print {
   body { background: white !important; color: black !important; }
-  [data-no-print], nav, aside { display: none !important; }
+  [data-no-print], nav, aside, header { display: none !important; }
   main { margin: 0 !important; padding: 0 !important; margin-left: 0 !important; }
   .lg\:ml-\[240px\] { margin-left: 0 !important; }
 
@@ -162,8 +175,10 @@ select:disabled { opacity: 0.6; }
     size: A4;
   }
 
+  .doc-scroll { overflow: visible !important; }
   .print-doc {
     width: 100% !important;
+    min-width: 0 !important;
     max-width: none !important;
     box-shadow: none !important;
     border-radius: 0 !important;

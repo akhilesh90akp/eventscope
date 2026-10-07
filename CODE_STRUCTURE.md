@@ -21,13 +21,15 @@ src/
     JoinInvite (accept/decline an invite), Login,
     Legal (Terms / Privacy / Data protection — public)
   components/               Reusable UI pieces
-    Layout (sidebar + mobile nav), Button, Card, Input, Select, Modal, Toast,
+    Layout (desktop sidebar; mobile title bar + hamburger menu + bottom nav), Button, Card, Input, Select, Modal, Toast,
     Badge, Toggle, LocationInput, ErrorBoundary,
     CostsPanel (costs on one event), JobLogColumnsEditor (Settings tab),
     ImportCompanyDialog (Admin: create a company from an old app's backup),
     AdminTeamDialog (Admin: a company's members/invites — change role, remove),
     AuthBackground (video behind sign-in / sign-up / invite screens),
-    AnimatedLogo (logo that builds itself once on those screens)
+    AnimatedLogo (logo that builds itself once on those screens and while loading),
+    EventSummary (event card face shared by Home and Confirmed/Completed),
+    StickyBar (keeps search boxes / Settings tabs pinned while scrolling)
   constants/
     data.js                 Defaults: event types, service categories, new-company
                             settings, Job Log columns, plans

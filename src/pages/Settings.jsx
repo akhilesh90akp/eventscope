@@ -17,6 +17,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import Card from '../components/Card';
+import StickyBar from '../components/StickyBar';
 import Button from '../components/Button';
 import Input from '../components/Input';
 import Modal from '../components/Modal';
@@ -189,23 +190,25 @@ export default function Settings() {
     <div className="space-y-4 pb-8">
       <h1 className="text-xl font-bold text-bb-text">Settings</h1>
 
-      {/* Tab Buttons */}
-      <div className="flex gap-1.5 overflow-x-auto pb-1">
-        {tabs.map(t => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-colors cursor-pointer ${
-              tab === t.key
-                ? 'bg-bb-accent text-white'
-                : 'bg-bb-card border border-bb-border text-bb-muted hover:text-bb-text'
-            }`}
-          >
-            <t.icon size={16} />
-            {t.label}
-          </button>
-        ))}
-      </div>
+      {/* Tab Buttons — stay pinned while scrolling */}
+      <StickyBar>
+        <div className="flex gap-1.5 overflow-x-auto pb-1">
+          {tabs.map(t => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-colors cursor-pointer ${
+                tab === t.key
+                  ? 'bg-bb-accent text-white'
+                  : 'bg-bb-card border border-bb-border text-bb-muted hover:text-bb-text'
+              }`}
+            >
+              <t.icon size={16} />
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </StickyBar>
 
       {/* Read-only notice for staff / suspended accounts */}
       {!canEditSettings && tab !== 'team' && (
@@ -325,7 +328,7 @@ export default function Settings() {
                   <button onClick={() => { setCatModal(cat.id); setNewItemInput(''); }} className="p-1.5 rounded text-bb-muted hover:text-bb-accent cursor-pointer">
                     <Edit2 size={16} />
                   </button>
-                  <button onClick={() => deleteCategory(cat.id)} className="p-1.5 rounded text-bb-muted hover:text-red-400 cursor-pointer">
+                  <button onClick={() => window.confirm(`Delete the “${cat.name}” category and its ${cat.items.length} items? Existing quotations aren’t affected.`) && deleteCategory(cat.id)} className="p-1.5 rounded text-bb-muted hover:text-red-400 cursor-pointer" title="Delete category">
                     <Trash2 size={16} />
                   </button>
                 </div>

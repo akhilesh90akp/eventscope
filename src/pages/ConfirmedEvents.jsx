@@ -14,18 +14,19 @@
 // IMPORTS
 // ============================================================
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import Card from '../components/Card';
+import StickyBar from '../components/StickyBar';
 import Button from '../components/Button';
 import Input from '../components/Input';
-import Badge from '../components/Badge';
 import Modal from '../components/Modal';
 import CostsPanel from '../components/CostsPanel';
-import { formatCurrency, formatDateReadable, daysUntil, telLink, waLink, sortByActiveDate, getAllEventDates, getActiveDate, openJobLog } from '../utils/helpers';
+import EventSummary from '../components/EventSummary';
+import { telLink, waLink, sortByActiveDate, openJobLog } from '../utils/helpers';
 import {
   Search, Phone, MessageSquare, FileText, CheckCircle2,
-  CalendarDays, MapPin, PackageOpen, Plus, Receipt, Edit3,
+  MapPin, PackageOpen, Plus, Receipt, Edit3,
   ChevronDown, ChevronUp, Home, Navigation, Trash2, MoreVertical,
   ArrowLeftRight, ExternalLink,
 } from 'lucide-react';
@@ -62,6 +63,7 @@ function getAllItems(ev) {
 export default function ConfirmedEvents({ status = 'confirmed' }) {
   const { events, categories, updateEvent, deleteEvent, showToast, isOwner } = useApp();
   const navigate = useNavigate();
+  const location = useLocation();
 
   // ------------------------------------------------------------
   // STATE
@@ -72,7 +74,7 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
   const [newItem, setNewItem] = useState('');
   const [addItemTarget, setAddItemTarget] = useState('main'); // which event to add item to
   const [prices, setPrices] = useState({});
-  const [expandedId, setExpandedId] = useState(null);
+  const [expandedId, setExpandedId] = useState(location.state?.expandId || null); // Home links open one event
   const [deleteId, setDeleteId] = useState(null); // event id for delete confirmation
   const [moveId, setMoveId] = useState(null); // event id for the "Move to..." status-change modal
 
@@ -270,12 +272,15 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
         )}
       </div>
 
-      <Input
-        placeholder="Search events..."
-        icon={Search}
-        value={search}
-        onChange={e => setSearch(e.target.value)}
-      />
+      {/* Search — stays pinned while scrolling */}
+      <StickyBar>
+        <Input
+          placeholder="Search events..."
+          icon={Search}
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
+      </StickyBar>
 
       {confirmedEvents.length === 0 ? (
         <Card>
@@ -290,81 +295,19 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
       ) : (
         <div className="space-y-3">
           {confirmedEvents.map(ev => {
-            const eventDates = getAllEventDates(ev);
-            const activeDateStr = getActiveDate(ev);
-            const activeDays = daysUntil(activeDateStr);
             const allItems = getAllItems(ev);
             const isExpanded = expandedId === ev.id;
             return (
               <Card key={ev.id}>
                 <div className="space-y-3">
                   {/* Collapsed Header - Clickable */}
-                  <div
-                    className="cursor-pointer"
-                    onClick={() => toggleExpand(ev.id)}
-                  >
-                    {/* Line 1: Event name + expand arrow */}
-                    <div className="flex items-center justify-between mb-1.5">
-                      <p className="font-semibold text-bb-text truncate flex-1 mr-2">{ev.clientName}</p>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        {activeDays !== null && ev.status === 'confirmed' && (
-                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                            activeDays < 0 ? 'bg-red-100 text-red-700' :
-                            activeDays <= 3 ? 'bg-red-100 text-red-700' :
-                            activeDays <= 7 ? 'bg-amber-100 text-amber-700' :
-                            'bg-emerald-100 text-emerald-700'
-                          }`}>
-                            {activeDays < 0 ? `${Math.abs(activeDays)}d ago` : activeDays === 0 ? 'Today' : activeDays === 1 ? 'Tomorrow' : `${activeDays}d`}
-                          </span>
-                        )}
-                        {isExpanded ? (
-                          <ChevronUp size={18} className="text-bb-muted" />
-                        ) : (
-                          <ChevronDown size={18} className="text-bb-muted" />
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Line 2: Chips + total amount */}
-                    <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                      <Badge variant={ev.status}>{ev.eventType}</Badge>
-                      <Badge variant={ev.status}>{ev.status}</Badge>
-                      {ev.totalAmount > 0 && (
-                        <span className="font-bold text-emerald-600 text-sm ml-auto">{formatCurrency(ev.totalAmount)}</span>
-                      )}
-                    </div>
-
-                    {/* Line 3: Dates (with active highlighted) */}
-                    <div className="space-y-1 text-sm">
-                      {eventDates.length > 0 && (
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <CalendarDays size={14} className="text-bb-muted flex-shrink-0" />
-                          {eventDates.map((d, idx) => {
-                            const isActive = d.date === activeDateStr;
-                            return (
-                              <span key={idx} className={`${
-                                isActive
-                                  ? 'text-bb-accent font-semibold'
-                                  : d.isPast ? 'text-bb-muted/50 line-through' : 'text-bb-muted'
-                              }`}>
-                                {formatDateReadable(d.date)}
-                                {eventDates.length > 1 && (
-                                  <span className="text-[10px] ml-0.5">({d.isMain ? 'main' : d.label})</span>
-                                )}
-                                {idx < eventDates.length - 1 && <span className="text-bb-muted mx-0.5">•</span>}
-                              </span>
-                            );
-                          })}
-                        </div>
-                      )}
-                      {/* Line 4: Venue — own row so it gets full width to truncate against consistently */}
-                      {(ev.mainEvent?.location || ev.eventLocation) && (
-                        <div className="flex items-center gap-1 text-bb-muted min-w-0">
-                          <MapPin size={14} className="flex-shrink-0" />
-                          <span className="truncate">{ev.mainEvent?.location || ev.eventLocation}</span>
-                        </div>
-                      )}
-                    </div>
+                  <div className="cursor-pointer" onClick={() => toggleExpand(ev.id)}>
+                    <EventSummary
+                      ev={ev}
+                      right={isExpanded
+                        ? <ChevronUp size={18} className="text-bb-muted" />
+                        : <ChevronDown size={18} className="text-bb-muted" />}
+                    />
                   </div>
 
                   {/* Expanded Content */}

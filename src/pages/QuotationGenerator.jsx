@@ -553,7 +553,8 @@ export default function QuotationGenerator() {
 
         {/* Items & Pricing Card */}
         <Card>
-          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+          {/* Toolbar — a divider line separates it from the item list */}
+          <div className="flex items-center justify-between mb-4 pb-3 border-b border-bb-border flex-wrap gap-2">
             <h3 className="text-sm font-semibold text-bb-muted uppercase">Items & Pricing</h3>
             <div className="flex items-center gap-3 flex-wrap">
               <Button
@@ -699,7 +700,7 @@ export default function QuotationGenerator() {
                                   </>
                                 )}
                                 <button
-                                  onClick={() => handleRemoveItem(group.id, name)}
+                                  onClick={() => window.confirm(`Remove “${name}” from this quotation?`) && handleRemoveItem(group.id, name)}
                                   className="p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
                                   title="Remove item"
                                 >
@@ -864,6 +865,7 @@ export default function QuotationGenerator() {
       </Modal>
 
       {/* === Quotation Preview - printable document === */}
+      <div className="doc-scroll">{/* scrolls sideways on phones */}
       <div ref={pdfRef} className="print-doc" style={{backgroundColor: 'white', color: '#1f2937', fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif', maxWidth: '800px', margin: '0 auto', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'}}>
         <table style={{width: '100%', borderCollapse: 'collapse', padding: '0', margin: '0'}}>
           <tbody>
@@ -1148,6 +1150,7 @@ export default function QuotationGenerator() {
             </tr>
           </tbody>
         </table>
+      </div>
       </div>
     </div>
   );

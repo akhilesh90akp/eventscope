@@ -16,6 +16,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import Card from '../components/Card';
+import StickyBar from '../components/StickyBar';
 import Button from '../components/Button';
 import Input from '../components/Input';
 import Badge from '../components/Badge';
@@ -128,13 +129,15 @@ export default function DraftsList() {
     <div className="space-y-4">
       <h1 className="text-xl font-bold text-bb-text">Drafts</h1>
 
-      {/* Search */}
-      <Input
-        placeholder="Search drafts..."
-        icon={Search}
-        value={search}
-        onChange={e => setSearch(e.target.value)}
-      />
+      {/* Search — stays pinned while scrolling */}
+      <StickyBar>
+        <Input
+          placeholder="Search drafts..."
+          icon={Search}
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
+      </StickyBar>
 
       {/* Drafts List */}
       {drafts.length === 0 ? (

@@ -377,6 +377,7 @@ export default function BillGenerator() {
       </div>
 
       {/* === Invoice Preview - printable document === */}
+      <div className="doc-scroll">{/* scrolls sideways on phones */}
       <div ref={pdfRef} className="print-doc" style={{backgroundColor: 'white', color: '#1f2937', fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif', maxWidth: '800px', margin: '0 auto', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'}}>
         <table style={{width: '100%', borderCollapse: 'collapse', padding: '0', margin: '0'}}>
           <tbody>
@@ -712,6 +713,7 @@ export default function BillGenerator() {
             </tr>
           </tbody>
         </table>
+      </div>
       </div>
     </div>
   );
