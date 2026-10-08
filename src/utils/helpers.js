@@ -135,12 +135,29 @@ export const openJobLog = () => {
  * @param {number} existingCount - Number of existing invoices for sequential numbering
  * @returns {string} Formatted invoice number
  */
-export const genInvoiceNo = (prefix = 'INV', existingCount = 0) => {
-  const now = new Date();
+export const genInvoiceNo = (prefix = 'INV', existingCount = 0, now = new Date()) => {
   // Financial year starts in April (month index 3)
   const fy1 = now.getMonth() >= 3 ? now.getFullYear().toString().slice(2) : (now.getFullYear()-1).toString().slice(2);
   const fy2 = (parseInt(fy1)+1).toString();
   return `${prefix}-B2C${fy1}${fy2}-${String(existingCount+1).padStart(3,'0')}`;
+};
+
+/**
+ * Next free invoice number for this financial year: looks at every saved
+ * bill (event.billDetails.invoiceNo) with the same prefix + year and goes one
+ * past the highest, so numbers never repeat — even after a bill is deleted
+ * or a number was typed by hand.
+ */
+export const nextInvoiceNo = (prefix = 'INV', events = [], now = new Date()) => {
+  const sample = genInvoiceNo(prefix, 0, now);                 // e.g. BB-B2C2627-001
+  const stem = sample.slice(0, sample.lastIndexOf('-') + 1);   // e.g. BB-B2C2627-
+  const highest = events.reduce((max, e) => {
+    const no = String(e?.billDetails?.invoiceNo || '');
+    if (!no.startsWith(stem)) return max;
+    const n = parseInt(no.slice(stem.length), 10);
+    return Number.isFinite(n) && n > max ? n : max;
+  }, 0);
+  return genInvoiceNo(prefix, highest, now);
 };
 
 // ============================================================

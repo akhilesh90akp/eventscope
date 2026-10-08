@@ -13,7 +13,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   parseMoney, calcGST, roundOff, getEventBill, getEventRevenue,
-  computeEventFinancials, inviteKey, genInvoiceNo,
+  computeEventFinancials, inviteKey, genInvoiceNo, nextInvoiceNo,
 } from '../src/utils/helpers.js';
 
 // ============================================================
@@ -143,4 +143,18 @@ test('inviteKey normalises emails so invites match regardless of case/spaces', (
 
 test('genInvoiceNo uses a neutral default prefix', () => {
   assert.match(genInvoiceNo(undefined, 0), /^INV-/);
+});
+
+test('nextInvoiceNo never repeats a number in the same financial year', () => {
+  const oct26 = new Date('2026-10-08');
+  const evs = [
+    { billDetails: { invoiceNo: 'BB-B2C2627-001' } },
+    { billDetails: { invoiceNo: 'BB-B2C2627-007' } },  // typed by hand
+    { billDetails: { invoiceNo: 'BB-B2C2526-050' } },  // last financial year
+    { billDetails: { invoiceNo: 'XX-B2C2627-099' } },  // other prefix
+    { status: 'draft' },
+  ];
+  assert.equal(nextInvoiceNo('BB', evs, oct26), 'BB-B2C2627-008');
+  assert.equal(nextInvoiceNo('BB', [], oct26), 'BB-B2C2627-001');
+  assert.equal(nextInvoiceNo('BB', evs, new Date('2027-04-02')), 'BB-B2C2728-001'); // new year restarts
 });

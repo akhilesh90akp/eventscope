@@ -23,7 +23,7 @@ import Input from '../components/Input';
 import Select from '../components/Select';
 import Toggle from '../components/Toggle';
 import Card from '../components/Card';
-import { formatCurrency, formatDateReadable, calcGST, roundOff, genInvoiceNo, waLink, buildLineEntries, computeSectionTotal } from '../utils/helpers';
+import { formatCurrency, formatDateReadable, calcGST, roundOff, nextInvoiceNo, waLink, buildLineEntries, computeSectionTotal } from '../utils/helpers';
 import { DEFAULT_SAC_CODE } from '../constants/data';
 import { Printer, MessageSquare, Save } from 'lucide-react';
 
@@ -105,7 +105,6 @@ export default function BillGenerator() {
   const event = events.find(e => e.id === eventId);
 
   // Count existing invoices for sequential numbering
-  const billedCount = events.filter(e => e.invoiceNo).length;
 
   // ------------------------------------------------------------
   // STATE
@@ -115,7 +114,7 @@ export default function BillGenerator() {
   // bill was already saved for this event, so re-opening the page
   // doesn't lose previous edits.
   const bd = event?.billDetails || {};
-  const [invoiceNo, setInvoiceNo] = useState(() => bd.invoiceNo ?? genInvoiceNo(settings.invoicePrefix, billedCount));
+  const [invoiceNo, setInvoiceNo] = useState(() => bd.invoiceNo ?? nextInvoiceNo(settings.invoicePrefix, events));
   const [invoiceDate, setInvoiceDate] = useState(() => bd.invoiceDate ?? new Date().toISOString().split('T')[0]);
   const [billToName, setBillToName] = useState(() => bd.billToName ?? event?.clientName ?? '');
   const [billToAddress, setBillToAddress] = useState(() => bd.billToAddress ?? event?.clientAddress ?? '');
