@@ -104,7 +104,7 @@ export default function QuotationGenerator() {
    * render) is handled the same way as one that's already loaded.
    */
   const deriveState = (ev) => {
-    if (!ev) return { sectionItems: {}, itemPrices: {}, bundles: [], hidePrices: false, finalAmounts: {} };
+    if (!ev) return { sectionItems: {}, itemPrices: {}, bundles: [], hidePrices: false, finalAmounts: {}, quoteDetails: {} };
     const stored = ev.itemPrices || {};
     const sectionItems = {};
     if (ev.mainEvent) {
@@ -126,6 +126,9 @@ export default function QuotationGenerator() {
       bundles: ev.bundles || [],
       hidePrices: ev.hidePrices || false,
       finalAmounts: ev.finalAmounts || {},
+      // GST on/off, GST rate and validity are saved with the quote, so
+      // reopening it (or sharing it later) keeps what was chosen.
+      quoteDetails: ev.quoteDetails || {},
     };
   };
 
@@ -134,9 +137,9 @@ export default function QuotationGenerator() {
   const [bundles, setBundles] = useState(() => deriveState(event).bundles);
   const [hidePrices, setHidePrices] = useState(() => deriveState(event).hidePrices);
   const [finalAmounts, setFinalAmounts] = useState(() => deriveState(event).finalAmounts);
-  const [gstEnabled, setGstEnabled] = useState(false);
-  const [gstRate, setGstRate] = useState(String(settings.defaultGstRate || 18));
-  const [validityDays, setValidityDays] = useState(15);
+  const [gstEnabled, setGstEnabled] = useState(() => deriveState(event).quoteDetails.gstEnabled ?? false);
+  const [gstRate, setGstRate] = useState(() => deriveState(event).quoteDetails.gstRate ?? String(settings.defaultGstRate || 18));
+  const [validityDays, setValidityDays] = useState(() => deriveState(event).quoteDetails.validityDays ?? 15);
 
   // Add item state — each section (main event / each sub-event) gets its
   // own free-text "add item" box, so items go into the section actually
@@ -188,6 +191,9 @@ export default function QuotationGenerator() {
       setBundles(derived.bundles);
       setHidePrices(derived.hidePrices);
       setFinalAmounts(derived.finalAmounts);
+      if (derived.quoteDetails.gstEnabled !== undefined) setGstEnabled(derived.quoteDetails.gstEnabled);
+      if (derived.quoteDetails.gstRate !== undefined) setGstRate(derived.quoteDetails.gstRate);
+      if (derived.quoteDetails.validityDays !== undefined) setValidityDays(derived.quoteDetails.validityDays);
       loadedRef.current = true;
     }
   }, [event]);
@@ -465,7 +471,10 @@ export default function QuotationGenerator() {
     if (saving) return;
     setSaving(true);
     try {
-      const updateData = { itemPrices, bundles, hidePrices, finalAmounts, totalAmount: subtotal };
+      const updateData = {
+        itemPrices, bundles, hidePrices, finalAmounts, totalAmount: subtotal,
+        quoteDetails: { gstEnabled, gstRate: String(gstRate), validityDays: Number(validityDays) || 15 },
+      };
 
       if (event.mainEvent) {
         updateData.mainEvent = { ...event.mainEvent, items: sectionItems.main || [] };

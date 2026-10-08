@@ -9,20 +9,34 @@
 @import "tailwindcss";
 
 /* === Brand Font === */
-/* Oxanium (variable, weights 200–800, SIL Open Font License). It has no ₹ glyph,
-   so the rupee sign falls back to the system font in the stack below. */
+/* Navine Demo SemiCondensed (OneSevenPointFive, myfonts.com) — a single
+   regular weight, so bold/semibold text is drawn by the browser. It has no
+   ₹ glyph (or …, ·, ✓), so those fall back to the system font in the stack
+   below. NOTE: this is the demo version; a commercial licence is needed
+   before selling the app with it. */
 @font-face {
-  font-family: 'Oxanium';
+  font-family: 'Navine';
+  src: url('./assets/fonts/NavineDemo-SemiCondensed.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-002F, U+003A-FFFF;   /* everything except 0–9 */
+}
+/* Numbers come from Oxanium: Navine's zero has a slash and reads like an 8
+   at small sizes (₹45,000 looked like ₹45,888) — not OK for amounts. */
+@font-face {
+  font-family: 'Brand Digits';
   src: url('./assets/fonts/Oxanium-Variable.woff2') format('woff2');
   font-weight: 200 800;
   font-style: normal;
   font-display: swap;
+  unicode-range: U+0030-0039;
 }
 
 /* === Theme Tokens === */
 /* Custom color palette for the EventScope brand */
 @theme {
-  --font-sans: 'Oxanium', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-sans: 'Brand Digits', 'Navine', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --color-bb-bg: #f3f4f6;
   --color-bb-card: #ffffff;
   --color-bb-card-hover: #f9fafb;
@@ -55,7 +69,7 @@ body {
   margin: 0;
   background-color: #f3f4f6;
   color: #1f2937;
-  font-family: 'Oxanium', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Brand Digits', 'Navine', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   width: 100%;
   max-width: 100vw;

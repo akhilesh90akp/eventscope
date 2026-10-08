@@ -120,8 +120,10 @@ export default function BillGenerator() {
   const [billToAddress, setBillToAddress] = useState(() => bd.billToAddress ?? event?.clientAddress ?? '');
   const [discount, setDiscount] = useState(() => bd.discount ?? 0);
   const [advance, setAdvance] = useState(() => bd.advance ?? 0);
-  const [gstEnabled, setGstEnabled] = useState(() => bd.gstEnabled ?? true);
-  const [gstRate, setGstRate] = useState(() => bd.gstRate ?? String(settings.defaultGstRate || 18));
+  // A new bill starts with the GST choice made on the quote (if any)
+  const qd = event?.quoteDetails || {};
+  const [gstEnabled, setGstEnabled] = useState(() => bd.gstEnabled ?? qd.gstEnabled ?? true);
+  const [gstRate, setGstRate] = useState(() => bd.gstRate ?? qd.gstRate ?? String(settings.defaultGstRate || 18));
   const [interState, setInterState] = useState(() => bd.interState ?? false);
 
   // `hasUnsavedChanges` drives the manual Save button's "already saved"
@@ -158,8 +160,8 @@ export default function BillGenerator() {
       billToAddress: loaded.billToAddress ?? billToAddress,
       discount: loaded.discount ?? discount,
       advance: loaded.advance ?? advance,
-      gstEnabled: loaded.gstEnabled ?? gstEnabled,
-      gstRate: loaded.gstRate ?? gstRate,
+      gstEnabled: loaded.gstEnabled ?? event.quoteDetails?.gstEnabled ?? gstEnabled,
+      gstRate: loaded.gstRate ?? event.quoteDetails?.gstRate ?? gstRate,
       interState: loaded.interState ?? interState,
     };
     setInvoiceNo(hydrated.invoiceNo);
