@@ -15,7 +15,7 @@
 // IMPORTS
 // ============================================================
 import React, { useEffect, useState } from 'react';
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AppContext';
 import Toast from './components/Toast';
 import AnimatedLogo from './components/AnimatedLogo';
@@ -74,6 +74,16 @@ function LoadingScreen() {
       </div>
     </div>
   );
+}
+
+/**
+ * Remounts a page when its :eventId changes, so going straight from one
+ * event's Quote/Bill/Edit page to another's never shows the previous
+ * event's items (those pages copy the event into their own state on mount).
+ */
+function PerEvent({ page: Page }) {
+  const { eventId } = useParams();
+  return <Page key={eventId} />;
 }
 
 /** Shown when the company's data couldn't be loaded (e.g. offline) */
@@ -152,14 +162,14 @@ function AppRoutes() {
         <Route element={<Layout />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/new" element={<NewDraft />} />
-          <Route path="/edit/:eventId" element={<EditDraft />} />
+          <Route path="/edit/:eventId" element={<PerEvent page={EditDraft} />} />
           <Route path="/drafts" element={<DraftsList />} />
           {/* Confirmed and Completed are separate pages sharing one list
               component; distinct keys give each its own state. */}
           <Route path="/confirmed" element={<ConfirmedEvents key="confirmed" status="confirmed" />} />
           <Route path="/completed" element={<ConfirmedEvents key="completed" status="completed" />} />
-          <Route path="/bill/:eventId" element={<BillGenerator />} />
-          <Route path="/quotation/:eventId" element={<QuotationGenerator />} />
+          <Route path="/bill/:eventId" element={<PerEvent page={BillGenerator} />} />
+          <Route path="/quotation/:eventId" element={<PerEvent page={QuotationGenerator} />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/admin" element={<Admin />} />
