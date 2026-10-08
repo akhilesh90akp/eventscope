@@ -63,14 +63,14 @@ function useHashPath() {
 // ============================================================
 
 /** Full-screen loading state on the brand background (logo builds itself, star falls in) */
-function LoadingScreen() {
+function LoadingScreen({ text = 'Loading...' }) {
   // The Job Log opens in its own tab; show its loader from the very first paint
-  if (window.location.hash.startsWith('#/job-log')) return <JobLogLoader />;
+  if (window.location.hash.startsWith('#/job-log') && text === 'Loading...') return <JobLogLoader />;
   return (
     <div className="min-h-[100dvh] bg-bb-sidebar flex items-center justify-center">
       <div className="text-center">
         <AnimatedLogo className="h-24 w-auto mx-auto mb-6" />
-        <p className="text-bb-sidebar-muted text-sm">Loading...</p>
+        <p className="text-bb-sidebar-muted text-sm">{text}</p>
       </div>
     </div>
   );
@@ -112,7 +112,7 @@ function AccountErrorScreen() {
 // ============================================================
 
 function AppRoutes() {
-  const { user, authLoading, tenantStatus, isPlatformAdmin, toast } = useApp();
+  const { user, authLoading, tenantStatus, isPlatformAdmin, toast, signingOut } = useApp();
   const path = useHashPath();
 
   // ------------------------------------------------------------
@@ -123,6 +123,7 @@ function AppRoutes() {
   const publicPage = PUBLIC_PAGES.find(p => path === `/${p}`);
   if (publicPage) return <Legal page={publicPage} />;
 
+  if (signingOut) return <LoadingScreen text="Signing out…" />;
   if (authLoading) return <LoadingScreen />;
   if (!user) return <Login />;
 

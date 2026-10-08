@@ -1,7 +1,7 @@
 /**
  * Firebase Configuration & Initialization
  *
- * Auth persistence: browserLocalPersistence (localStorage-based, works on all platforms)
+ * Auth persistence: localStorage first (fast start-up), IndexedDB as a fallback
  * Firestore: persistent local cache for offline support
  *
  * NOTE: whether reads/writes to Firestore succeed is controlled by the
@@ -14,7 +14,7 @@
 // IMPORTS
 // ============================================================
 import { initializeApp } from 'firebase/app';
-import { getAuth, browserLocalPersistence, setPersistence, connectAuthEmulator } from 'firebase/auth';
+import { initializeAuth, browserLocalPersistence, indexedDBLocalPersistence, browserPopupRedirectResolver, connectAuthEmulator } from 'firebase/auth';
 import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, connectFirestoreEmulator } from 'firebase/firestore';
 
 // ============================================================
@@ -36,11 +36,13 @@ const app = initializeApp(firebaseConfig);
 // AUTH
 // ============================================================
 
-// Auth: use getAuth (universally compatible, no IndexedDB dependency)
-// Then set persistence to localStorage (works on all Android browsers/PWAs)
-export const auth = getAuth(app);
-setPersistence(auth, browserLocalPersistence).catch((err) => {
-  console.warn('Auth persistence setup failed:', err.code);
+// Auth: sessions live in localStorage (fast to read at start-up, works on
+// all Android browsers/PWAs). It's listed first, so start-up doesn't wait on
+// IndexedDB; an older session saved in IndexedDB is still found (and moved
+// to localStorage), so nobody gets logged out by this change.
+export const auth = initializeAuth(app, {
+  persistence: [browserLocalPersistence, indexedDBLocalPersistence],
+  popupRedirectResolver: browserPopupRedirectResolver,
 });
 
 // ============================================================

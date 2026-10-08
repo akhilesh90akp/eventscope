@@ -63,6 +63,29 @@ const friendlyError = (err, what = 'save') => (
       : err?.message || `Couldn’t ${what}.`
 );
 
+/**
+ * Quick-start memory: which company this login belongs to (id, name,
+ * status, role). Lets the app open straight away on the next visit instead
+ * of waiting for two network round trips behind the Loading screen. The
+ * live listeners still run and correct it (e.g. if this person was removed
+ * from the company, or it was suspended). Holds no client or money data,
+ * and is wiped on Log out.
+ */
+const BOOT_KEY = 'eventscope-boot';
+const readBoot = (uid) => {
+  try {
+    const b = JSON.parse(localStorage.getItem(BOOT_KEY) || 'null');
+    return b && b.uid === uid && b.tenantId ? b : null;
+  } catch { return null; }
+};
+const writeBoot = (patch) => {
+  try {
+    const prev = JSON.parse(localStorage.getItem(BOOT_KEY) || '{}');
+    localStorage.setItem(BOOT_KEY, JSON.stringify({ ...prev, ...patch }));
+  } catch { /* storage full / blocked — just start the slow way next time */ }
+};
+const clearBoot = () => { try { localStorage.removeItem(BOOT_KEY); } catch { /* ignore */ } };
+
 /** Returns the pending invite for this login's Google email, or null */
 async function findInvite(user) {
   if (!user?.email) return null;
@@ -114,6 +137,7 @@ export function AppProvider({ children }) {
   const [pendingInvite, setPendingInvite] = useState(null); // invite waiting for Join / Decline
   const [loadAttempt, setLoadAttempt] = useState(0);        // bumps to re-subscribe after a transient error
   const [loadError, setLoadError] = useState('');           // error code shown small on the error screen
+  const [signingOut, setSigningOut] = useState(false);       // shows "Signing out…" while we clean up
 
   // Company data
   const [events, setEvents] = useState([]);
@@ -167,10 +191,13 @@ export function AppProvider({ children }) {
    */
   const logout = async () => {
     if (!window.confirm('Log out of EventScope?\n\nYou’ll need to sign in with Google again, and this device’s saved copy of your data will be cleared.')) return;
+    clearBoot();
+    setSigningOut(true);
+    // Cap the cleanup so a slow phone never sits on "Signing out" for long
+    const giveUp = new Promise(resolve => setTimeout(resolve, 4000));
     try {
       await signOut(auth);
-      await terminate(db);
-      await clearIndexedDbPersistence(db);
+      await Promise.race([(async () => { await terminate(db); await clearIndexedDbPersistence(db); })(), giveUp]);
     } catch (err) {
       console.warn('Sign-out cleanup:', err.message);
     } finally {
@@ -202,26 +229,47 @@ export function AppProvider({ children }) {
   // ------------------------------------------------------------
 
   useEffect(() => {
-    setMembership(null);
-    setTenant(null);
-    setIsPlatformAdmin(false);
     setPendingInvite(null);
-    setTenantStatus('loading');
+    // Returning on this device? Open the app right away from the quick-start
+    // memory; the listeners below confirm (or correct) it in the background.
+    const boot = user ? readBoot(user.uid) : null;
+    if (boot) {
+      setMembership({ tenantId: boot.tenantId, role: boot.role || 'staff' });
+      setTenant(boot.tenant || { id: boot.tenantId });
+      setIsPlatformAdmin(!!boot.isPlatformAdmin);
+      setTenantStatus('ready');
+    } else {
+      setMembership(null);
+      setTenant(null);
+      setIsPlatformAdmin(false);
+      setTenantStatus('loading');
+    }
     if (!user) return undefined;
 
     let cancelled = false;
 
     getDoc(doc(db, 'platformAdmins', user.uid))
-      .then(snap => { if (!cancelled) setIsPlatformAdmin(snap.exists()); })
+      .then(snap => {
+        if (cancelled) return;
+        setIsPlatformAdmin(snap.exists());
+        writeBoot({ isPlatformAdmin: snap.exists() });
+      })
       .catch(() => {}); // not an admin (or offline) — the Admin menu simply stays hidden
 
     const unsubProfile = onSnapshot(doc(db, 'users', user.uid), async (snap) => {
       if (cancelled) return;
       const profile = snap.exists() ? snap.data() : null;
       if (profile?.tenantId) {
-        setMembership({ tenantId: profile.tenantId, role: profile.role || 'staff' });
+        const role = profile.role || 'staff';
+        // Same tenant/role as before → keep the same object (no re-render churn)
+        setMembership(m => (m && m.tenantId === profile.tenantId && m.role === role) ? m : { tenantId: profile.tenantId, role });
+        const prevBoot = readBoot(user.uid);
+        if (!prevBoot || prevBoot.tenantId !== profile.tenantId) clearBoot(); // different login/company: start clean
+        writeBoot({ uid: user.uid, tenantId: profile.tenantId, role });
         return;
       }
+      // Not (or no longer) in a company — forget the quick-start memory
+      clearBoot();
       setMembership(null);
       setTenant(null);
       try {
@@ -266,11 +314,14 @@ export function AppProvider({ children }) {
     const unsubTenant = onSnapshot(doc(db, 'tenants', tenantId), (snap) => {
       if (!snap.exists()) {
         console.error('Tenant doc missing for', tenantId);
+        clearBoot();
         setTenantStatus('none');
         return;
       }
-      setTenant({ id: snap.id, ...snap.data() });
+      const t = { id: snap.id, ...snap.data() };
+      setTenant(t);
       setTenantStatus('ready');
+      writeBoot({ tenant: { id: t.id, name: t.name || '', status: t.status || 'active' } });
     }, (err) => {
       logErr('Tenant')(err);
       retryOrFail(err);
@@ -859,7 +910,7 @@ export function AppProvider({ children }) {
     <Ctx.Provider value={{
       // Auth & account
       user, authLoading, logout,
-      tenant, tenantId, tenantStatus, loadError, role, isOwner, isPlatformAdmin,
+      tenant, tenantId, tenantStatus, loadError, signingOut, role, isOwner, isPlatformAdmin,
       isSuspended, canEditEvents, canEditSettings,
       createCompany, pendingInvite, acceptPendingInvite, declinePendingInvite, showPendingInvite,
       // Company data

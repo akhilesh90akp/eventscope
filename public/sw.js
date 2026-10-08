@@ -7,7 +7,7 @@
  * - API calls (Firebase, etc.): Network-only (never cache)
  */
 
-const CACHE_NAME = 'eventscope-v3'; // bump to drop old cached files (e.g. icons)
+const CACHE_NAME = 'eventscope-v4'; // bump to drop old cached files (e.g. icons)
 const BASE = '/eventscope/';
 
 // Assets to pre-cache on install
@@ -69,24 +69,25 @@ self.addEventListener('fetch', (event) => {
   // Videos (login background) stream with Range requests — let the browser handle them
   if (request.headers.has('range') || /\.(mp4|webm)(\?.*)?$/.test(request.url)) return;
 
-  // Navigation requests (HTML pages): Network-first
-  // This prevents blank screens when a new version is deployed
+  // Navigation requests (HTML pages): Network-first, but don't hang on a
+  // weak mobile signal — after 3 s serve the saved copy (if any) and let the
+  // download finish in the background for next time. A fresh deploy still
+  // shows up straight away whenever the network is reasonable.
   if (request.mode === 'navigate') {
+    const network = fetch(request).then((response) => {
+      if (response.ok) {
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(BASE, clone));
+      }
+      return response;
+    });
+    const saved = () => caches.match(request).then((c) => c || caches.match(BASE));
+    const slow = new Promise((resolve) => setTimeout(resolve, 3000)).then(saved);
     event.respondWith(
-      fetch(request)
-        .then((response) => {
-          // Cache the fresh HTML for offline use
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-          return response;
-        })
-        .catch(() => {
-          // Offline: serve cached version or fallback to index.html
-          return caches.match(request).then((cached) => {
-            return cached || caches.match(BASE);
-          });
-        })
+      Promise.race([network.catch(saved), slow.then((c) => c || network)])
+        .then((r) => r || saved())
     );
+    event.waitUntil(network.catch(() => {}));
     return;
   }
 
