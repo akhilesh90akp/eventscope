@@ -35,6 +35,7 @@ import {
 import { auth, db } from '../firebase';
 import { DEFAULT_SETTINGS, DEFAULT_CATEGORIES, DEFAULT_JOBLOG_COLUMNS } from '../constants/data';
 import { genId, inviteKey } from '../utils/helpers';
+import { buildCompanyBackup, backupFileName } from '../utils/companyBackup';
 
 // ============================================================
 // CONSTANTS
@@ -759,6 +760,41 @@ export function AppProvider({ children }) {
   };
 
   /** Saves the tenant's Job Log column setup (owner only). Returns { success } or { success: false, error }. */
+  /**
+   * Owner's "Download full backup": reads everything for this company fresh
+   * from the server (events, settings, services, Job Log, team, contact) and
+   * saves it as one .json file — the same format as the daily Drive backup,
+   * so Admin → Import company can restore it. Works while suspended too.
+   */
+  const downloadCompanyBackup = async () => {
+    if (!isOwner || !tenantId) return { success: false, error: 'Only owners can download a backup.' };
+    try {
+      const sub = async (name) => (await getDocs(collection(db, 'tenants', tenantId, name))).docs.map(d => ({ id: d.id, data: d.data() }));
+      const [tSnap, evs, cfg, fin, priv, mem, inv] = await Promise.all([
+        getDoc(doc(db, 'tenants', tenantId)),
+        sub('events'), sub('config'), sub('financials'), sub('private'),
+        getDocs(query(collection(db, 'users'), where('tenantId', '==', tenantId))),
+        getDocs(query(collection(db, 'invites'), where('tenantId', '==', tenantId))),
+      ]);
+      const backup = buildCompanyBackup({
+        tenantId,
+        tenant: tSnap.exists() ? tSnap.data() : {},
+        events: evs, config: cfg, financials: fin, private: priv,
+        members: mem.docs.map(d => ({ uid: d.id, ...d.data() })),
+        invites: inv.docs.map(d => ({ email: d.id, ...d.data() })),
+        sourceProject: db.app?.options?.projectId || '',
+      });
+      const url = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 1)], { type: 'application/json' }));
+      const a = Object.assign(document.createElement('a'), { href: url, download: backupFileName(settings.companyName || tenant?.name) });
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      return { success: true, counts: { events: evs.length, costs: fin.length } };
+    } catch (err) {
+      console.error('Backup download failed:', err.code, err.message);
+      return { success: false, error: friendlyError(err, 'make the backup') };
+    }
+  };
+
   const saveJobLogColumns = async (columns) => {
     const blocked = writeBlockedReason({ ownerOnly: true });
     if (blocked) {
@@ -867,10 +903,14 @@ export function AppProvider({ children }) {
       }
       if (busy.length) return { success: false, error: `Can’t add: ${busy.join(', ')}.` };
 
-      // 3. Events, in batches
-      for (let i = 0; i < backup.events.length; i += BATCH_LIMIT) {
+      // 3. Events and Job Log costs (full EventScope backups), in batches
+      const rows = [
+        ...backup.events.map(e => [doc(db, 'tenants', newId, 'events', e.id), e.data]),
+        ...(backup.financials || []).map(f => [doc(db, 'tenants', newId, 'financials', f.id), f.data]),
+      ];
+      for (let i = 0; i < rows.length; i += BATCH_LIMIT) {
         const batch = writeBatch(db);
-        backup.events.slice(i, i + BATCH_LIMIT).forEach(e => batch.set(doc(db, 'tenants', newId, 'events', e.id), e.data));
+        rows.slice(i, i + BATCH_LIMIT).forEach(([ref, data]) => batch.set(ref, data));
         await batch.commit();
       }
 
@@ -883,6 +923,8 @@ export function AppProvider({ children }) {
       });
       batch.set(doc(db, 'tenants', newId, 'config', 'settings'), { ...DEFAULT_SETTINGS, ...backup.settings, companyName: backup.settings.companyName || name });
       batch.set(doc(db, 'tenants', newId, 'config', 'categories'), { list: backup.categories || DEFAULT_CATEGORIES });
+      if (backup.jobLogColumns) batch.set(doc(db, 'tenants', newId, 'config', 'jobLog'), { columns: backup.jobLogColumns });
+      if (backup.contact) batch.set(doc(db, 'tenants', newId, 'private', 'contact'), backup.contact);
       people.forEach(([email, role]) => batch.set(doc(db, 'invites', email), {
         tenantId: newId, role, tenantName: name,
         invitedBy: user.uid, invitedByName: 'EventScope', createdAt: now,
@@ -923,6 +965,8 @@ export function AppProvider({ children }) {
       // Job Log
       jobLogColumns: activeJobLogColumns, allJobLogColumns: jobLogColumns,
       financials, financialsLoaded, saveFinancials, saveJobLogColumns,
+      // Backup
+      downloadCompanyBackup,
       // Platform admin
       subscribeAllTenants, getTenantCounts, adminUpdateTenant, adminImportCompany,
       subscribeTenantTeam, adminTeamAction,

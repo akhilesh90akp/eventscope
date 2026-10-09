@@ -38,12 +38,18 @@ src/
     helpers.js              Formatting, GST, IDs/links, dates, pricing, bill &
                             Job Log math, image resizing (no Firestore here)
     jobLogExcel.js          Job Log ⇄ .xlsx (exceljs, loaded on demand)
-    tenantImport.js         Reads/cleans a backup file for "Import company" (no Firestore)
+    tenantImport.js         Reads/cleans a backup file for "Import company" (no Firestore);
+                            restores Job Log, cost columns, team and contact from full backups
+    companyBackup.js        Builds the owner's "Download full backup" file (Settings → Backup)
+tools/
+  drive-backup/             Google Apps Script: daily backup of ALL data to a private
+                            Drive folder (runs in the project owner's Google account,
+                            free on Spark). Setup + restore steps in its README.md
 firestore.rules             Server-side security rules (source of truth for access)
 tests/
   firestore.rules.test.mjs  Rules tests (emulator; also run on GitHub)
   helpers.test.mjs          Unit tests for money/bill math
-  tenantImport.test.mjs     Unit tests for reading backup files
+  tenantImport.test.mjs     Unit tests for reading backup files (old export, Drive and owner backups)
 public/                     Logos, icons, manifest, service worker, login-bg.* (video),
                             export-bluebell.html (one-time old-app export — delete after migration)
 ```

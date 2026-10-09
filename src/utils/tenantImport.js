@@ -2,8 +2,14 @@
  * tenantImport — reads a backup file from an older app and turns it into a
  * clean, ready-to-save company (used by the Admin page's "Import company").
  *
- * Input: the JSON made by public/export-bluebell.html
- *   { sourceProject, account, events: [{ id, data }], config: [{ id, data }] }
+ * Input — either of:
+ *   v1: the JSON made by public/export-bluebell.html
+ *       { sourceProject, account, events: [{ id, data }], config: [{ id, data }] }
+ *   v2: an EventScope backup (daily Drive backup or an owner's "Download full
+ *       backup"), which adds the Job Log and the team so a restore is complete:
+ *       { format: 'eventscope-backup', version: 2, tenantId, tenant,
+ *         events, config (settings, categories, jobLog), financials: [{ id, data }],
+ *         members: [{ email, role }], invites: [{ email, role }], other: { private: [...] } }
  *
  * Pure functions, no Firebase — the actual saving is adminImportCompany()
  * in AppContext. Covered by tests/tenantImport.test.mjs.
@@ -21,6 +27,9 @@ const DROP_SETTINGS = ['sheetSyncUrl', 'sheetSyncSecret', 'sheetViewUrl'];
 const DROP_EVENT = ['sheetSyncedAt', 'profit'];
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** A Firestore document id we can safely write back (no slashes, not empty) */
+const okId = (id) => typeof id === 'string' && id.length > 0 && !id.includes('/');
 
 // ============================================================
 // HELPERS
@@ -76,10 +85,30 @@ export function parseBackup(json) {
 
   const settings = omit(unwrapDates(rawSettings), DROP_SETTINGS);
   const categories = Array.isArray(rawCategories?.list) ? unwrapDates(rawCategories.list) : null;
+  const rawJobLog = configDoc('jobLog');
+  const jobLogColumns = Array.isArray(rawJobLog?.columns) && rawJobLog.columns.length ? unwrapDates(rawJobLog.columns) : null;
+
+  // Job Log costs/income per event (v2 only)
+  const financials = [];
+  for (const f of Array.isArray(data.financials) ? data.financials : []) {
+    if (!okId(f?.id) || !f.data) return { ok: false, error: 'The backup has a damaged Job Log record — please use another backup.' };
+    financials.push({ id: f.id, data: unwrapDates(f.data) });
+  }
+
+  // Who was in the company (v2 only) — used to pre-fill the owner/staff boxes
+  const people = [...(Array.isArray(data.members) ? data.members : []), ...(Array.isArray(data.invites) ? data.invites : [])]
+    .filter(m => m && EMAIL_RE.test(String(m.email || '').trim()))
+    .map(m => ({ email: String(m.email).trim().toLowerCase(), role: m.role === 'owner' ? 'owner' : 'staff' }));
+  const owners = [...new Set(people.filter(m => m.role === 'owner').map(m => m.email))];
+  const staff = [...new Set(people.filter(m => m.role === 'staff' && !owners.includes(m.email)).map(m => m.email))];
+
+  // Owner's private contact record (v2 only)
+  const contactRaw = Array.isArray(data.other?.private) ? data.other.private.find(d => d?.id === 'contact')?.data : null;
+  const contact = contactRaw && typeof contactRaw === 'object' ? unwrapDates(contactRaw) : null;
 
   const events = [];
   for (const e of data.events) {
-    if (!e?.id || typeof e.id !== 'string' || e.id.includes('/') || !e.data) {
+    if (!okId(e?.id) || !e.data) {
       return { ok: false, error: 'The backup has a damaged event record — please export it again.' };
     }
     events.push({ id: e.id, data: omit(unwrapDates(e.data), DROP_EVENT) });
@@ -91,17 +120,28 @@ export function parseBackup(json) {
     return acc;
   }, {});
 
+  const tenant = data.tenant && typeof data.tenant === 'object' ? data.tenant : {};
   return {
     ok: true,
     companyName: settings.companyName || '',
     sourceProject: data.sourceProject || '',
+    // v2 hints so a restore can reuse the original company id / name / plan
+    tenantId: okId(data.tenantId) ? data.tenantId : '',
+    tenantName: typeof tenant.name === 'string' ? tenant.name : '',
+    plan: typeof tenant.plan === 'string' ? tenant.plan : '',
     settings,
     categories,
+    jobLogColumns,
     events,
+    financials,
+    owners,
+    staff,
+    contact,
     counts: {
       events: events.length,
       bills: events.filter(e => e.data.billDetails).length,
       categories: categories?.length || 0,
+      costs: financials.length,
       byStatus,
     },
   };

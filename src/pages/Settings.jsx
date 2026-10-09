@@ -23,7 +23,7 @@ import Input from '../components/Input';
 import Modal from '../components/Modal';
 import JobLogColumnsEditor from '../components/JobLogColumnsEditor';
 import { resizeImageFile } from '../utils/helpers';
-import { Save, Plus, Trash2, Edit2, X, Building2, Landmark, FileText, Layers, Users, Table2, UserPlus } from 'lucide-react';
+import { Save, Plus, Trash2, Edit2, X, Building2, Landmark, FileText, Layers, Users, Table2, UserPlus, DatabaseBackup, Download } from 'lucide-react';
 
 // ============================================================
 // Settings — MAIN COMPONENT
@@ -31,7 +31,8 @@ import { Save, Plus, Trash2, Edit2, X, Building2, Landmark, FileText, Layers, Us
 
 /** Multi-tab settings page for company, bank, invoice, and service configuration */
 export default function Settings() {
-  const { settings, categories, updateSettings, addCategory, deleteCategory, addItemToCat, removeItemFromCat, logout, user, showToast, canEditSettings, isOwner, isSuspended, team, invites, inviteTeammate, cancelInvite, removeTeammate, promoteToOwner } = useApp();
+  const { settings, categories, updateSettings, addCategory, deleteCategory, addItemToCat, removeItemFromCat, logout, user, showToast, canEditSettings, isOwner, isSuspended, team, invites, inviteTeammate, cancelInvite, removeTeammate, promoteToOwner, downloadCompanyBackup } = useApp();
+  const [backingUp, setBackingUp] = useState(false);
 
   // ------------------------------------------------------------
   // STATE
@@ -182,6 +183,7 @@ export default function Settings() {
     { key: 'services', label: 'Services', icon: Layers },
     { key: 'team', label: 'Team', icon: Users },
     { key: 'joblog', label: 'Job Log columns', icon: Table2 },
+    ...(isOwner ? [{ key: 'backup', label: 'Backup', icon: DatabaseBackup }] : []),
   ];
 
   const openCat = categories.find(c => c.id === catModal);
@@ -211,7 +213,7 @@ export default function Settings() {
       </StickyBar>
 
       {/* Read-only notice for staff / suspended accounts */}
-      {!canEditSettings && tab !== 'team' && (
+      {!canEditSettings && tab !== 'team' && tab !== 'backup' && (
         <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg px-4 py-3">
           {isSuspended
             ? 'This account is suspended, so settings can’t be changed.'
@@ -496,6 +498,34 @@ export default function Settings() {
 
       </fieldset>
 
+      {/* Backup Tab — owners only; works even while suspended (read-only) */}
+      {tab === 'backup' && isOwner && (
+        <Card>
+          <div className="space-y-3">
+            <h2 className="text-base font-semibold text-bb-text">Download a full backup</h2>
+            <p className="text-sm text-bb-muted">
+              One file with everything for your company — events, quotations, bills, Job Log costs, settings,
+              services and team. Keep it somewhere safe (not in a shared folder): it contains your clients’ details and your bank details.
+            </p>
+            <p className="text-sm text-bb-muted">
+              EventScope also backs up all data automatically every day. This copy is yours to keep.
+            </p>
+            <Button
+              icon={Download}
+              disabled={backingUp}
+              onClick={async () => {
+                setBackingUp(true);
+                const r = await downloadCompanyBackup();
+                setBackingUp(false);
+                showToast(r.success ? `Backup downloaded — ${r.counts.events} events` : r.error, r.success ? 'success' : 'error');
+              }}
+            >
+              {backingUp ? 'Preparing…' : 'Download backup'}
+            </Button>
+          </div>
+        </Card>
+      )}
+
       <p className="text-center text-xs text-bb-muted space-x-3 pt-2">
         <a href="#/privacy" target="_blank" rel="noreferrer" className="hover:text-bb-text">Privacy</a>
         <a href="#/terms" target="_blank" rel="noreferrer" className="hover:text-bb-text">Terms</a>
@@ -503,7 +533,7 @@ export default function Settings() {
       </p>
 
       {/* Save Button - shown for editable tabs, and only to users who can edit */}
-      {canEditSettings && !['services', 'team', 'joblog'].includes(tab) && (
+      {canEditSettings && !['services', 'team', 'joblog', 'backup'].includes(tab) && (
         <Button icon={Save} fullWidth size="lg" onClick={handleSave} disabled={saving}>
           {saving ? 'Saving...' : 'Save Settings'}
         </Button>
