@@ -7,8 +7,9 @@
  * - Filters: status and event type. Month or List view.
  * - Tap a day to see its functions (side panel on laptops, below on phones);
  *   tap a function to open the event.
- * - Owners: change the daily limit, see upcoming reminders and turn on
- *   reminder notifications for this device. Staff never see amounts.
+ * - Everyone sees what the daily limit means; owners change it in
+ *   Settings → Calendar & reminders. Owners also see upcoming reminders and
+ *   can turn on reminder notifications for this device. Staff never see amounts.
  *
  * Logic lives in utils/calendar.js; this file only lays it out.
  */
@@ -18,12 +19,9 @@
 // ============================================================
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, AlertTriangle, Bell, CalendarDays } from 'lucide-react';
+import { ChevronLeft, ChevronRight, AlertTriangle, Bell, CalendarDays, Users } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import Card from '../components/Card';
-import Button from '../components/Button';
-import Modal from '../components/Modal';
-import Input from '../components/Input';
 import ReminderSwitch from '../components/ReminderSwitch';
 import { EVENT_TYPES } from '../constants/data';
 import { formatCurrency } from '../utils/helpers';
@@ -144,7 +142,7 @@ function Legend({ compact }) {
 // ============================================================
 
 export default function Calendar() {
-  const { events, settings, isOwner, canEditSettings, updateSettings, showToast } = useApp();
+  const { events, settings, isOwner, canEditSettings } = useApp();
   const navigate = useNavigate();
   const today = isoDate(new Date());
 
@@ -156,8 +154,6 @@ export default function Calendar() {
   const [status, setStatus] = useState('all');
   const [type, setType] = useState('');
   const [view, setView] = useState('month');           // 'month' | 'list'
-  const [limitOpen, setLimitOpen] = useState(false);
-  const [limitInput, setLimitInput] = useState('');
 
   // ------------------------------------------------------------
   // DERIVED / CALCULATED VALUES
@@ -185,12 +181,7 @@ export default function Calendar() {
   const goToday = () => { const d = new Date(); setMonth({ y: d.getFullYear(), m: d.getMonth() }); setSelected(today); };
   const openEvent = (f) => navigate(f.status === 'draft' ? `/edit/${f.eventId}` : `/${f.status === 'completed' ? 'completed' : 'confirmed'}`, { state: { expandId: f.eventId } });
 
-  const saveLimit = async () => {
-    const n = Math.round(Number(limitInput));
-    if (!(n >= 1 && n <= 50)) { showToast('Enter a number from 1 to 50', 'error'); return; }
-    const r = await updateSettings({ maxEventsPerDay: n });
-    if (r.success) { showToast(`Daily limit set to ${n}`); setLimitOpen(false); }
-  };
+  const openLimitSettings = () => navigate('/settings', { state: { tab: 'calendar' } });
 
   // ------------------------------------------------------------
   // RENDER — pieces
@@ -266,13 +257,9 @@ export default function Calendar() {
         </div>
       </div>
 
-      {/* Colour key + daily limit (laptop) */}
+      {/* Colour key (laptop) */}
       <div className="hidden md:flex flex-wrap gap-2 items-stretch">
         <Legend />
-        <div className="ml-auto flex items-center gap-2 bg-white border border-bb-border rounded-lg px-3 py-1.5 text-xs text-bb-text">
-          Max <b>{max}</b> events a day
-          {canEditSettings && <button onClick={() => { setLimitInput(String(max)); setLimitOpen(true); }} className="underline text-bb-accent cursor-pointer">change</button>}
-        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start">
@@ -330,20 +317,20 @@ export default function Calendar() {
           <Card>{dayPanel}</Card>
           {remindersPanel && <Card>{remindersPanel}</Card>}
           {!isOwner && <p className="text-xs text-bb-muted px-1">Amounts are visible to owners only.</p>}
-          {canEditSettings && (
-            <button onClick={() => { setLimitInput(String(max)); setLimitOpen(true); }} className="md:hidden text-xs text-bb-accent underline px-1 cursor-pointer">Change daily limit ({max})</button>
-          )}
+          {/* Daily limit — what it means; changed in Settings */}
+          <Card>
+            <div className="space-y-1.5" data-testid="limit-info">
+              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-bb-muted flex items-center gap-1.5"><Users size={13} /> Daily limit: {max} events</h3>
+              <p className="text-xs text-bb-muted">
+                Your team can handle up to {max} events a day. Busier days turn orange, full days red, and you’re asked before confirming more.
+              </p>
+              {canEditSettings && (
+                <button onClick={openLimitSettings} className="text-xs font-medium text-bb-accent hover:underline cursor-pointer">Edit in Settings →</button>
+              )}
+            </div>
+          </Card>
         </div>
       </div>
-
-      {/* Daily limit (owners) */}
-      <Modal isOpen={limitOpen} onClose={() => setLimitOpen(false)} title="Max events a day" size="sm">
-        <div className="space-y-3">
-          <p className="text-sm text-bb-muted">How many events can your team handle on one day? Days at the limit turn red, and you’ll get a warning before confirming more.</p>
-          <Input label="Events per day" type="number" min="1" max="50" value={limitInput} onChange={e => setLimitInput(e.target.value)} />
-          <Button fullWidth onClick={saveLimit}>Save</Button>
-        </div>
-      </Modal>
     </div>
   );
 }

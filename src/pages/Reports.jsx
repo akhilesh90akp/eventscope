@@ -3,7 +3,8 @@
  *
  * Provides filtered views of event data with monthly, yearly, or custom
  * date range filters. Displays summary statistics and a tabular list
- * of events with their status and amounts. Supports print/PDF export.
+ * of events with their status and amounts. PDF (preview → Share / Download)
+ * at the top so it's reachable without scrolling; Print on laptops.
  *
  * Owner only (staff don't see Reports in the nav, and the route shows a
  * notice). Profit comes from the Job Log (tenants/{id}/financials) —
@@ -14,15 +15,16 @@
 // ============================================================
 // IMPORTS
 // ============================================================
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import BackButton from '../components/BackButton';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import Input from '../components/Input';
 import Badge from '../components/Badge';
+import PdfButton from '../components/PdfButton';
 import { formatCurrency, formatDateReadable, getActiveDate, getEventRevenue, computeEventFinancials, openJobLog } from '../utils/helpers';
-import { Download, Calendar, BarChart3, ExternalLink, Lock } from 'lucide-react';
+import { Printer, Calendar, BarChart3, ExternalLink, Lock } from 'lucide-react';
 
 // ============================================================
 // Reports — MAIN COMPONENT
@@ -36,6 +38,7 @@ export default function Reports() {
   // STATE
   // ------------------------------------------------------------
   const [filter, setFilter] = useState('monthly'); // monthly | yearly | custom
+  const reportRef = useRef(null);   // the printable report — what the PDF is made from
   const [statusFilter, setStatusFilter] = useState('completed'); // all | completed | confirmed
   const [excludeGST, setExcludeGST] = useState(false);
 
@@ -111,10 +114,13 @@ export default function Reports() {
   // EVENT HANDLERS
   // ------------------------------------------------------------
 
-  /** Generate PDF report */
-  const handleDownload = () => {
-    const period = filter === 'monthly' ? month : filter === 'yearly' ? year : `${dateFrom} to ${dateTo}`;
-    document.title = `${settings.companyName ? settings.companyName + ' ' : ''}Report - ${statusFilter} - ${period}`;
+  /** File name for the PDF / print: "<Company> Report - completed - 2026-10" */
+  const period = filter === 'monthly' ? month : filter === 'yearly' ? year : `${dateFrom} to ${dateTo}`;
+  const reportTitle = `${settings.companyName ? settings.companyName + ' ' : ''}Report - ${statusFilter} - ${period}`;
+
+  /** Prints the report layout (laptop) */
+  const handlePrint = () => {
+    document.title = reportTitle;
     // Show print section, hide screen content
     const printEl = document.getElementById('report-print');
     if (printEl) printEl.style.display = 'block';
@@ -160,9 +166,16 @@ export default function Reports() {
             <BackButton />
             <h1 className="text-xl font-bold text-bb-text">Reports</h1>
           </div>
-          {/* Job Log is a wide grid — laptop/tablet only (md and up) */}
-          <span className="hidden md:inline-flex"><Button size="sm" icon={ExternalLink} onClick={openJobLog}>Open Job Log</Button></span>
+          <div className="flex items-center gap-2">
+            <PdfButton docRef={reportRef} fileName={`${reportTitle}.pdf`} label="Download PDF" variant="secondary" />
+            <span className="hidden md:contents"><Button icon={Printer} variant="secondary" onClick={handlePrint}>Print</Button></span>
+            {/* Job Log is a wide grid — laptop/tablet only (md and up) */}
+            <span className="hidden md:contents"><Button icon={ExternalLink} onClick={openJobLog}>Open Job Log</Button></span>
+          </div>
         </div>
+        <p className="text-sm text-bb-muted -mt-1">
+          How the business is doing for any month, year or dates you pick: number of events, revenue and profit. Download it as a PDF for your accountant or partners.
+        </p>
 
         {/* Filter Tabs */}
       <div className="flex gap-2">
@@ -276,15 +289,10 @@ export default function Reports() {
           </div>
         )}
       </Card>
-
-      {/* Actions */}
-        <div className="flex gap-2">
-          <Button icon={Download} onClick={handleDownload} variant="secondary">Download PDF</Button>
-        </div>
       </div>
 
       {/* Printable Report - hidden on screen, shown during print */}
-      <div className="print-doc" id="report-print" style={{display: 'none', backgroundColor: 'white', color: '#111827', fontFamily: 'Inter, -apple-system, sans-serif', padding: '20px'}}>
+      <div ref={reportRef} className="print-doc" id="report-print" style={{display: 'none', backgroundColor: 'white', color: '#111827', fontFamily: 'Inter, -apple-system, sans-serif', padding: '20px'}}>
         <table style={{width: '100%', borderCollapse: 'collapse'}}>
           <tbody>
             {/* Title */}

@@ -1,8 +1,9 @@
 /**
  * Settings — Application configuration page
  *
- * Tabs: Company, Bank, Invoice, Services, Team (invite staff/owners, promote, remove staff) and
- * Job Log columns.
+ * Tabs: Company, Bank, Invoice, Contract, Calendar (daily limit + reminders),
+ * Services, Team (invite staff/owners, promote, remove staff), Job Log columns
+ * and Backup. Each tab starts with one line saying what it's for (TAB_HELP).
  * Settings belong to the tenant (company). Only the owner can change them;
  * staff see them read-only (firestore.rules enforces the same).
  * All changes persist to Firestore via AppContext (not localStorage).
@@ -15,6 +16,7 @@
 // IMPORTS
 // ============================================================
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import Card from '../components/Card';
 import StickyBar from '../components/StickyBar';
@@ -24,9 +26,28 @@ import Modal from '../components/Modal';
 import JobLogColumnsEditor from '../components/JobLogColumnsEditor';
 import { resizeImageFile } from '../utils/helpers';
 import { lastStartupText } from '../utils/startupTiming';
-import { Save, Plus, Trash2, Edit2, X, Building2, Landmark, FileText, Layers, Users, Table2, UserPlus, DatabaseBackup, Download, FileSignature } from 'lucide-react';
+import { Save, Plus, Trash2, Edit2, X, Building2, Landmark, FileText, Layers, Users, Table2, UserPlus, DatabaseBackup, Download, FileSignature, CalendarDays, Bell } from 'lucide-react';
 import Toggle from '../components/Toggle';
+import ReminderSwitch from '../components/ReminderSwitch';
 import { DEFAULT_CONTRACT_TERMS } from '../constants/contract';
+import { DEFAULT_MAX_PER_DAY } from '../utils/calendar';
+
+// ============================================================
+// CONSTANTS
+// ============================================================
+
+/** One line under the tabs: what each tab is for */
+const TAB_HELP = {
+  company: 'Your business details. They appear at the top of every quotation, bill and contract.',
+  bank: 'Where clients pay you. Shown on bills so clients can pay by bank transfer or UPI.',
+  invoice: 'How quotations and bills are numbered and worded: GST rate, terms and your signature.',
+  contract: 'Your standard terms. They fill in every client agreement (Contract button on a confirmed event). Have your advocate check the agreement once before first use.',
+  calendar: 'Helps you avoid overbooking, and reminds you before each event so nothing is missed.',
+  services: 'The services and items you offer. They appear as choices when you build a quote, so you don’t type them every time.',
+  team: 'Who can use EventScope for your company. Staff handle events; owners also see settings, reports and profit.',
+  joblog: 'The cost and income columns in your Job Log. Add what you track, and each event’s profit is worked out for you.',
+  backup: 'A copy of all your company’s data that you keep yourself, on top of the automatic daily backup.',
+};
 
 // ============================================================
 // Settings — MAIN COMPONENT
@@ -41,7 +62,8 @@ export default function Settings() {
   // ------------------------------------------------------------
   // STATE
   // ------------------------------------------------------------
-  const [tab, setTab] = useState('company');
+  const location = useLocation();
+  const [tab, setTab] = useState(location.state?.tab || 'company');   // other pages can open a tab (e.g. Calendar → 'calendar')
   const [form, setForm] = useState({ ...settings, bankDetails: { ...settings.bankDetails } });
   const [catModal, setCatModal] = useState(null); // category id for item management modal
   const [newCatName, setNewCatName] = useState('');
@@ -95,6 +117,12 @@ export default function Settings() {
   /** Saves the current form state to global settings. Awaits the write; uses the app's toast, not a blocking alert(). */
   const handleSave = async () => {
     if (saving) return;
+    const maxPerDay = Math.round(Number(form.maxEventsPerDay));
+    if (form.maxEventsPerDay !== undefined && !(maxPerDay >= 1 && maxPerDay <= 50)) {
+      setTab('calendar');
+      showToast('Events a day: enter a number from 1 to 50', 'error');
+      return;
+    }
     setSaving(true);
     try {
       const result = await updateSettings(form);
@@ -190,6 +218,7 @@ export default function Settings() {
     { key: 'bank', label: 'Bank', icon: Landmark },
     { key: 'invoice', label: 'Invoice', icon: FileText },
     { key: 'contract', label: 'Contract', icon: FileSignature },
+    { key: 'calendar', label: 'Calendar & reminders', icon: CalendarDays },
     { key: 'services', label: 'Services', icon: Layers },
     { key: 'team', label: 'Team', icon: Users },
     { key: 'joblog', label: 'Job Log columns', icon: Table2 },
@@ -221,6 +250,9 @@ export default function Settings() {
           ))}
         </div>
       </StickyBar>
+
+      {/* What this tab is for */}
+      <p className="text-sm text-bb-muted -mt-1" data-testid="tab-help">{TAB_HELP[tab]}</p>
 
       {/* Read-only notice for staff / suspended accounts */}
       {!canEditSettings && tab !== 'team' && tab !== 'backup' && (
@@ -328,16 +360,13 @@ export default function Settings() {
       {tab === 'contract' && (
         <Card>
           <div className="space-y-4">
-            <p className="text-sm text-bb-muted">
-              These fill in every client agreement (Contract button on an event). Set them once. Have your advocate check the agreement before first use.
-            </p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <Input label="Signed for the company by" value={terms.signatory} onChange={e => setTerm('signatory', e.target.value)} placeholder="Proprietor’s name" />
               <Input label="Place agreements are signed" value={terms.place} onChange={e => setTerm('place', e.target.value)} placeholder="e.g. Kochi" />
               <Input label="Court city (disputes)" value={terms.courtCity} onChange={e => setTerm('courtCity', e.target.value)} placeholder="e.g. Ernakulam" />
             </div>
             <h3 className="text-sm font-semibold text-bb-text pt-1">Cancellation by the client</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               <Input label="Early: more than (days)" type="number" value={terms.farDays} onChange={num('farDays')} />
               <Input label="Early: keep % of price" type="number" value={terms.adminPct} onChange={num('adminPct')} />
               <Input label="Late: less than (days)" type="number" value={terms.nearDays} onChange={num('nearDays')} />
@@ -347,7 +376,7 @@ export default function Settings() {
               Between {terms.nearDays} and {terms.farDays} days, the advance is kept and nothing more is due.
             </p>
             <h3 className="text-sm font-semibold text-bb-text pt-1">Payment and venue</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               <Input label="Balance due (days before)" type="number" value={terms.balanceDaysBefore} onChange={num('balanceDaysBefore')} />
               <Input label="Refund within (days)" type="number" value={terms.refundDays} onChange={num('refundDays')} />
               <Input label="Setup: hours before" type="number" value={terms.setupHours} onChange={num('setupHours')} />
@@ -359,6 +388,41 @@ export default function Settings() {
             </div>
           </div>
         </Card>
+      )}
+
+      {/* Calendar Tab — daily limit (saved with Save Settings) + this device's reminders */}
+      {tab === 'calendar' && (
+        <div className="space-y-4">
+          <Card>
+            <div className="space-y-3">
+              <h2 className="text-base font-semibold text-bb-text">Events your team can handle in a day</h2>
+              <Input
+                label="Most events in one day"
+                type="number" min="1" max="50"
+                value={form.maxEventsPerDay ?? DEFAULT_MAX_PER_DAY}
+                onChange={e => set('maxEventsPerDay', e.target.value === '' ? '' : Number(e.target.value))}
+                className="max-w-xs"
+              />
+              <p className="text-xs text-bb-muted">
+                Think of how many events your crew, décor stock and vehicles can cover on the same day.
+                On the Calendar, days near this number turn orange and full days turn red, and the app asks
+                before you confirm an event on a full day. Drafts don’t count until they’re confirmed.
+              </p>
+            </div>
+          </Card>
+          {isOwner && (
+            <Card>
+              <div className="space-y-3">
+                <h2 className="text-base font-semibold text-bb-text flex items-center gap-1.5"><Bell size={16} /> Event reminders</h2>
+                <p className="text-xs text-bb-muted">
+                  A notification on this phone or laptop 2 days before each confirmed event, and again on the day, at 9 am, even when
+                  the app is closed. Turn it on separately on each device you use.
+                </p>
+                <ReminderSwitch />
+              </div>
+            </Card>
+          )}
+        </div>
       )}
 
       {/* Services Tab */}
@@ -553,9 +617,6 @@ export default function Settings() {
             <p className="text-sm text-bb-muted">
               One file with everything for your company — events, quotations, bills, Job Log costs, settings,
               services and team. Keep it somewhere safe (not in a shared folder): it contains your clients’ details and your bank details.
-            </p>
-            <p className="text-sm text-bb-muted">
-              EventScope also backs up all data automatically every day. This copy is yours to keep.
             </p>
             <Button
               icon={Download}

@@ -68,6 +68,22 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   filter: none;
 }
 
+/* iPhone Safari draws date/time/month fields at their own width, so they
+   poke out of their card. Make them fit the column like other fields. */
+@supports (-webkit-touch-callout: none) {
+  input[type="date"],
+  input[type="time"],
+  input[type="month"] {
+    -webkit-appearance: none;
+    appearance: none;
+    display: block;
+    min-width: 0;
+    max-width: 100%;
+    min-height: 2.75rem;
+  }
+  input::-webkit-date-and-time-value { text-align: left; }
+}
+
 /* === Dropdowns (every <select> in the app) === */
 /* The browser's own arrow sits tight against the border; draw our own with
    breathing room instead. Unlayered on purpose so it wins over Tailwind's

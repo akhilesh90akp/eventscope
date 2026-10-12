@@ -70,7 +70,8 @@ function cloneForPdf(node) {
   holder.setAttribute('aria-hidden', 'true');
   Object.assign(holder.style, { position: 'fixed', left: '-10000px', top: '0', width: A4_W_PX + 'px', background: '#fff', zIndex: '-1' });
   const copy = node.cloneNode(true);
-  Object.assign(copy.style, { width: A4_W_PX + 'px', maxWidth: 'none', minWidth: '0', margin: '0', borderRadius: '0', boxShadow: 'none', overflow: 'visible' });
+  // display: documents kept hidden on screen (e.g. the Reports print layout) still render
+  Object.assign(copy.style, { display: 'block', width: A4_W_PX + 'px', maxWidth: 'none', minWidth: '0', margin: '0', borderRadius: '0', boxShadow: 'none', overflow: 'visible' });
   copy.querySelectorAll('[data-no-pdf]').forEach(el => el.remove());
   holder.appendChild(copy);
   document.body.appendChild(holder);
