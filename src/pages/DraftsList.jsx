@@ -22,6 +22,7 @@ import Input from '../components/Input';
 import Badge from '../components/Badge';
 import Modal from '../components/Modal';
 import { formatCurrency, formatDateReadable, daysUntil, telLink, waLink, sortByActiveDate, getAllEventDates, getActiveDate } from '../utils/helpers';
+import { capacityQuestion, DEFAULT_MAX_PER_DAY } from '../utils/calendar';
 import {
   Search, Phone, MessageSquare, Edit, FileText, CheckCircle,
   Trash2, CalendarDays, MapPin, PackageOpen, ChevronDown, ChevronUp,
@@ -62,7 +63,7 @@ function getEventLocation(ev) {
 
 /** Lists all draft events with search, expand/collapse, and actions */
 export default function DraftsList() {
-  const { events, deleteEvent, updateEvent, showToast } = useApp();
+  const { events, settings, deleteEvent, updateEvent, showToast } = useApp();
   const navigate = useNavigate();
 
   // ------------------------------------------------------------
@@ -97,6 +98,10 @@ export default function DraftsList() {
 
   /** Promotes a draft to confirmed status — only toasts success if the write actually succeeded */
   const confirmEvent = async (id) => {
+    // Warn when this would push a day past the company's daily limit (see Calendar)
+    const ev = events.find(e => e.id === id);
+    const question = ev && capacityQuestion(ev, events, Number(settings.maxEventsPerDay) || DEFAULT_MAX_PER_DAY);
+    if (question && !window.confirm(question)) return;
     const result = await updateEvent(id, { status: 'confirmed' });
     if (result.success) {
       showToast('Event confirmed');

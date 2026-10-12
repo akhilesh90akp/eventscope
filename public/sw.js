@@ -5,9 +5,13 @@
  * - Navigation requests: Network-first (avoids blank screens from stale HTML)
  * - Static assets (JS/CSS/images): Cache-first (fast loads)
  * - API calls (Firebase, etc.): Network-only (never cache)
+ *
+ * Also shows owners' event reminders (web push via Firebase Cloud Messaging,
+ * sent each morning by tools/drive-backup/Reminders.gs) — even when the app
+ * is closed, and on the iPhone lock screen for Home Screen apps.
  */
 
-const CACHE_NAME = 'eventscope-v4'; // bump to drop old cached files (e.g. icons)
+const CACHE_NAME = 'eventscope-v5'; // bump to drop old cached files (e.g. icons)
 const BASE = '/eventscope/';
 
 // Assets to pre-cache on install
@@ -130,4 +134,36 @@ self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
+});
+
+// ============================================================
+// PUSH REMINDERS
+// ============================================================
+
+// A reminder arrives (data message from FCM): always show it — browsers
+// (and iPhones) require every push to display a notification.
+self.addEventListener('push', (event) => {
+  let payload = {};
+  try { payload = event.data ? event.data.json() : {}; } catch { payload = {}; }
+  const d = payload.data || payload.notification || {};
+  const title = d.title || 'EventScope';
+  event.waitUntil(self.registration.showNotification(title, {
+    body: d.body || '',
+    icon: BASE + 'icons/icon-192.png',
+    badge: BASE + 'icons/icon-192.png',
+    tag: d.tag || undefined,           // same event → replaces, not stacks
+    data: { url: d.url || BASE },
+  }));
+});
+
+// Tapping the notification opens (or focuses) the app on that event
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = new URL((event.notification.data && event.notification.data.url) || BASE, self.location.origin).href;
+  event.waitUntil((async () => {
+    const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const mine = wins.find((w) => w.url.startsWith(self.location.origin + BASE));
+    if (mine) { await mine.focus(); return mine.navigate(url); }
+    return self.clients.openWindow(url);
+  })());
 });

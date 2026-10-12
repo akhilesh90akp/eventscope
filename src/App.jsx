@@ -28,6 +28,8 @@ import DraftsList from './pages/DraftsList';
 import ConfirmedEvents from './pages/ConfirmedEvents';
 import BillGenerator from './pages/BillGenerator';
 import QuotationGenerator from './pages/QuotationGenerator';
+import ContractGenerator from './pages/ContractGenerator';
+import Calendar from './pages/Calendar';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 import JobLog, { JobLogLoader } from './pages/JobLog';
@@ -164,6 +166,7 @@ function AppRoutes() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/new" element={<NewDraft />} />
           <Route path="/edit/:eventId" element={<PerEvent page={EditDraft} />} />
+          <Route path="/calendar" element={<Calendar />} />
           <Route path="/drafts" element={<DraftsList />} />
           {/* Confirmed and Completed are separate pages sharing one list
               component; distinct keys give each its own state. */}
@@ -171,6 +174,7 @@ function AppRoutes() {
           <Route path="/completed" element={<ConfirmedEvents key="completed" status="completed" />} />
           <Route path="/bill/:eventId" element={<PerEvent page={BillGenerator} />} />
           <Route path="/quotation/:eventId" element={<PerEvent page={QuotationGenerator} />} />
+          <Route path="/contract/:eventId" element={<PerEvent page={ContractGenerator} />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/admin" element={<Admin />} />

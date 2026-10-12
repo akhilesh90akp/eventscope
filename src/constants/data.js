@@ -78,6 +78,7 @@ export const DEFAULT_SETTINGS = {
     'Total payment due in 30 days',
   ],
   thankYouMessage: 'Thank You For Your Business!',
+  maxEventsPerDay: 3,   // Calendar: days at this many confirmed events show as full
 };
 
 // ============================================================

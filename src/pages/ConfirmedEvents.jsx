@@ -29,7 +29,7 @@ import {
   Search, Phone, MessageSquare, FileText, CheckCircle2,
   MapPin, PackageOpen, Plus, Receipt, Edit3,
   ChevronDown, ChevronUp, Home, Navigation, Trash2, MoreVertical,
-  ArrowLeftRight, ExternalLink,
+  ArrowLeftRight, ExternalLink, FileSignature,
 } from 'lucide-react';
 
 // ============================================================
@@ -413,6 +413,7 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
                         <Button size="sm" variant="secondary" onClick={() => openPriceModal(ev)}>Set Prices</Button>
                         <Button size="sm" variant="secondary" icon={FileText} onClick={() => navigate(`/quotation/${ev.id}`)}>Quote</Button>
                         <Button size="sm" variant="secondary" icon={Receipt} onClick={() => navigate(`/bill/${ev.id}`)}>Bill</Button>
+                        <Button size="sm" variant="secondary" icon={FileSignature} onClick={() => navigate(`/contract/${ev.id}`)}>Contract</Button>
                         {ev.status === 'confirmed' && (
                           <Button size="sm" variant="success" icon={CheckCircle2} onClick={() => markDone(ev.id)}>Mark Done</Button>
                         )}
@@ -448,6 +449,7 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
                       <span className="w-px h-5 bg-bb-border" />
                       <Button size="sm" variant="secondary" icon={FileText} onClick={() => navigate(`/quotation/${ev.id}`)}>Quote</Button>
                       <Button size="sm" variant="secondary" icon={Receipt} onClick={() => navigate(`/bill/${ev.id}`)}>Bill</Button>
+                      <Button size="sm" variant="secondary" icon={FileSignature} onClick={() => navigate(`/contract/${ev.id}`)}>Contract</Button>
                       <span className="w-px h-5 bg-bb-border" />
                       {ev.status === 'confirmed' && (
                         <Button size="sm" variant="success" icon={CheckCircle2} onClick={() => markDone(ev.id)}>Mark Done</Button>

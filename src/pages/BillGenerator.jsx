@@ -4,7 +4,8 @@
  * Generates a professional GST-compliant invoice for completed events.
  * Groups items by main event and sub-events. Supports configurable invoice
  * number, discount, GST (intra/inter-state), and round-off.
- * Includes print and WhatsApp sharing capabilities.
+ * Includes an in-app PDF (preview → share/save), laptop printing and a
+ * WhatsApp text summary.
  *
  * Bill details (invoice no/date, bill-to, discount, advance, GST settings)
  * auto-save to the event 1s after the user stops editing, and a manual
@@ -19,79 +20,14 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import BackButton from '../components/BackButton';
 import Button from '../components/Button';
+import PdfButton from '../components/PdfButton';
 import Input from '../components/Input';
 import Select from '../components/Select';
 import Toggle from '../components/Toggle';
 import Card from '../components/Card';
-import { formatCurrency, formatDateReadable, calcGST, roundOff, nextInvoiceNo, waLink, buildLineEntries, computeSectionTotal } from '../utils/helpers';
+import { formatCurrency, formatDateReadable, calcGST, roundOff, nextInvoiceNo, waLink, buildLineEntries, computeSectionTotal, getEventSections } from '../utils/helpers';
 import { DEFAULT_SAC_CODE } from '../constants/data';
 import { Printer, MessageSquare, Save } from 'lucide-react';
-
-// ============================================================
-// HELPERS
-// ============================================================
-
-/**
- * Helper: get all items and event groups from an event (both old and new format).
- */
-function getEventItemsData(event) {
-  if (event.mainEvent) {
-    const mainItems = event.mainEvent.items || [];
-    const subEvents = event.subEvents || [];
-    const allItems = [...mainItems];
-    subEvents.forEach(s => {
-      (s.items || []).forEach(item => {
-        if (!allItems.includes(item)) allItems.push(item);
-      });
-    });
-
-    const eventGroups = [];
-    if (mainItems.length > 0) {
-      eventGroups.push({
-        id: 'main',
-        name: event.mainEvent.name || event.eventType || 'Main Event',
-        date: event.mainEvent.date || '',
-        location: event.mainEvent.location || '',
-        items: mainItems,
-      });
-    }
-    subEvents.forEach(s => {
-      if ((s.items || []).length > 0) {
-        eventGroups.push({
-          id: s.id || s.name,
-          name: s.name || 'Sub Event',
-          date: s.date || '',
-          location: s.location || '',
-          items: s.items,
-        });
-      }
-    });
-
-    // If no groups but there are items (items added via quotation that aren't in mainEvent)
-    if (eventGroups.length === 0 && allItems.length > 0) {
-      eventGroups.push({
-        id: 'main',
-        name: event.mainEvent.name || event.eventType || 'Event',
-        date: event.mainEvent.date || '',
-        location: event.mainEvent.location || '',
-        items: allItems,
-      });
-    }
-
-    return { allItems, eventGroups };
-  }
-
-  // Old format (flat items array)
-  const items = event.items || [];
-  const eventGroups = [{
-    id: 'main',
-    name: event.eventType || 'Event',
-    date: event.date || '',
-    location: event.eventLocation || '',
-    items: items,
-  }];
-  return { allItems: items, eventGroups };
-}
 
 // ============================================================
 // BillGenerator — MAIN COMPONENT
@@ -234,7 +170,7 @@ export default function BillGenerator() {
   // ------------------------------------------------------------
 
   // Get items and groups (backward compatible)
-  const { eventGroups } = useMemo(() => event ? getEventItemsData(event) : { allItems: [], eventGroups: [] }, [event]);
+  const { eventGroups } = useMemo(() => event ? getEventSections(event) : { allItems: [], eventGroups: [] }, [event]);
   const storedPrices = useMemo(() => event?.itemPrices || {}, [event]);
   const bundles = useMemo(() => event?.bundles || [], [event]);
   const hidePrices = event?.hidePrices || false;
@@ -273,10 +209,12 @@ export default function BillGenerator() {
   // EVENT HANDLERS
   // ------------------------------------------------------------
 
-  /** Triggers the browser print dialog with descriptive PDF filename */
+  /** File name for Print-to-PDF and the in-app PDF, e.g. "Invoice - Sneha & Vivek KC-B2C2627-004 12 Sep 2026" */
+  const docTitle = () => `Invoice - ${billToName || event.clientName || 'Client'} ${invoiceNo} ${formatDateReadable(invoiceDate)}`;
+
+  /** Laptop: the browser's print dialog (prints only the document) */
   const handlePrint = () => {
-    const dateStr = formatDateReadable(invoiceDate);
-    document.title = `Invoice - ${billToName || event.clientName || 'Client'} ${invoiceNo} ${dateStr}`;
+    document.title = docTitle();
     window.print();
     document.title = 'EventScope';
   };
@@ -370,7 +308,8 @@ export default function BillGenerator() {
           <Button icon={Save} variant={hasUnsavedChanges ? 'secondary' : 'outline'} onClick={handleManualSave} disabled={autoSaving}>
             {autoSaving ? 'Saving...' : 'Save'}
           </Button>
-          <Button icon={Printer} onClick={handlePrint}>Print / Save PDF</Button>
+          <PdfButton docRef={pdfRef} fileName={`${docTitle()}.pdf`} />
+          <span className="hidden md:contents"><Button icon={Printer} variant="secondary" onClick={handlePrint}>Print</Button></span>
           <Button icon={MessageSquare} variant="success" onClick={handleWhatsApp}>Share via WhatsApp</Button>
           <Button variant="secondary" onClick={() => navigate(-1)}>Back</Button>
         </div>

@@ -15,6 +15,7 @@
  *   tenants/{tenantId}/config/jobLog          Job Log columns (owner-editable)
  *   tenants/{tenantId}/events/{eventId}       one doc per event/draft
  *   tenants/{tenantId}/financials/{eventId}   { values: { [columnId]: number|string|null } } — costs/income/notes
+ *   tenants/{tenantId}/pushTokens/{tokenId}   { uid, token, device, createdAt } — an owner device for reminders (own only)
  *
  * firestore.rules enforces the same boundaries server-side; the permission
  * flags exposed here (isOwner, canEditSettings, …) only drive the UI.
@@ -36,6 +37,8 @@ import { auth, db } from '../firebase';
 import { DEFAULT_SETTINGS, DEFAULT_CATEGORIES, DEFAULT_JOBLOG_COLUMNS } from '../constants/data';
 import { genId, inviteKey } from '../utils/helpers';
 import { buildCompanyBackup, backupFileName } from '../utils/companyBackup';
+import { markStartup } from '../utils/startupTiming';
+import { requestPushToken, dropPushToken, rememberTokenId, savedTokenId, deviceLabel } from '../utils/push';
 
 // ============================================================
 // CONSTANTS
@@ -178,6 +181,7 @@ export function AppProvider({ children }) {
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
+      markStartup(u ? 'signin' : 'signedOut');
       setUser(u);
       setAuthLoading(false);
     });
@@ -197,6 +201,8 @@ export function AppProvider({ children }) {
     // Cap the cleanup so a slow phone never sits on "Signing out" for long
     const giveUp = new Promise(resolve => setTimeout(resolve, 4000));
     try {
+      // This device should stop getting the company's reminders
+      if (savedTokenId()) await Promise.race([disableReminders(), giveUp]);
       await signOut(auth);
       await Promise.race([(async () => { await terminate(db); await clearIndexedDbPersistence(db); })(), giveUp]);
     } catch (err) {
@@ -235,6 +241,7 @@ export function AppProvider({ children }) {
     // memory; the listeners below confirm (or correct) it in the background.
     const boot = user ? readBoot(user.uid) : null;
     if (boot) {
+      markStartup('company');
       setMembership({ tenantId: boot.tenantId, role: boot.role || 'staff' });
       setTenant(boot.tenant || { id: boot.tenantId });
       setIsPlatformAdmin(!!boot.isPlatformAdmin);
@@ -322,6 +329,7 @@ export function AppProvider({ children }) {
       const t = { id: snap.id, ...snap.data() };
       setTenant(t);
       setTenantStatus('ready');
+      markStartup('company');
       writeBoot({ tenant: { id: t.id, name: t.name || '', status: t.status || 'active' } });
     }, (err) => {
       logErr('Tenant')(err);
@@ -332,6 +340,7 @@ export function AppProvider({ children }) {
     const unsubEvents = onSnapshot(collection(db, 'tenants', tenantId, 'events'), (snap) => {
       setEvents(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       setLoaded(true);
+      markStartup('events');
     }, (err) => {
       logErr('Events')(err);
       setLoaded(true);
@@ -761,6 +770,40 @@ export function AppProvider({ children }) {
 
   /** Saves the tenant's Job Log column setup (owner only). Returns { success } or { success: false, error }. */
   /**
+   * Owners: turn event-reminder notifications on for THIS device. Gets the
+   * device's push token (must be called from a tap) and saves it under the
+   * company, where the daily reminder script finds it.
+   */
+  const enableReminders = async () => {
+    if (!isOwner || !tenantId || !user) return { success: false, error: 'Only owners get reminders.' };
+    try {
+      const { id, token } = await requestPushToken();
+      await setDoc(doc(db, 'tenants', tenantId, 'pushTokens', id), {
+        uid: user.uid, token, device: deviceLabel(), createdAt: new Date().toISOString(),
+      });
+      rememberTokenId(id);
+      return { success: true };
+    } catch (err) {
+      console.error('Enable reminders failed:', err.code || '', err.message);
+      return { success: false, error: err.code ? friendlyError(err, 'turn on reminders') : err.message };
+    }
+  };
+
+  /** Turns reminders off for THIS device (removes its saved token) */
+  const disableReminders = async () => {
+    const id = savedTokenId();
+    try {
+      if (id && tenantId) await deleteDoc(doc(db, 'tenants', tenantId, 'pushTokens', id));
+      await dropPushToken();
+      rememberTokenId(null);
+      return { success: true };
+    } catch (err) {
+      console.error('Disable reminders failed:', err.code, err.message);
+      return { success: false, error: friendlyError(err, 'turn off reminders') };
+    }
+  };
+
+  /**
    * Owner's "Download full backup": reads everything for this company fresh
    * from the server (events, settings, services, Job Log, team, contact) and
    * saves it as one .json file — the same format as the daily Drive backup,
@@ -967,6 +1010,8 @@ export function AppProvider({ children }) {
       financials, financialsLoaded, saveFinancials, saveJobLogColumns,
       // Backup
       downloadCompanyBackup,
+      // Reminders (push notifications)
+      enableReminders, disableReminders,
       // Platform admin
       subscribeAllTenants, getTenantCounts, adminUpdateTenant, adminImportCompany,
       subscribeTenantTeam, adminTeamAction,

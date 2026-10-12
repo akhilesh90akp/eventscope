@@ -51,6 +51,31 @@ See the restore checklist (Admin → Import company with the company's
 on your computer, then pick the company file in the Import dialog — it fills
 in the company id, name, plan and team from the backup.
 
+## Reminders (push notifications to owners)
+
+`Reminders.gs` lives in the same script. Every morning around 9 am (India
+time) it sends each company's owners a notification for confirmed events:
+**"In 2 days: …"** and **"Today: …"**. Owners turn it on per device in the app
+(Calendar → Reminders; on iPhone, open the app from the Home Screen first).
+
+One-time setup:
+
+1. Open the **EventScope Backup** script.
+2. `appsscript.json` → replace everything with the new version from this
+   folder (it adds permission to send notifications), save.
+3. Click **+** next to Files → **Script** → name it `Reminders` → paste
+   `Reminders.gs` from this folder, save.
+4. Choose **setupReminders** → **Run** → allow the new permission
+   (same "Advanced → Go to … (unsafe)" steps as above).
+5. The log says `Reminders scheduled (~9:00). Today: N notifications …`.
+
+If the log says *Firebase Cloud Messaging API has not been used* or *is
+disabled*, open the link it shows (Google Cloud → APIs) → **Enable**, wait a
+minute and run **setupReminders** again.
+
+To send today's reminders again by hand: choose **sendRemindersNow** → **Run**.
+If a morning run fails, the account gets an email "EventScope reminders FAILED".
+
 ## Updating the script
 
 When `Code.gs` changes in this repo, paste the new version over the old one in

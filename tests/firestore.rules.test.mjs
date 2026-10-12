@@ -339,3 +339,26 @@ test('only the owner can change Job Log columns', async () => {
   await assertSucceeds(setDoc(doc(as('alice'), 'tenants/acme/config/jobLog'), { columns: [] }));
   await assertFails(setDoc(doc(as('sam'), 'tenants/acme/config/jobLog'), { columns: [] }));
 });
+
+// ============================================================
+// PUSH TOKENS (event reminders on owners' devices)
+// ============================================================
+test('owner can save and remove their own reminder device', async () => {
+  const ref = doc(as('alice'), 'tenants/acme/pushTokens/dev1');
+  await assertSucceeds(setDoc(ref, { uid: 'alice', token: 'tok', device: 'iPhone', createdAt: 'now' }));
+  await assertSucceeds(getDoc(ref));
+  await assertSucceeds(deleteDoc(ref));
+});
+
+test('staff, other tenants and other people CANNOT add or read reminder devices', async () => {
+  await assertFails(setDoc(doc(as('sam'), 'tenants/acme/pushTokens/x'), { uid: 'sam', token: 't' }));
+  await assertFails(setDoc(doc(as('zara'), 'tenants/acme/pushTokens/x'), { uid: 'zara', token: 't' }));
+  await assertFails(setDoc(doc(as('alice'), 'tenants/acme/pushTokens/x'), { uid: 'someone-else', token: 't' }));
+  await assertFails(setDoc(doc(as('alice'), 'tenants/acme/pushTokens/x'), { uid: 'alice', token: 't', extra: 1 }));
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'tenants/acme/pushTokens/a1'), { uid: 'alice', token: 't' });
+  });
+  await assertFails(getDoc(doc(as('sam'), 'tenants/acme/pushTokens/a1')));
+  await assertFails(getDoc(doc(as('zara'), 'tenants/acme/pushTokens/a1')));
+  await assertFails(deleteDoc(doc(as('sam'), 'tenants/acme/pushTokens/a1')));
+});

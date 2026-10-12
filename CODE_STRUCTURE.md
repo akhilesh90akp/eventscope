@@ -16,7 +16,9 @@ src/
     AppContext.jsx          ALL Firestore access + app state; exposes useApp()
   pages/                    One file per route/screen
     Dashboard, NewDraft, EditDraft, DraftsList, ConfirmedEvents (Confirmed + Completed),
-    QuotationGenerator, BillGenerator, Reports (owner), JobLog (owner, own tab),
+    QuotationGenerator, BillGenerator, ContractGenerator (event services agreement),
+    Calendar (month/list view, daily limit, owner reminders),
+    Reports (owner), JobLog (owner, own tab),
     Settings, Admin (platform admins), CreateCompany (sign-up),
     JoinInvite (accept/decline an invite), Login,
     Legal (Terms / Privacy / Data protection — public)
@@ -29,11 +31,14 @@ src/
     AuthBackground (video behind sign-in / sign-up / invite screens),
     AnimatedLogo (logo that builds itself once on those screens and while loading),
     EventSummary (event card face shared by Home and Confirmed/Completed),
-    StickyBar (keeps search boxes / Settings tabs pinned while scrolling)
+    StickyBar (keeps search boxes / Settings tabs pinned while scrolling),
+    PdfButton (makes a PDF of a document, previews it, then Share / Download / Open),
+    ContractDocument (the printable agreement), ReminderSwitch (push reminders on/off per device)
   constants/
     data.js                 Defaults: event types, service categories, new-company
                             settings, Job Log columns, plans
     legal.js                Business details shown on the legal pages
+    contract.js             Default contract terms + payment modes
   utils/
     helpers.js              Formatting, GST, IDs/links, dates, pricing, bill &
                             Job Log math, image resizing (no Firestore here)
@@ -41,15 +46,23 @@ src/
     tenantImport.js         Reads/cleans a backup file for "Import company" (no Firestore);
                             restores Job Log, cost columns, team and contact from full backups
     companyBackup.js        Builds the owner's "Download full backup" file (Settings → Backup)
+    pdfExport.js            Document → A4 PDF in the browser (html2canvas-pro + jspdf, loaded
+                            on demand); page breaks avoid cutting rows; [data-no-pdf] skipped
+    contract.js             Agreement number + figures for the contract (no Firestore)
+    calendar.js             Month grid, functions per day, daily limit, reminder dates
+    push.js                 This device's push token (Firebase Cloud Messaging); saving is in AppContext
+    startupTiming.js        Records how long opening the app took (shown at the bottom of Settings)
 tools/
   drive-backup/             Google Apps Script: daily backup of ALL data to a private
                             Drive folder (runs in the project owner's Google account,
-                            free on Spark). Setup + restore steps in its README.md
+                            free on Spark). Setup + restore steps in its README.md.
+                            Reminders.gs (same script): 9 am push reminders to owners
 firestore.rules             Server-side security rules (source of truth for access)
 tests/
   firestore.rules.test.mjs  Rules tests (emulator; also run on GitHub)
   helpers.test.mjs          Unit tests for money/bill math
   tenantImport.test.mjs     Unit tests for reading backup files (old export, Drive and owner backups)
+  pdfExport / contract / calendar .test.mjs   Unit tests for page breaks, contract figures, calendar math
 public/                     Logos, icons, manifest, service worker, login-bg.* (video),
                             export-bluebell.html (one-time old-app export — delete after migration)
 ```

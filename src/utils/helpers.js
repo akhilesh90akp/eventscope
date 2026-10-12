@@ -340,6 +340,72 @@ export const computeSectionTotal = (sectionId, itemNames, itemPrices, bundles, h
   }, 0);
 };
 
+/**
+ * An event's sections as shown on the quotation, bill and contract: the main
+ * event and each sub-event with its own date, venue and item names (old
+ * single-list events become one section). Returns { allItems, eventGroups }.
+ */
+export const getEventSections = (event) => {
+  if (event.mainEvent) {
+    const mainItems = event.mainEvent.items || [];
+    const subEvents = event.subEvents || [];
+    const allItems = [...mainItems];
+    subEvents.forEach(s => {
+      (s.items || []).forEach(item => {
+        if (!allItems.includes(item)) allItems.push(item);
+      });
+    });
+
+    const eventGroups = [];
+    if (mainItems.length > 0) {
+      eventGroups.push({
+        id: 'main',
+        name: event.mainEvent.name || event.eventType || 'Main Event',
+        date: event.mainEvent.date || '',
+        time: event.mainEvent.time || '',
+        location: event.mainEvent.location || '',
+        items: mainItems,
+      });
+    }
+    subEvents.forEach(s => {
+      if ((s.items || []).length > 0) {
+        eventGroups.push({
+          id: s.id || s.name,
+          name: s.name || 'Sub Event',
+          date: s.date || '',
+          time: s.time || '',
+          location: s.location || '',
+          items: s.items,
+        });
+      }
+    });
+
+    // If no groups but there are items (items added via quotation that aren't in mainEvent)
+    if (eventGroups.length === 0 && allItems.length > 0) {
+      eventGroups.push({
+        id: 'main',
+        name: event.mainEvent.name || event.eventType || 'Event',
+        date: event.mainEvent.date || '',
+        location: event.mainEvent.location || '',
+        items: allItems,
+      });
+    }
+
+    return { allItems, eventGroups };
+  }
+
+  // Old format (flat items array)
+  const items = event.items || [];
+  const eventGroups = [{
+    id: 'main',
+    name: event.eventType || 'Event',
+    date: event.date || '',
+    location: event.eventLocation || '',
+    items: items,
+  }];
+  return { allItems: items, eventGroups };
+};
+
 // ============================================================
 // REVENUE & JOB LOG MATH
 // ============================================================

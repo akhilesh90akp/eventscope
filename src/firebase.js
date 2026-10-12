@@ -14,7 +14,7 @@
 // IMPORTS
 // ============================================================
 import { initializeApp } from 'firebase/app';
-import { initializeAuth, browserLocalPersistence, indexedDBLocalPersistence, browserPopupRedirectResolver, connectAuthEmulator } from 'firebase/auth';
+import { initializeAuth, browserLocalPersistence, indexedDBLocalPersistence, connectAuthEmulator } from 'firebase/auth';
 import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, connectFirestoreEmulator } from 'firebase/firestore';
 
 // ============================================================
@@ -40,9 +40,13 @@ const app = initializeApp(firebaseConfig);
 // all Android browsers/PWAs). It's listed first, so start-up doesn't wait on
 // IndexedDB; an older session saved in IndexedDB is still found (and moved
 // to localStorage), so nobody gets logged out by this change.
+//
+// No popupRedirectResolver here on purpose: with one, start-up first loads a
+// hidden Google sign-in page, which iPhone home-screen apps often block —
+// the app then sat on "Loading…" for ~35 s until it timed out. The resolver
+// is passed only when someone actually taps "Sign in with Google" (Login.jsx).
 export const auth = initializeAuth(app, {
   persistence: [browserLocalPersistence, indexedDBLocalPersistence],
-  popupRedirectResolver: browserPopupRedirectResolver,
 });
 
 // ============================================================

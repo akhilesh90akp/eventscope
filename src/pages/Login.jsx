@@ -9,7 +9,7 @@
 import React, { useState } from 'react';
 import AuthBackground from '../components/AuthBackground';
 import AnimatedLogo from '../components/AnimatedLogo';
-import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import { signInWithPopup, GoogleAuthProvider, browserPopupRedirectResolver } from 'firebase/auth';
 import { auth } from '../firebase';
 
 // ============================================================
@@ -33,8 +33,9 @@ export default function Login() {
     const provider = new GoogleAuthProvider();
 
     try {
-      // Use popup for all platforms — most reliable
-      await signInWithPopup(auth, provider);
+      // Popup on all platforms — most reliable. The popup helper is loaded
+      // only now (not at app start — see firebase.js).
+      await signInWithPopup(auth, provider, browserPopupRedirectResolver);
     } catch (err) {
       console.error('Login error:', err.code, err.message);
       if (err.code === 'auth/popup-closed-by-user') {

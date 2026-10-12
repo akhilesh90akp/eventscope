@@ -8,7 +8,7 @@
 // ============================================================
 // IMPORTS
 // ============================================================
-import React from 'react';
+import React, { useId } from 'react';
 
 /** Renders a styled dropdown select with label and validation */
 export default function Select({
@@ -21,17 +21,21 @@ export default function Select({
   className = '',
   ...props
 }) {
+  // Links the label to the field (screen readers, tapping the label focuses it)
+  const autoId = useId();
+  const fieldId = props.id || autoId;
   return (
     <div className={`space-y-1.5 ${className}`}>
       {/* Label with optional required asterisk */}
       {label && (
-        <label className="block text-sm font-medium text-bb-text">
+        <label htmlFor={fieldId} className="block text-sm font-medium text-bb-text">
           {label}
           {required && <span className="text-bb-accent ml-1">*</span>}
         </label>
       )}
 
       <select
+        id={fieldId}
         value={value}
         onChange={onChange}
         required={required}

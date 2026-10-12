@@ -14,7 +14,7 @@
 // ============================================================
 import React, { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, FilePlus, FileText, CheckCircle2, PartyPopper, Settings, Plus, BarChart3, LogOut, Shield, Menu, X } from 'lucide-react';
+import { LayoutDashboard, FilePlus, FileText, CheckCircle2, PartyPopper, Settings, Plus, BarChart3, LogOut, Shield, Menu, X, CalendarDays } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 // ============================================================
@@ -25,6 +25,7 @@ import { useApp } from '../context/AppContext';
 const sidebarNav = [
   { to: '/', icon: LayoutDashboard, label: 'Home' },
   { to: '/new', icon: FilePlus, label: 'New Event' },
+  { to: '/calendar', icon: CalendarDays, label: 'Calendar' },
   { to: '/drafts', icon: FileText, label: 'Drafts' },
   { to: '/confirmed', icon: CheckCircle2, label: 'Confirmed' },
   { to: '/completed', icon: PartyPopper, label: 'Completed' },

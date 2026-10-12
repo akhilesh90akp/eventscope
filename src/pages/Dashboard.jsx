@@ -3,7 +3,8 @@
  *
  * Displays key metrics (drafts, confirmed, completed, revenue) and the
  * upcoming confirmed events (nearest first), drawn with the same card face
- * as the Confirmed page. Page shortcuts live in the menu / sidebar.
+ * as the Confirmed page. Each stat card opens its page (Revenue → Reports,
+ * owners only).
  *
  * Read-only vs. Firestore: only reads `events` from AppContext.
  */
@@ -25,7 +26,7 @@ import { FileText, CheckCircle, PartyPopper, IndianRupee, Phone, CalendarDays } 
 
 /** Main dashboard view with stats and upcoming events */
 export default function Dashboard() {
-  const { events } = useApp();
+  const { events, isOwner } = useApp();
   const navigate = useNavigate();
 
   // ------------------------------------------------------------
@@ -43,10 +44,10 @@ export default function Dashboard() {
 
   // Stats card configuration
   const stats = [
-    { label: 'Drafts', value: drafts.length, icon: FileText, color: 'text-amber-400' },
-    { label: 'Confirmed', value: confirmed.length, icon: CheckCircle, color: 'text-emerald-400' },
-    { label: 'Completed', value: completed.length, icon: PartyPopper, color: 'text-blue-400' },
-    { label: 'Revenue', value: formatCurrency(revenue), icon: IndianRupee, color: 'text-bb-gold' },
+    { label: 'Drafts', value: drafts.length, icon: FileText, color: 'text-amber-400', to: '/drafts' },
+    { label: 'Confirmed', value: confirmed.length, icon: CheckCircle, color: 'text-emerald-400', to: '/confirmed' },
+    { label: 'Completed', value: completed.length, icon: PartyPopper, color: 'text-blue-400', to: '/completed' },
+    { label: 'Revenue', value: formatCurrency(revenue), icon: IndianRupee, color: 'text-bb-gold', to: isOwner ? '/reports' : null },
   ];
 
   // ------------------------------------------------------------
@@ -58,8 +59,8 @@ export default function Dashboard() {
       {/* Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {stats.map(s => (
-          <Card key={s.label}>
-            <div className="flex items-center gap-3">
+          <Card key={s.label} hover={!!s.to} onClick={s.to ? () => navigate(s.to) : undefined}>
+            <div className="flex items-center gap-3" role={s.to ? 'link' : undefined} aria-label={s.to ? `Open ${s.label}` : undefined}>
               <div className={`${s.color}`}>
                 <s.icon size={22} />
               </div>

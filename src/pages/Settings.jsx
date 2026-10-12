@@ -23,7 +23,10 @@ import Input from '../components/Input';
 import Modal from '../components/Modal';
 import JobLogColumnsEditor from '../components/JobLogColumnsEditor';
 import { resizeImageFile } from '../utils/helpers';
-import { Save, Plus, Trash2, Edit2, X, Building2, Landmark, FileText, Layers, Users, Table2, UserPlus, DatabaseBackup, Download } from 'lucide-react';
+import { lastStartupText } from '../utils/startupTiming';
+import { Save, Plus, Trash2, Edit2, X, Building2, Landmark, FileText, Layers, Users, Table2, UserPlus, DatabaseBackup, Download, FileSignature } from 'lucide-react';
+import Toggle from '../components/Toggle';
+import { DEFAULT_CONTRACT_TERMS } from '../constants/contract';
 
 // ============================================================
 // Settings — MAIN COMPONENT
@@ -33,6 +36,7 @@ import { Save, Plus, Trash2, Edit2, X, Building2, Landmark, FileText, Layers, Us
 export default function Settings() {
   const { settings, categories, updateSettings, addCategory, deleteCategory, addItemToCat, removeItemFromCat, logout, user, showToast, canEditSettings, isOwner, isSuspended, team, invites, inviteTeammate, cancelInvite, removeTeammate, promoteToOwner, downloadCompanyBackup } = useApp();
   const [backingUp, setBackingUp] = useState(false);
+  const [startupText] = useState(lastStartupText);
 
   // ------------------------------------------------------------
   // STATE
@@ -68,6 +72,11 @@ export default function Settings() {
 
   /** Updates a nested bank details field */
   const setBank = (key, val) => setForm(p => ({ ...p, bankDetails: { ...p.bankDetails, [key]: val } }));
+
+  /** Updates one of the company's contract terms (Settings → Contract) */
+  const setTerm = (key, val) => setForm(p => ({ ...p, contractTerms: { ...DEFAULT_CONTRACT_TERMS, ...p.contractTerms, [key]: val } }));
+  const terms = { ...DEFAULT_CONTRACT_TERMS, ...form.contractTerms };
+  const num = (key) => (e) => setTerm(key, e.target.value === '' ? '' : Math.max(0, Number(e.target.value)));
 
   /** Resizes an uploaded image and stores it on the given form field */
   const handleImageUpload = async (key, file) => {
@@ -180,6 +189,7 @@ export default function Settings() {
     { key: 'company', label: 'Company', icon: Building2 },
     { key: 'bank', label: 'Bank', icon: Landmark },
     { key: 'invoice', label: 'Invoice', icon: FileText },
+    { key: 'contract', label: 'Contract', icon: FileSignature },
     { key: 'services', label: 'Services', icon: Layers },
     { key: 'team', label: 'Team', icon: Users },
     { key: 'joblog', label: 'Job Log columns', icon: Table2 },
@@ -309,6 +319,43 @@ export default function Settings() {
                 className="text-sm text-bb-muted file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-bb-accent/20 file:text-bb-accent hover:file:bg-bb-accent/30 file:cursor-pointer"
               />
               {form.signature && <img src={form.signature} alt="Signature" className="mt-2 h-12" />}
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Contract Tab — the company's own terms; they fill the blanks of every agreement */}
+      {tab === 'contract' && (
+        <Card>
+          <div className="space-y-4">
+            <p className="text-sm text-bb-muted">
+              These fill in every client agreement (Contract button on an event). Set them once. Have your advocate check the agreement before first use.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <Input label="Signed for the company by" value={terms.signatory} onChange={e => setTerm('signatory', e.target.value)} placeholder="Proprietor’s name" />
+              <Input label="Place agreements are signed" value={terms.place} onChange={e => setTerm('place', e.target.value)} placeholder="e.g. Kochi" />
+              <Input label="Court city (disputes)" value={terms.courtCity} onChange={e => setTerm('courtCity', e.target.value)} placeholder="e.g. Ernakulam" />
+            </div>
+            <h3 className="text-sm font-semibold text-bb-text pt-1">Cancellation by the client</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <Input label="Early: more than (days)" type="number" value={terms.farDays} onChange={num('farDays')} />
+              <Input label="Early: keep % of price" type="number" value={terms.adminPct} onChange={num('adminPct')} />
+              <Input label="Late: less than (days)" type="number" value={terms.nearDays} onChange={num('nearDays')} />
+              <Input label="Late: client pays % of price" type="number" value={terms.nearPct} onChange={num('nearPct')} />
+            </div>
+            <p className="text-xs text-bb-muted">
+              Between {terms.nearDays} and {terms.farDays} days, the advance is kept and nothing more is due.
+            </p>
+            <h3 className="text-sm font-semibold text-bb-text pt-1">Payment and venue</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <Input label="Balance due (days before)" type="number" value={terms.balanceDaysBefore} onChange={num('balanceDaysBefore')} />
+              <Input label="Refund within (days)" type="number" value={terms.refundDays} onChange={num('refundDays')} />
+              <Input label="Setup: hours before" type="number" value={terms.setupHours} onChange={num('setupHours')} />
+              <Input label="Removal: hours after" type="number" value={terms.removalHours} onChange={num('removalHours')} />
+            </div>
+            <div className="space-y-3 pt-1">
+              <Toggle label="Contract price includes GST" checked={!!terms.gstIncluded} onChange={e => setTerm('gstIncluded', e.target.checked)} />
+              <Toggle label="We may photograph our own décor for our portfolio" description="Adds a clause; the client can object in writing." checked={!!terms.portfolioPhotos} onChange={e => setTerm('portfolioPhotos', e.target.checked)} />
             </div>
           </div>
         </Card>
@@ -531,6 +578,8 @@ export default function Settings() {
         <a href="#/terms" target="_blank" rel="noreferrer" className="hover:text-bb-text">Terms</a>
         <a href="#/data-protection" target="_blank" rel="noreferrer" className="hover:text-bb-text">How we protect your data</a>
       </p>
+      {/* Start-up timing (diagnostic) — helps pin down slow starts on a phone */}
+      {startupText && <p className="text-center text-[11px] text-bb-muted/70" data-testid="startup-timing">{startupText}</p>}
 
       {/* Save Button - shown for editable tabs, and only to users who can edit */}
       {canEditSettings && !['services', 'team', 'joblog', 'backup'].includes(tab) && (

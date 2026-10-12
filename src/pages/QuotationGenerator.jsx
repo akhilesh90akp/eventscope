@@ -5,7 +5,8 @@
  * and sub-events. Allows adding/removing items, setting per-item quantities
  * and rates, reordering items via drag-and-drop, grouping items into priced
  * bundles, and hiding itemized pricing in favor of one final amount per
- * section. Supports printing and WhatsApp sharing.
+ * section. Supports an in-app PDF (preview → share/save), laptop printing
+ * and a WhatsApp text summary.
  *
  * Pricing model (also read by BillGenerator — see utils/helpers.js):
  *   - Each item's price lives in itemPrices[`${sectionId}::${name}`] = {qty, rate}
@@ -41,6 +42,7 @@ import Input from '../components/Input';
 import Select from '../components/Select';
 import Toggle from '../components/Toggle';
 import Modal from '../components/Modal';
+import PdfButton from '../components/PdfButton';
 import {
   formatCurrency, formatDateReadable, calcGST, waLink,
   buildLineEntries, flattenLineEntries, computeSectionTotal,
@@ -498,10 +500,15 @@ export default function QuotationGenerator() {
   // EVENT HANDLERS — PRINT / SHARE
   // ------------------------------------------------------------
 
-  /** Triggers the browser print dialog with descriptive PDF filename */
-  const handlePrint = () => {
+  /** File name for Print-to-PDF and the in-app PDF, e.g. "Quotation - Anu & Kevin Wedding 21 Nov 2026" */
+  const docTitle = () => {
     const dateStr = displayDate ? formatDateReadable(displayDate) : formatDateReadable(new Date().toISOString());
-    document.title = `Quotation - ${event.clientName || 'Client'} ${event.eventType || 'Event'} ${dateStr}`;
+    return `Quotation - ${event.clientName || 'Client'} ${event.eventType || 'Event'} ${dateStr}`;
+  };
+
+  /** Laptop: the browser's print dialog (prints only the document) */
+  const handlePrint = () => {
+    document.title = docTitle();
     window.print();
     document.title = 'EventScope';
   };
@@ -802,7 +809,8 @@ export default function QuotationGenerator() {
         {/* Action Buttons */}
         <div data-no-print className="flex gap-2 flex-wrap">
           <Button icon={Save} onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save Quotation'}</Button>
-          <Button icon={Printer} variant="secondary" onClick={handlePrint}>Print / PDF</Button>
+          <PdfButton docRef={pdfRef} fileName={`${docTitle()}.pdf`} variant="secondary" />
+          <span className="hidden md:contents"><Button icon={Printer} variant="secondary" onClick={handlePrint}>Print</Button></span>
           <Button icon={MessageSquare} variant="success" onClick={handleWhatsApp}>Share via WhatsApp</Button>
           <Button variant="secondary" onClick={() => navigate(-1)}>Back</Button>
         </div>

@@ -8,7 +8,7 @@
 // ============================================================
 // IMPORTS
 // ============================================================
-import React from 'react';
+import React, { useId } from 'react';
 
 /** Renders a styled form input or textarea with label and validation */
 export default function Input({
@@ -23,6 +23,9 @@ export default function Input({
   className = '',
   ...props
 }) {
+  // Links the label to the field (screen readers, tapping the label focuses it)
+  const autoId = useId();
+  const fieldId = props.id || autoId;
   // Base styling shared between input and textarea
   const baseClasses = `
     w-full bg-bb-input border border-bb-border rounded-lg px-3 py-2.5
@@ -37,7 +40,7 @@ export default function Input({
     <div className={`space-y-1.5 ${className}`}>
       {/* Label with optional required asterisk */}
       {label && (
-        <label className="block text-sm font-medium text-bb-text">
+        <label htmlFor={fieldId} className="block text-sm font-medium text-bb-text">
           {label}
           {required && <span className="text-bb-accent ml-1">*</span>}
         </label>
@@ -54,6 +57,7 @@ export default function Input({
         {/* Render textarea or input based on type prop */}
         {type === 'textarea' ? (
           <textarea
+            id={fieldId}
             value={value}
             onChange={onChange}
             placeholder={placeholder}
@@ -64,6 +68,7 @@ export default function Input({
           />
         ) : (
           <input
+            id={fieldId}
             type={type}
             value={value}
             onChange={onChange}

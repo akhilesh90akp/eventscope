@@ -232,6 +232,19 @@ service cloud.firestore {
         allow read: if isMember(tenantId) || isPlatformAdmin();
         allow write: if (isMember(tenantId) && tenantActive(tenantId)) || isPlatformAdmin();
       }
+
+      // Owners' devices that get event reminders (push tokens). Each owner
+      // adds/removes only their own devices; the daily reminder script reads
+      // them with the project owner's Google sign-in (not through these rules).
+      match /pushTokens/{tokenId} {
+        allow read, delete: if isPlatformAdmin()
+          || (isOwner(tenantId) && resource.data.uid == request.auth.uid);
+        allow create, update: if isOwner(tenantId)
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.keys().hasOnly(['uid', 'token', 'device', 'createdAt'])
+          && request.resource.data.token is string
+          && request.resource.data.token.size() < 4096;
+      }
     }
   }
 }
