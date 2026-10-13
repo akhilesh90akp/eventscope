@@ -11,7 +11,8 @@ src/
   main.jsx                  App bootstrap (React root)
   App.jsx                   Screen gates (public / login / sign-up / app) + route table
   firebase.js               Firebase init (+ opt-in local emulator)
-  index.css                 Tailwind theme tokens, brand font, print styles
+  index.css                 Tailwind theme tokens, brand font (Oxanium), document font (Inter —
+                            quote/bill/contract/report PDFs), print styles
   context/
     AppContext.jsx          ALL Firestore access + app state; exposes useApp()
   pages/                    One file per route/screen

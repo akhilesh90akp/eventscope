@@ -21,7 +21,7 @@ import { formatCurrency, formatDateReadable, formatDateRange } from '../utils/he
 // CONSTANTS — shared inline styles
 // ============================================================
 const S = {
-  doc: { backgroundColor: 'white', color: '#111', fontFamily: 'Georgia, "Times New Roman", serif', fontSize: '13px', lineHeight: 1.55, maxWidth: '800px', margin: '0 auto', padding: '40px 44px', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' },
+  doc: { backgroundColor: 'white', color: '#111', fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif', fontSize: '13px', lineHeight: 1.55, maxWidth: '800px', margin: '0 auto', padding: '40px 44px', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' },
   h1: { fontSize: '19px', textAlign: 'center', letterSpacing: '0.06em', margin: '0 0 4px', fontWeight: 700 },
   sub: { textAlign: 'center', fontSize: '11.5px', color: '#444', margin: '0 0 18px' },
   h2: { fontSize: '13px', margin: '18px 0 6px', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 700 },

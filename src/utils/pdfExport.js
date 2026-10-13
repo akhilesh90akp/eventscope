@@ -95,6 +95,9 @@ export async function makePdf(node, fileName) {
   try {
     // wait for images (logo) and fonts in the copy
     await Promise.all([...copy.querySelectorAll('img')].map(img => (img.complete ? null : new Promise(r => { img.onload = img.onerror = r; }))));
+    // the documents use Inter: load its weights (and the ₹ sign) even when the
+    // document was hidden on screen (Reports), then wait for any other fonts
+    if (document.fonts?.load) await Promise.all([400, 600, 700].map(w => document.fonts.load(`${w} 12px Inter`, 'A₹1').catch(() => null)));
     if (document.fonts?.ready) await document.fonts.ready;
 
     const top = copy.getBoundingClientRect().top;
