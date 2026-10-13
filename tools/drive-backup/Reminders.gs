@@ -8,6 +8,7 @@
  *
  *   "In 2 days: Joseph Family — Wedding"   (2 days before each function)
  *   "Today: Joseph Family — Home Function"  (on the day)
+ *   "Day 2 today: Infopark Expo — Expo"     (each extra day of a multi-day function)
  *
  * Sent through Firebase Cloud Messaging (free). Devices that are no longer
  * registered are removed. Owners turn reminders on per device in the app
@@ -100,34 +101,43 @@ function sendRemindersNow(todayOverride) {
 // WHAT TO SAY
 // ============================================================
 
-/** One message per confirmed function happening today or in DAYS_BEFORE days */
+/**
+ * One message per confirmed function starting today or in DAYS_BEFORE days,
+ * plus "Day N today" for each later day of a multi-day function.
+ */
 function reminderMessages(events, today, inTwo) {
   var out = [];
   events.forEach(function (ev) {
     var e = ev.data;
     if (e.status !== 'confirmed') return;
     functionsOf(e).forEach(function (f) {
-      var when = f.date === today ? 'Today' : f.date === inTwo ? 'In ' + DAYS_BEFORE + ' days' : null;
+      var dayN = f.days > 1 && f.date < today && f.endDate >= today ? daysBetween(f.date, today) + 1 : 0;
+      var when = f.date === today ? 'Today' : f.date === inTwo ? 'In ' + DAYS_BEFORE + ' days' : dayN ? 'Day ' + dayN + ' today' : null;
       if (!when) return;
-      var bits = [prettyDate(f.date) + (f.time ? ', ' + time12(f.time) : ''), f.location].filter(Boolean);
+      var dates = f.days > 1 ? prettyDate(f.date) + ' – ' + prettyDate(f.endDate) + ' (' + f.days + ' days)' : prettyDate(f.date);
+      var bits = [dates + (f.time ? ', ' + time12(f.time) : ''), f.location].filter(Boolean);
       out.push({
         title: when + ': ' + (e.clientName || 'Event') + ' — ' + f.name,
         body: bits.join(' · '),
         url: APP_URL + '#/confirmed',
-        tag: ev.id + '-' + f.date,
+        tag: ev.id + '-' + f.date + (dayN ? '-d' + dayN : ''),
       });
     });
   });
   return out;
 }
 
-/** main event + sub-events with a date: [{ date, time, name, location }] */
+/** main event + sub-events with a date: [{ date, endDate, days, time, name, location }] */
 function functionsOf(e) {
   var list = [];
-  if (e.mainEvent && e.mainEvent.date) list.push({ date: e.mainEvent.date, time: e.mainEvent.time || '', name: e.mainEvent.name || e.eventType || 'Event', location: e.mainEvent.location || '' });
-  else if (e.date) list.push({ date: e.date, time: e.time || '', name: e.eventType || 'Event', location: e.eventLocation || '' });
+  var add = function (fn, name) {
+    var end = fn.endDate && fn.endDate > fn.date ? fn.endDate : fn.date;
+    list.push({ date: fn.date, endDate: end, days: daysBetween(fn.date, end) + 1, time: fn.time || '', name: name, location: fn.location || fn.eventLocation || '' });
+  };
+  if (e.mainEvent && e.mainEvent.date) add(e.mainEvent, e.mainEvent.name || e.eventType || 'Event');
+  else if (e.date) add(e, e.eventType || 'Event');
   (e.subEvents || []).forEach(function (s) {
-    if (s && s.date) list.push({ date: s.date, time: s.time || '', name: s.name || 'Function', location: s.location || '' });
+    if (s && s.date) add(s, s.name || 'Function');
   });
   return list;
 }
@@ -167,6 +177,10 @@ function shiftDate(iso, n) {
   var p = iso.split('-').map(Number);
   var d = new Date(Date.UTC(p[0], p[1] - 1, p[2] + n));
   return d.toISOString().slice(0, 10);
+}
+function daysBetween(a, b) {
+  var p = a.split('-').map(Number), q = b.split('-').map(Number);
+  return Math.round((Date.UTC(q[0], q[1] - 1, q[2]) - Date.UTC(p[0], p[1] - 1, p[2])) / 86400000);
 }
 function prettyDate(iso) {
   var p = iso.split('-').map(Number);

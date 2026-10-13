@@ -4,6 +4,10 @@
  *
  * - Day colours: free / has events / nearly full / full / over the limit.
  *   Only confirmed and completed functions fill a day; drafts show dashed.
+ *   Every day of a multi-day function counts.
+ * - Multi-day functions: one bar across their days on laptops, a thin line
+ *   along the bottom of the days on phones. Overlapping ones stack in lanes
+ *   (each keeps its row; alternate shades tell them apart).
  * - Filters: status and event type. Month or List view.
  * - Tap a day to see its functions (side panel on laptops, below on phones);
  *   tap a function to open the event.
@@ -24,10 +28,10 @@ import { useApp } from '../context/AppContext';
 import Card from '../components/Card';
 import ReminderSwitch from '../components/ReminderSwitch';
 import { EVENT_TYPES } from '../constants/data';
-import { formatCurrency } from '../utils/helpers';
+import { formatCurrency, formatDateRange } from '../utils/helpers';
 import {
   DEFAULT_MAX_PER_DAY, monthGrid, isoDate, eventFunctions, filterFunctions, groupByDate,
-  dayCount, dayLoad, upcomingReminders,
+  expandDays, assignLanes, dayCount, dayLoad, upcomingReminders,
 } from '../utils/calendar';
 
 // ============================================================
@@ -63,6 +67,20 @@ const STATUS_TAG = {
 };
 const STATUS_NAME = { confirmed: 'Confirmed', draft: 'Draft', completed: 'Completed' };
 
+/** Multi-day bars (laptop) and lines (phone): [even lane, odd lane] shades per status */
+const BAR = {
+  confirmed: ['bg-bb-accent text-white', 'bg-violet-800 text-white'],
+  draft: ['bg-white text-violet-700 border border-dashed border-violet-400', 'bg-white text-violet-900 border border-dashed border-violet-600'],
+  completed: ['bg-gray-200 text-gray-600', 'bg-gray-300 text-gray-700'],
+};
+const LINE = {
+  confirmed: ['bg-bb-accent', 'bg-violet-800'],
+  draft: ['border-t-2 border-dashed border-violet-400', 'border-t-2 border-dashed border-violet-700'],
+  completed: ['bg-gray-400', 'bg-gray-500'],
+};
+const LAPTOP_LANES = 3;   // multi-day rows shown in a laptop cell
+const PHONE_LANES = 2;    // lines shown in a phone cell
+
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 // ============================================================
@@ -78,6 +96,8 @@ const shortDay = (iso) => {
   const [y, m, d] = iso.split('-').map(Number);
   return new Date(y, m - 1, d).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
 };
+/** 0 = Sunday … 6 = Saturday for 'YYYY-MM-DD' */
+const weekdayOf = (iso) => { const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d).getDay(); };
 /** "18:00" → "6:00 pm" */
 const time12 = (t) => {
   if (!t) return '';
@@ -97,8 +117,13 @@ function FunctionCard({ f, showAmount, onOpen }) {
         <span className="font-semibold text-bb-text truncate">{f.client}</span>
         <span className={`shrink-0 text-[11px] font-semibold px-2 py-0.5 rounded-full ${STATUS_TAG[f.status] || STATUS_TAG.draft}`}>{STATUS_NAME[f.status] || f.status}</span>
       </div>
+      {f.days > 1 && (
+        <span className="inline-block mt-1 text-[11px] font-semibold bg-violet-100 text-violet-700 rounded-md px-1.5" data-testid="day-of">
+          Day {f.dayIndex} of {f.days}
+        </span>
+      )}
       <p className="text-xs text-bb-muted mt-0.5">
-        {[f.name, time12(f.time), f.location].filter(Boolean).join(' · ')}
+        {[f.name, f.days > 1 ? formatDateRange(f.startDate || f.date, f.endDate) : '', time12(f.time), f.location].filter(Boolean).join(' · ')}
       </p>
       {showAmount && f.amount != null && (
         <p className={`text-sm font-semibold mt-1 ${f.status === 'draft' ? 'text-bb-muted' : 'text-emerald-600'}`}>
@@ -106,6 +131,74 @@ function FunctionCard({ f, showAmount, onOpen }) {
         </p>
       )}
     </button>
+  );
+}
+
+/** One piece of a multi-day bar (laptop): rounded where the function starts/ends or the week wraps */
+function BarPiece({ f, lane, weekday }) {
+  const starts = f.dayIndex === 1 || weekday === 0;
+  const ends = f.dayIndex === f.days || weekday === 6;
+  const label = f.dayIndex === 1 ? `${f.client} · ${f.days} days` : weekday === 0 ? `◂ ${f.client}` : '';
+  return (
+    <div data-testid="bar" data-lane={lane}
+      className={`mt-1 h-[19px] text-[11px] font-medium py-0.5 truncate leading-[15px]
+        ${(BAR[f.status] || BAR.draft)[lane % 2]}
+        ${starts ? 'rounded-l pl-1.5' : '-ml-1.5 pl-1.5 border-l-0'} ${ends ? 'rounded-r pr-1.5' : '-mr-1.5 border-r-0'}`}>
+      {label || '\u00a0'}
+    </div>
+  );
+}
+
+/** One piece of a multi-day line (phone), along the bottom of the day */
+function LinePiece({ f, lane, weekday }) {
+  const starts = f.dayIndex === 1 || weekday === 0;
+  const ends = f.dayIndex === f.days || weekday === 6;
+  const isDraft = f.status === 'draft';
+  return (
+    <i data-testid="line" data-lane={lane}
+      className={`absolute ${isDraft ? 'h-0' : 'h-[3px]'} ${lane ? 'bottom-[10px]' : 'bottom-1'}
+        ${(LINE[f.status] || LINE.draft)[lane % 2]}
+        ${starts ? 'left-2 rounded-l' : 'left-0'} ${ends ? 'right-2 rounded-r' : 'right-0'}`} />
+  );
+}
+
+/**
+ * What's inside a day cell. Laptop: multi-day bars in their lanes (empty
+ * lanes keep their space so bars line up across days), then one-day names,
+ * then "+N more". Phone: dots for one-day functions, thin lines along the
+ * bottom for multi-day ones.
+ */
+function DayContents({ fns, lanes, weekday }) {
+  const multi = fns.filter(f => f.days > 1);
+  const singles = fns.filter(f => !(f.days > 1));
+  const laneOf = (f) => lanes[f.fnKey] ?? 0;
+  const top = multi.length ? Math.max(...multi.map(laneOf)) + 1 : 0;
+
+  // laptop
+  const laptopSlots = Math.min(top, LAPTOP_LANES);
+  const visibleSingles = singles.slice(0, Math.max(1, LAPTOP_LANES - laptopSlots));
+  const laptopHidden = multi.filter(f => laneOf(f) >= LAPTOP_LANES).length + singles.length - visibleSingles.length;
+  // phone
+  const phoneHidden = multi.filter(f => laneOf(f) >= PHONE_LANES).length + Math.max(0, singles.length - 4);
+
+  return (
+    <>
+      <div className="hidden md:block">
+        {Array.from({ length: laptopSlots }, (_, lane) => {
+          const f = multi.find(x => laneOf(x) === lane);
+          return f ? <BarPiece key={f.key} f={f} lane={lane} weekday={weekday} /> : <div key={`gap${lane}`} className="mt-1 h-[19px]" />;
+        })}
+        {visibleSingles.map(f => <div key={f.key} className={`mt-1 text-[11px] font-medium rounded px-1.5 py-0.5 truncate ${CHIP[f.status] || CHIP.draft}`}>{f.client}</div>)}
+        {laptopHidden > 0 && <div className="text-[10.5px] text-bb-muted mt-0.5">+{laptopHidden} more</div>}
+      </div>
+      <div className="md:hidden flex justify-center items-center gap-0.5 mt-1 h-1.5">
+        {singles.slice(0, 4).map(f => <i key={f.key} className={`w-1.5 h-1.5 rounded-full ${DOT[f.status] || DOT.draft}`} />)}
+        {phoneHidden > 0 && <span className="text-[9px] leading-none font-bold text-bb-muted">+{phoneHidden}</span>}
+      </div>
+      <div className="md:hidden">
+        {multi.filter(f => laneOf(f) < PHONE_LANES).map(f => <LinePiece key={f.key} f={f} lane={laneOf(f)} weekday={weekday} />)}
+      </div>
+    </>
   );
 }
 
@@ -161,8 +254,9 @@ export default function Calendar() {
   const max = Number(settings.maxEventsPerDay) > 0 ? Number(settings.maxEventsPerDay) : DEFAULT_MAX_PER_DAY;
   const allFns = useMemo(() => eventFunctions(events), [events]);
   const shown = useMemo(() => filterFunctions(allFns, { status, type }), [allFns, status, type]);
-  const shownByDate = useMemo(() => groupByDate(shown), [shown]);
-  const allByDate = useMemo(() => groupByDate(allFns), [allFns]);   // busy-ness ignores filters
+  const shownByDate = useMemo(() => groupByDate(expandDays(shown)), [shown]);
+  const allByDate = useMemo(() => groupByDate(expandDays(allFns)), [allFns]);   // busy-ness ignores filters
+  const lanes = useMemo(() => assignLanes(shown), [shown]);
   const weeks = useMemo(() => monthGrid(month.y, month.m), [month]);
   const usedTypes = useMemo(() => [...new Set(allFns.map(f => f.eventType).filter(Boolean))].sort((a, b) => EVENT_TYPES.indexOf(a) - EVENT_TYPES.indexOf(b)), [allFns]);
   const reminders = useMemo(() => (isOwner ? upcomingReminders(allFns, today, 14) : []), [isOwner, allFns, today]);
@@ -277,20 +371,13 @@ export default function Calendar() {
                 const isSel = date === selected;
                 return (
                   <button key={date} onClick={() => setSelected(date)} data-date={date} data-load={load}
-                    className={`relative text-left min-h-[52px] md:min-h-[96px] p-1 md:p-1.5 border-r border-b border-bb-border [&:nth-child(7n)]:border-r-0 cursor-pointer
+                    className={`relative flex flex-col justify-start text-left min-h-[52px] md:min-h-[96px] p-1 md:p-1.5 border-r border-b border-bb-border [&:nth-child(7n)]:border-r-0 cursor-pointer
                       ${inMonth ? LOAD_BG[load] : 'bg-gray-50 text-gray-300'} ${isSel ? 'outline outline-2 -outline-offset-2 outline-bb-accent z-10' : ''}`}>
                     <div className="flex items-center justify-between">
                       <span className={`text-xs md:text-sm font-semibold ${date === today ? 'bg-bb-accent text-white rounded-full px-1.5' : ''}`}>{Number(date.slice(8))}</span>
                       {inMonth && LOAD_BADGE[load] && <span className={`hidden md:inline text-[10px] font-bold px-1.5 rounded ${LOAD_BADGE[load]}`}>{count}/{max}{load === 'over' ? ' !' : ''}</span>}
                     </div>
-                    {/* laptop: names; phone: dots */}
-                    <div className="hidden md:block">
-                      {fns.slice(0, 2).map(f => <div key={f.key} className={`mt-1 text-[11px] font-medium rounded px-1.5 py-0.5 truncate ${CHIP[f.status] || CHIP.draft}`}>{f.client}</div>)}
-                      {fns.length > 2 && <div className="text-[10.5px] text-bb-muted mt-0.5">+{fns.length - 2} more</div>}
-                    </div>
-                    <div className="md:hidden flex justify-center gap-0.5 mt-1">
-                      {fns.slice(0, 4).map(f => <i key={f.key} className={`w-1.5 h-1.5 rounded-full ${DOT[f.status] || DOT.draft}`} />)}
-                    </div>
+                    <DayContents fns={fns} lanes={lanes} weekday={weekdayOf(date)} />
                   </button>
                 );
               })}

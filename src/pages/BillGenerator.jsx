@@ -25,7 +25,8 @@ import Input from '../components/Input';
 import Select from '../components/Select';
 import Toggle from '../components/Toggle';
 import Card from '../components/Card';
-import { formatCurrency, formatDateReadable, calcGST, roundOff, nextInvoiceNo, waLink, buildLineEntries, computeSectionTotal, getEventSections } from '../utils/helpers';
+import DaysCell from '../components/DaysCell';
+import { formatCurrency, formatDateReadable, calcGST, roundOff, nextInvoiceNo, waLink, buildLineEntries, computeSectionTotal, getEventSections, functionDateText, itemDays, lineAmount, usesDays } from '../utils/helpers';
 import { DEFAULT_SAC_CODE } from '../constants/data';
 import { Printer, MessageSquare, Save } from 'lucide-react';
 
@@ -176,6 +177,10 @@ export default function BillGenerator() {
   const hidePrices = event?.hidePrices || false;
   const finalAmounts = useMemo(() => event?.finalAmounts || {}, [event]);
 
+  // Printed table: a Days column only when some item runs more than one day
+  const showDays = usesDays(storedPrices);
+  const COLS = showDays ? 7 : 6;
+
   // Each section's total (respecting hide-prices/bundles — see utils/helpers.js),
   // and their sum as the bill's subtotal.
   const sectionTotals = useMemo(() => {
@@ -233,7 +238,7 @@ export default function BillGenerator() {
           idx++;
           const key = `${group.id}::${name}`;
           const p = storedPrices[key] || { qty: 1, rate: 0 };
-          msg += `${idx}. ${name} (Qty: ${p.qty})\n`;
+          msg += `${idx}. ${name} (Qty: ${p.qty}${itemDays(p) > 1 ? `, ${itemDays(p)} days` : ''})\n`;
         });
         msg += `   ${group.name} — Final Amount: ${formatCurrency(sectionTotals[group.id] || 0)}\n`;
       } else {
@@ -244,7 +249,8 @@ export default function BillGenerator() {
             msg += `${idx}. ${entry.bundle.name} (${memberNames.join(', ')}) - ₹${(entry.bundle.amount || 0).toLocaleString('en-IN')}\n`;
           } else {
             const p = storedPrices[entry.key] || { qty: 1, rate: 0 };
-            msg += `${idx}. ${entry.name} - ₹${(p.qty * p.rate).toLocaleString('en-IN')}\n`;
+            const days = itemDays(p) > 1 ? ` (${p.qty} × ₹${p.rate} × ${itemDays(p)} days)` : '';
+            msg += `${idx}. ${entry.name}${days} - ₹${lineAmount(p).toLocaleString('en-IN')}\n`;
           }
         });
       }
@@ -322,7 +328,7 @@ export default function BillGenerator() {
           <tbody>
             {/* Row 1: Title */}
             <tr>
-              <td colSpan="6" style={{textAlign: 'center', padding: '24px 24px 12px'}}>
+              <td colSpan={COLS} style={{textAlign: 'center', padding: '24px 24px 12px'}}>
                 <span style={{fontSize: '20px', fontWeight: '800', letterSpacing: '0.2em', textTransform: 'uppercase', color: '#652D90'}}>INVOICE</span>
                 <div style={{height: '3px', width: '80px', margin: '8px auto 0', backgroundColor: '#652D90', borderRadius: '2px'}} />
               </td>
@@ -330,7 +336,7 @@ export default function BillGenerator() {
 
             {/* Row 2: Company address left, Logo + Bill Date + Invoice # right */}
             <tr>
-              <td colSpan="3" style={{verticalAlign: 'top', padding: '12px 24px', fontSize: '11px', color: '#4b5563', lineHeight: '1.7'}}>
+              <td colSpan={COLS - 3} style={{verticalAlign: 'top', padding: '12px 24px', fontSize: '11px', color: '#4b5563', lineHeight: '1.7'}}>
                 {/* Company block — from the tenant's own settings */}
                 <span style={{fontWeight: '700', fontSize: '13px', color: '#1f2937'}}>{settings.companyName}</span>
                 {settings.tagline && <span style={{color: '#4b5563'}}> — {settings.tagline}</span>}<br/>
@@ -348,14 +354,14 @@ export default function BillGenerator() {
 
             {/* Row 3: Thin gray separator */}
             <tr>
-              <td colSpan="6" style={{padding: '0 24px'}}>
+              <td colSpan={COLS} style={{padding: '0 24px'}}>
                 <div style={{height: '1px', backgroundColor: '#e5e7eb'}} />
               </td>
             </tr>
 
             {/* Row 4: Two boxes with purple top border */}
             <tr>
-              <td style={{verticalAlign: 'top', padding: '16px 24px 12px', width: '60%'}} colSpan="3">
+              <td style={{verticalAlign: 'top', padding: '16px 24px 12px', width: '60%'}} colSpan={COLS - 3}>
                 <div style={{borderTop: '3px solid #652D90', padding: '12px 0 0'}}>
                   <span style={{fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#652D90'}}>BILL TO/ CLIENT</span><br/>
                   <span style={{fontSize: '14px', fontWeight: '700', color: '#1f2937', lineHeight: '2'}}>{billToName}</span><br/>
@@ -367,14 +373,14 @@ export default function BillGenerator() {
                 <div style={{borderTop: '3px solid #652D90', padding: '12px 0 0', fontSize: '11px', color: '#4b5563', lineHeight: '1.9'}}>
                   <span style={{fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#652D90'}}>EVENT DETAILS</span><br/>
                   {event.eventType && <>Event: {event.eventType}<br/></>}
-                  {(event.mainEvent?.date || event.date) && <>Date: {formatDateReadable(event.mainEvent?.date || event.date)}<br/></>}
+                  {(event.mainEvent?.date || event.date) && <>Date: {event.mainEvent ? functionDateText(event.mainEvent) : formatDateReadable(event.date)}<br/></>}
                   {(event.mainEvent?.location || event.eventLocation) && <>Venue: {event.mainEvent?.location || event.eventLocation}</>}
                 </div>
               </td>
             </tr>
 
             {/* Row 5: Spacer */}
-            <tr><td colSpan="6" style={{padding: '6px 0'}} /></tr>
+            <tr><td colSpan={COLS} style={{padding: '6px 0'}} /></tr>
 
             {/* Items grouped by Event — sections with no items are skipped (empty sections aren't shown to the client) */}
             {eventGroups.filter(g => g.items.length > 0).map((group) => {
@@ -384,9 +390,9 @@ export default function BillGenerator() {
                 <React.Fragment key={group.id}>
                   {/* Event group header — always shown, not just when there are multiple groups, so each event date is clearly labeled */}
                   <tr>
-                    <td colSpan="6" style={{padding: '12px 24px 6px'}}>
+                    <td colSpan={COLS} style={{padding: '12px 24px 6px'}}>
                       <span style={{fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#652D90'}}>
-                        {group.name}{group.date ? ` — ${formatDateReadable(group.date)}` : ''}{group.location ? `, ${group.location}` : ''}
+                        {group.name}{group.date ? ` — ${functionDateText(group)}` : ''}{group.location ? `, ${group.location}` : ''}
                       </span>
                       <div style={{height: '2px', marginTop: '6px', backgroundColor: '#652D90', opacity: 0.3, borderRadius: '1px'}} />
                     </td>
@@ -405,7 +411,8 @@ export default function BillGenerator() {
                       <th colSpan="1" style={{padding: '8px 8px 8px 24px', textAlign: 'left', fontWeight: '600', color: '#4b5563', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', width: '40px'}}>No.</th>
                       <th colSpan="1" style={{padding: '8px 8px', textAlign: 'left', fontWeight: '600', color: '#4b5563', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', width: '90px'}}>SAC CODE</th>
                       <th colSpan="2" style={{padding: '8px 8px', textAlign: 'left', fontWeight: '600', color: '#4b5563', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em'}}>DESCRIPTION</th>
-                      <th colSpan="2" style={{padding: '8px 8px 8px 8px', textAlign: 'right', fontWeight: '600', color: '#4b5563', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', width: '150px', paddingRight: '24px'}}>QTY</th>
+                      <th colSpan="2" style={{padding: '8px 8px 8px 8px', textAlign: 'right', fontWeight: '600', color: '#4b5563', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', width: '150px', paddingRight: showDays ? '8px' : '24px'}}>QTY</th>
+                      {showDays && <th style={{padding: '8px 8px', textAlign: 'center', fontWeight: '600', color: '#4b5563', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', width: '60px', paddingRight: '24px'}}>DAYS</th>}
                     </tr>
                   ) : (
                     <tr style={{backgroundColor: '#f5f0fa'}}>
@@ -414,6 +421,7 @@ export default function BillGenerator() {
                       <th style={{padding: '8px 8px', textAlign: 'left', fontWeight: '600', color: '#4b5563', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em'}}>DESCRIPTION</th>
                       <th style={{padding: '8px 8px', textAlign: 'center', fontWeight: '600', color: '#4b5563', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', width: '50px'}}>QTY</th>
                       <th style={{padding: '8px 8px', textAlign: 'right', fontWeight: '600', color: '#4b5563', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', width: '90px'}}>PRICE</th>
+                      {showDays && <th style={{padding: '8px 8px', textAlign: 'center', fontWeight: '600', color: '#4b5563', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', width: '54px'}}>DAYS</th>}
                       <th style={{padding: '8px 8px 8px 8px', textAlign: 'right', fontWeight: '600', color: '#4b5563', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', width: '100px', paddingRight: '24px'}}>AMOUNT</th>
                     </tr>
                   )}
@@ -435,12 +443,13 @@ export default function BillGenerator() {
                                 <div key={i} style={{fontSize: '12px', color: '#1f2937', marginTop: '2px'}}>{mn}</div>
                               ))}
                             </td>
-                            <td colSpan="2" style={{padding: '10px 8px 10px 8px', textAlign: 'right', color: '#4b5563', fontSize: '12px', paddingRight: '24px'}}>
+                            <td colSpan="2" style={{padding: '10px 8px 10px 8px', textAlign: 'right', color: '#4b5563', fontSize: '12px', paddingRight: showDays ? '8px' : '24px'}}>
                               <div style={{visibility: 'hidden', fontWeight: '600'}}>&nbsp;</div>
                               {b.itemKeys.map((k, i) => (
                                 <div key={i} style={{marginTop: i === 0 ? 0 : '2px'}}>{(storedPrices[k] || { qty: 1 }).qty}</div>
                               ))}
                             </td>
+                            {showDays && <DaysCell keys={b.itemKeys} prices={storedPrices} last />}
                           </tr>
                         );
                       }
@@ -452,7 +461,8 @@ export default function BillGenerator() {
                           <td colSpan="1" style={{padding: '10px 8px 10px 24px', color: '#6b7280', fontSize: '12px'}}>{slNo}</td>
                           <td colSpan="1" style={{padding: '10px 8px', color: '#6b7280', fontFamily: 'monospace', fontSize: '11px'}}>{DEFAULT_SAC_CODE}</td>
                           <td colSpan="2" style={{padding: '10px 8px', color: '#1f2937', fontSize: '12px'}}>{name}</td>
-                          <td colSpan="2" style={{padding: '10px 8px 10px 8px', textAlign: 'right', color: '#4b5563', fontSize: '12px', paddingRight: '24px'}}>{p.qty}</td>
+                          <td colSpan="2" style={{padding: '10px 8px 10px 8px', textAlign: 'right', color: '#4b5563', fontSize: '12px', paddingRight: showDays ? '8px' : '24px'}}>{p.qty}</td>
+                          {showDays && <DaysCell keys={[key]} prices={storedPrices} single last />}
                         </tr>
                       );
                     })
@@ -486,6 +496,7 @@ export default function BillGenerator() {
                                 return <div key={i} style={{marginTop: i === 0 ? 0 : '2px'}}>{rate > 0 ? formatCurrency(rate) : '—'}</div>;
                               })}
                             </td>
+                            {showDays && <DaysCell keys={b.itemKeys} prices={storedPrices} />}
                             <td style={{padding: '10px 8px', textAlign: 'right', fontWeight: '600', color: '#1f2937', fontSize: '12px', paddingRight: '24px'}}>
                               <div style={{visibility: 'hidden'}}>&nbsp;</div>
                               {formatCurrency(b.amount)}
@@ -503,7 +514,8 @@ export default function BillGenerator() {
                           <td style={{padding: '10px 8px', color: '#1f2937', fontSize: '12px'}}>{name}</td>
                           <td style={{padding: '10px 8px', textAlign: 'center', color: '#4b5563', fontSize: '12px'}}>{p.qty}</td>
                           <td style={{padding: '10px 8px', textAlign: 'right', color: '#4b5563', fontSize: '12px'}}>{formatCurrency(p.rate)}</td>
-                          <td style={{padding: '10px 8px', textAlign: 'right', fontWeight: '600', color: '#1f2937', fontSize: '12px', paddingRight: '24px'}}>{formatCurrency(p.qty * p.rate)}</td>
+                          {showDays && <DaysCell keys={[key]} prices={storedPrices} single />}
+                          <td style={{padding: '10px 8px', textAlign: 'right', fontWeight: '600', color: '#1f2937', fontSize: '12px', paddingRight: '24px'}}>{formatCurrency(lineAmount(p))}</td>
                         </tr>
                       );
                     })
@@ -511,7 +523,7 @@ export default function BillGenerator() {
 
                   {/* Group subtotal — always shown now (for hide-prices mode, this IS the manually-entered final amount) */}
                   <tr>
-                    <td colSpan="6" style={{textAlign: 'right', padding: '10px 24px 16px'}}>
+                    <td colSpan={COLS} style={{textAlign: 'right', padding: '10px 24px 16px'}}>
                       <span style={{fontSize: '11px', fontWeight: '600', color: '#6b7280', textTransform: 'uppercase', marginRight: '16px'}}>
                         {hidePrices ? 'Final Amount' : 'Subtotal'}
                       </span>
@@ -523,11 +535,11 @@ export default function BillGenerator() {
             })}
 
             {/* Spacer before summary */}
-            <tr><td colSpan="6" style={{padding: '8px 0'}} /></tr>
+            <tr><td colSpan={COLS} style={{padding: '8px 0'}} /></tr>
 
             {/* Summary Box */}
             <tr>
-              <td colSpan="6" style={{padding: '0 24px'}}>
+              <td colSpan={COLS} style={{padding: '0 24px'}}>
                 <table style={{width: '100%', borderCollapse: 'collapse', border: '1px solid #e5e7eb', borderRadius: '6px', overflow: 'hidden'}}>
                   <tbody>
                     <tr style={{backgroundColor: '#f5f0fa'}}>
@@ -589,11 +601,11 @@ export default function BillGenerator() {
             </tr>
 
             {/* Spacer */}
-            <tr><td colSpan="6" style={{padding: '8px 0'}} /></tr>
+            <tr><td colSpan={COLS} style={{padding: '8px 0'}} /></tr>
 
             {/* Bank + Terms side by side */}
             <tr>
-              <td colSpan="3" style={{verticalAlign: 'top', padding: '0 12px 0 24px', width: '50%'}}>
+              <td colSpan={COLS - 3} style={{verticalAlign: 'top', padding: '0 12px 0 24px', width: '50%'}}>
                 <div style={{backgroundColor: '#f3f4f6', borderRadius: '4px', overflow: 'hidden'}}>
                   <div style={{padding: '6px 12px', backgroundColor: '#e5e7eb'}}>
                     <span style={{fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#4b5563'}}>BANK ACCOUNT DETAILS</span>
@@ -622,18 +634,18 @@ export default function BillGenerator() {
             </tr>
 
             {/* Spacer */}
-            <tr><td colSpan="6" style={{padding: '8px 0'}} /></tr>
+            <tr><td colSpan={COLS} style={{padding: '8px 0'}} /></tr>
 
             {/* Make checks payable */}
             <tr>
-              <td colSpan="6" style={{padding: '12px 24px 2px', fontSize: '11px', color: '#6b7280', borderTop: '1px solid #e5e7eb', textAlign: 'center'}}>
+              <td colSpan={COLS} style={{padding: '12px 24px 2px', fontSize: '11px', color: '#6b7280', borderTop: '1px solid #e5e7eb', textAlign: 'center'}}>
                 Make all checks payable to "<span style={{fontWeight: '600', color: '#1f2937'}}>{settings.companyName}</span>"
               </td>
             </tr>
 
             {/* Contact line */}
             <tr>
-              <td colSpan="6" style={{padding: '2px 24px 12px', textAlign: 'center'}}>
+              <td colSpan={COLS} style={{padding: '2px 24px 12px', textAlign: 'center'}}>
                 <span style={{fontSize: '11px', color: '#6b7280'}}>
                   If you have any questions about this invoice, please contact{' '}
                   <span style={{color: '#4b5563'}}>{settings.companyName}</span>,{' '}
@@ -644,7 +656,7 @@ export default function BillGenerator() {
 
             {/* Thank You Footer */}
             <tr>
-              <td colSpan="6" style={{textAlign: 'center', padding: '16px 24px 24px', borderTop: '1px solid #e5e7eb'}}>
+              <td colSpan={COLS} style={{textAlign: 'center', padding: '16px 24px 24px', borderTop: '1px solid #e5e7eb'}}>
                 <span style={{fontSize: '14px', fontWeight: '700', color: '#1f2937', letterSpacing: '0.05em'}}>
                   {settings.thankYouMessage || 'Thank You For Your Business!'}
                 </span>

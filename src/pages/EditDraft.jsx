@@ -22,10 +22,11 @@ import Button from '../components/Button';
 import Input from '../components/Input';
 import Select from '../components/Select';
 import LocationInput from '../components/LocationInput';
+import FunctionDates, { functionDatesProblem, functionDatesToSave } from '../components/FunctionDates';
 import { EVENT_TYPES } from '../constants/data';
-import { genId } from '../utils/helpers';
+import { genId, functionDays } from '../utils/helpers';
 import {
-  User, Phone, MessageSquare, MapPin, Calendar, Clock,
+  User, Phone, MessageSquare, MapPin, Clock,
   IndianRupee, ChevronDown, ChevronUp, X, Plus, Save, StickyNote, Layers,
 } from 'lucide-react';
 
@@ -146,7 +147,7 @@ export default function EditDraft() {
 
   // Main event state
   const [mainEvent, setMainEvent] = useState({
-    name: '', date: '', time: '', location: '', items: [],
+    name: '', date: '', endDate: '', multiDay: false, time: '', location: '', items: [],
   });
 
   // Sub-events state
@@ -180,6 +181,8 @@ export default function EditDraft() {
         setMainEvent({
           name: event.mainEvent.name || '',
           date: event.mainEvent.date || '',
+          endDate: event.mainEvent.endDate || '',
+          multiDay: functionDays(event.mainEvent) > 1,
           time: event.mainEvent.time || '',
           location: event.mainEvent.location || '',
           items: event.mainEvent.items || [],
@@ -188,6 +191,8 @@ export default function EditDraft() {
           id: s.id || genId(),
           name: s.name || '',
           date: s.date || '',
+          endDate: s.endDate || '',
+          multiDay: functionDays(s) > 1,
           time: s.time || '',
           location: s.location || '',
           items: s.items || [],
@@ -197,6 +202,8 @@ export default function EditDraft() {
         setMainEvent({
           name: event.eventType || '',
           date: event.date || '',
+          endDate: '',
+          multiDay: false,
           time: event.time || '',
           location: event.eventLocation || event.houseLocation || '',
           items: event.items || [],
@@ -261,7 +268,7 @@ export default function EditDraft() {
 
   /** Add a new sub-event */
   const addSubEvent = () => {
-    setSubEvents(p => [...p, { id: genId(), name: '', date: '', time: '', location: '', items: [] }]);
+    setSubEvents(p => [...p, { id: genId(), name: '', date: '', endDate: '', multiDay: false, time: '', location: '', items: [] }]);
   };
 
   /** Remove a sub-event by id */
@@ -301,7 +308,9 @@ export default function EditDraft() {
     const errs = {};
     if (!form.clientName.trim()) errs.clientName = 'Required';
     if (!form.clientPhone.trim()) errs.clientPhone = 'Required';
-    if (!mainEvent.date) errs.mainDate = 'Required';
+    const mainProblem = functionDatesProblem(mainEvent, true);
+    if (mainProblem) errs.mainDate = mainProblem;
+    subEvents.forEach(s => { const pr = functionDatesProblem(s); if (pr) errs[`sub-${s.id}`] = pr; });
     if (!form.eventType) errs.eventType = 'Required';
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -359,7 +368,7 @@ export default function EditDraft() {
         notes: form.notes.trim(),
         mainEvent: {
           name: mainEvent.name.trim() || form.eventType,
-          date: mainEvent.date,
+          ...functionDatesToSave(mainEvent),
           time: mainEvent.time,
           location: mainEvent.location.trim(),
           items: mainEvent.items,
@@ -367,7 +376,7 @@ export default function EditDraft() {
         subEvents: subEvents.map(s => ({
           id: s.id,
           name: s.name.trim() || 'Sub Event',
-          date: s.date,
+          ...functionDatesToSave(s),
           time: s.time,
           location: s.location.trim(),
           items: s.items,
@@ -450,8 +459,7 @@ export default function EditDraft() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
           <Input label="Event Name" placeholder={form.eventType || 'e.g., Wedding Ceremony'}
             value={mainEvent.name} onChange={e => setMainField('name', e.target.value)} />
-          <Input label="Date" type="date" required icon={Calendar}
-            value={mainEvent.date} onChange={e => setMainField('date', e.target.value)} error={errors.mainDate} />
+          <FunctionDates fn={mainEvent} onChange={setMainField} required error={errors.mainDate} />
           <Input label="Time" type="time" icon={Clock}
             value={mainEvent.time} onChange={e => setMainField('time', e.target.value)} />
           <LocationInput label="Event Location" placeholder="Search venue location..."
@@ -489,8 +497,7 @@ export default function EditDraft() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
             <Input label="Sub-Event Name" placeholder="e.g., Home Function, Reception..."
               value={sub.name} onChange={e => setSubField(sub.id, 'name', e.target.value)} />
-            <Input label="Date" type="date" icon={Calendar}
-              value={sub.date} onChange={e => setSubField(sub.id, 'date', e.target.value)} />
+            <FunctionDates fn={sub} onChange={(key, val) => setSubField(sub.id, key, val)} error={errors[`sub-${sub.id}`]} />
             <Input label="Time" type="time" icon={Clock}
               value={sub.time} onChange={e => setSubField(sub.id, 'time', e.target.value)} />
             <LocationInput label="Location" placeholder="Search location..."

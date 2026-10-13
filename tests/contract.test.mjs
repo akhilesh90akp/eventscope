@@ -32,10 +32,11 @@ test('functions are in date order with totals and Annexure lines', () => {
   const c = buildContract(EVENT, {}, { advance: 40000 });
   assert.deepEqual(c.functions.map(f => [f.name, f.date, f.total]), [['Home Function', '2026-11-06', 23000], ['Wedding', '2026-11-08', 62500]]);
   assert.deepEqual(c.functions[0].lines, [
-    { name: 'Band', qty: 1, amount: 15000, included: false },
+    { name: 'Band', qty: 1, days: 1, amount: 15000, included: false },
     { name: 'Seating (Chairs, Tables)', qty: 1, amount: 8000, included: false },
   ]);
-  assert.deepEqual(c.functions[1].lines[1], { name: 'Arch', qty: 1, amount: 0, included: true });
+  assert.deepEqual(c.functions[1].lines[1], { name: 'Arch', qty: 1, days: 1, amount: 0, included: true });
+  assert.equal(c.showDays, false);
   assert.deepEqual([c.price, c.advance, c.balance], [85500, 40000, 45500]);
   assert.equal(c.firstDate, '2026-11-06');
   assert.equal(c.balanceDueDate, '2026-11-05'); // default: 1 day before the first function
@@ -76,4 +77,15 @@ test('agreement numbers run in order per financial year', () => {
 test('dateMinusDays crosses month ends', () => {
   assert.equal(dateMinusDays('2026-12-01', 1), '2026-11-30');
   assert.equal(dateMinusDays('', 1), '');
+});
+
+test('multi-day function: date range, Days on lines, balance due before the first day', () => {
+  const ev = { ...EVENT, mainEvent: { ...EVENT.mainEvent, endDate: '2026-11-09' },
+    itemPrices: { ...EVENT.itemPrices, 'main::Stage': { ...EVENT.itemPrices['main::Stage'], days: 2 } } };
+  const c = buildContract(ev, {}, {});
+  const w = c.functions.find(f => f.id === 'main');
+  assert.deepEqual([w.date, w.endDate, w.days], ['2026-11-08', '2026-11-09', 2]);
+  assert.equal(w.lines.find(l => l.name === 'Stage').days, 2);
+  assert.equal(c.showDays, true);
+  assert.equal(c.balanceDueDate, '2026-11-05');
 });

@@ -4,7 +4,9 @@
  * Pure functions, no Firebase and no React (covered by
  * tests/calendar.test.mjs). An event can have several functions on different
  * days (main event + sub-events, e.g. a home function two days before a
- * wedding); the calendar works with those functions, one per date.
+ * wedding), and a function can itself run over several days (date → endDate).
+ * eventFunctions() lists the functions; expandDays() turns each into one
+ * entry per calendar day ("Day 2 of 3"), which is what fills the days.
  *
  * Busy-ness counts confirmed and completed functions only. Drafts are
  * enquiries — shown (dashed) but they don't fill a day.
@@ -13,7 +15,7 @@
 // ============================================================
 // IMPORTS
 // ============================================================
-import { computeSectionTotal } from './helpers.js';
+import { computeSectionTotal, functionDays, functionEnd } from './helpers.js';
 
 // ============================================================
 // CONSTANTS
@@ -65,7 +67,8 @@ export function monthGrid(year, month) {
 
 /**
  * Every dated function of every event:
- * [{ key, eventId, date, time, name, client, status, eventType, location, amount, isMain }]
+ * [{ key, eventId, date, endDate, days, time, name, client, status, eventType, location, amount, isMain }]
+ * date = first day; endDate = last day (= date for one-day functions).
  * amount = that function's quote total (null if it has no priced items).
  */
 export function eventFunctions(events = []) {
@@ -77,13 +80,13 @@ export function eventFunctions(events = []) {
       ? computeSectionTotal(sectionId, items, ev.itemPrices || {}, ev.bundles || [], !!ev.hidePrices, ev.finalAmounts || {})
       : null);
     if (ev.mainEvent?.date) {
-      out.push({ ...base, key: `${ev.id}::main`, date: ev.mainEvent.date, time: ev.mainEvent.time || '', name: ev.mainEvent.name || ev.eventType || 'Event', location: ev.mainEvent.location || '', amount: total('main', ev.mainEvent.items), isMain: true });
+      out.push({ ...base, key: `${ev.id}::main`, date: ev.mainEvent.date, endDate: functionEnd(ev.mainEvent), days: functionDays(ev.mainEvent), time: ev.mainEvent.time || '', name: ev.mainEvent.name || ev.eventType || 'Event', location: ev.mainEvent.location || '', amount: total('main', ev.mainEvent.items), isMain: true });
     } else if (ev.date) {
-      out.push({ ...base, key: `${ev.id}::main`, date: ev.date, time: ev.time || '', name: ev.eventType || 'Event', location: ev.eventLocation || '', amount: ev.totalAmount ?? null, isMain: true });
+      out.push({ ...base, key: `${ev.id}::main`, date: ev.date, endDate: ev.date, days: 1, time: ev.time || '', name: ev.eventType || 'Event', location: ev.eventLocation || '', amount: ev.totalAmount ?? null, isMain: true });
     }
     (ev.subEvents || []).forEach((s, i) => {
       if (!s?.date) return;
-      out.push({ ...base, key: `${ev.id}::${s.id || i}`, date: s.date, time: s.time || '', name: s.name || 'Function', location: s.location || '', amount: total(s.id || s.name, s.items), isMain: false });
+      out.push({ ...base, key: `${ev.id}::${s.id || i}`, date: s.date, endDate: functionEnd(s), days: functionDays(s), time: s.time || '', name: s.name || 'Function', location: s.location || '', amount: total(s.id || s.name, s.items), isMain: false });
     });
   });
   return out.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
@@ -94,7 +97,42 @@ export function filterFunctions(fns, { status = 'all', type = '' } = {}) {
   return fns.filter(f => (status === 'all' || f.status === status) && (!type || f.eventType === type));
 }
 
-/** { 'YYYY-MM-DD': [functions…] } */
+/**
+ * One entry per calendar day of each function: a 3-day function becomes 3
+ * entries with date = that day, startDate = its first day, dayIndex 1..3 and
+ * fnKey = the function's key (key stays unique per day). One-day functions pass through as dayIndex 1.
+ */
+export function expandDays(fns) {
+  const out = [];
+  fns.forEach(f => {
+    const days = f.days || 1;
+    for (let i = 0; i < days; i++) {
+      out.push({ ...f, fnKey: f.key, startDate: f.date, key: days > 1 ? `${f.key}@${i + 1}` : f.key, date: i ? addDays(f.date, i) : f.date, dayIndex: i + 1 });
+    }
+  });
+  return out;
+}
+
+/**
+ * Stacking rows ("lanes") for multi-day functions so overlapping ones never
+ * cross: each keeps the same lane on all its days. Returns { fnKey: lane }
+ * (0 = first). Earlier-starting, then longer, functions get lower lanes.
+ */
+export function assignLanes(fns) {
+  const multi = fns.filter(f => (f.days || 1) > 1)
+    .sort((a, b) => a.date.localeCompare(b.date) || b.days - a.days || a.key.localeCompare(b.key));
+  const laneEnds = [];          // last day used in each lane
+  const lanes = {};
+  multi.forEach(f => {
+    let lane = laneEnds.findIndex(end => end < f.date);
+    if (lane === -1) lane = laneEnds.length;
+    laneEnds[lane] = f.endDate;
+    lanes[f.key] = lane;
+  });
+  return lanes;
+}
+
+/** { 'YYYY-MM-DD': [entries…] } — pass expandDays(…) so multi-day functions fill every day */
 export function groupByDate(fns) {
   return fns.reduce((acc, f) => { (acc[f.date] = acc[f.date] || []).push(f); return acc; }, {});
 }
@@ -103,7 +141,7 @@ export function groupByDate(fns) {
 // BUSY-NESS
 // ============================================================
 
-/** How many functions occupy the day (confirmed + completed) */
+/** How many functions occupy the day (confirmed + completed) — every day of a multi-day function counts */
 export const dayCount = (fnsOnDay = []) => fnsOnDay.filter(f => COUNTS.has(f.status)).length;
 
 /** 'free' | 'some' | 'near' | 'full' | 'over' for a day with `count` functions and a daily limit of `max` */
@@ -120,8 +158,8 @@ export function dayLoad(count, max = DEFAULT_MAX_PER_DAY) {
  * limit? Returns [{ date, count }] where count includes this event.
  */
 export function capacityWarnings(event, events, max = DEFAULT_MAX_PER_DAY) {
-  const byDate = groupByDate(eventFunctions(events.filter(e => e.id !== event.id)));
-  const mine = eventFunctions([{ ...event, status: 'confirmed' }]);
+  const byDate = groupByDate(expandDays(eventFunctions(events.filter(e => e.id !== event.id))));
+  const mine = expandDays(eventFunctions([{ ...event, status: 'confirmed' }]));
   const dates = [...new Set(mine.map(f => f.date))];
   return dates
     .map(date => ({ date, count: dayCount(byDate[date]) + mine.filter(f => f.date === date).length }))
@@ -146,7 +184,11 @@ export function capacityQuestion(event, events, max = DEFAULT_MAX_PER_DAY) {
 
 export const REMINDER_DAYS_BEFORE = 2;
 
-/** Upcoming confirmed functions in the next `days` days, each with the day its reminder goes out */
+/**
+ * Upcoming confirmed functions starting in the next `days` days, each with
+ * the day its "in 2 days" reminder goes out (multi-day functions also get a
+ * "Day 2 today" alert on each extra day — see tools/drive-backup/Reminders.gs).
+ */
 export function upcomingReminders(fns, today, days = 14) {
   const until = addDays(today, days);
   return fns

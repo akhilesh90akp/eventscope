@@ -164,9 +164,48 @@ export const nextInvoiceNo = (prefix = 'INV', events = [], now = new Date()) => 
 // EVENT DATE HELPERS
 // ============================================================
 
+/** Longest function we accept (guards against a typo like 2062 for 2026) */
+export const MAX_FUNCTION_DAYS = 31;
+
+/**
+ * Number of days a function runs: 1 for a single date; end − start + 1 when
+ * it has an endDate after its date (multi-day). Old events have no endDate.
+ */
+export const functionDays = (fn) => {
+  if (!fn?.date || !fn.endDate || fn.endDate <= fn.date) return 1;
+  const [y1, m1, d1] = fn.date.split('-').map(Number);
+  const [y2, m2, d2] = fn.endDate.split('-').map(Number);
+  const n = Math.round((Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1)) / 86400000) + 1;
+  return Math.min(Math.max(n, 1), MAX_FUNCTION_DAYS);
+};
+
+/** The function's last day ('YYYY-MM-DD'): endDate for multi-day, else its date */
+export const functionEnd = (fn) => (functionDays(fn) > 1 ? fn.endDate : fn?.date || '');
+
+/**
+ * "7 Nov 2026" for one day; "7–8 Nov 2026", "30 Nov – 1 Dec 2026" or
+ * "31 Dec 2026 – 1 Jan 2027" for a range.
+ */
+export const formatDateRange = (start, end) => {
+  if (!start) return '';
+  if (!end || end <= start) return formatDateReadable(start);
+  const a = new Date(start), b = new Date(end);
+  if (a.getFullYear() !== b.getFullYear()) return `${formatDateReadable(start)} – ${formatDateReadable(end)}`;
+  if (a.getMonth() !== b.getMonth()) return `${a.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} – ${formatDateReadable(end)}`;
+  return `${a.getDate()}–${formatDateReadable(end)}`;
+};
+
+/** A function's dates for documents: "7 Nov 2026" or "7–8 Nov 2026 (2 days)" */
+export const functionDateText = (fn) => {
+  if (!fn?.date) return '';
+  const n = functionDays(fn);
+  return n > 1 ? `${formatDateRange(fn.date, fn.endDate)} (${n} days)` : formatDateReadable(fn.date);
+};
+
 /**
  * Gets all dates from an event (main + sub-events) with labels.
- * Returns array sorted by date ascending: [{ date, label, isPast }]
+ * Returns array sorted by date ascending: [{ date, endDate, label, isPast }]
+ * (a multi-day function is past only after its last day)
  * @param {object} ev - Event object
  * @returns {Array} Array of date objects with metadata
  */
@@ -176,12 +215,11 @@ export const getAllEventDates = (ev) => {
   const dates = [];
 
   if (ev.mainEvent?.date) {
-    const d = new Date(ev.mainEvent.date);
-    d.setHours(0, 0, 0, 0);
     dates.push({
       date: ev.mainEvent.date,
+      endDate: functionEnd(ev.mainEvent),
       label: ev.mainEvent.name || 'Main Event',
-      isPast: d < now,
+      isPast: new Date(functionEnd(ev.mainEvent)).setHours(0, 0, 0, 0) < now,
       isMain: true,
     });
   } else if (ev.date) {
@@ -198,12 +236,11 @@ export const getAllEventDates = (ev) => {
   if (ev.subEvents) {
     ev.subEvents.forEach(s => {
       if (s.date) {
-        const d = new Date(s.date);
-        d.setHours(0, 0, 0, 0);
         dates.push({
           date: s.date,
+          endDate: functionEnd(s),
           label: s.name || 'Sub Event',
-          isPast: d < now,
+          isPast: new Date(functionEnd(s)).setHours(0, 0, 0, 0) < now,
           isMain: false,
         });
       }
@@ -231,6 +268,17 @@ export const getActiveDate = (ev) => {
 
   // All past — return the most recent one (last in sorted array)
   return dates[dates.length - 1].date;
+};
+
+/**
+ * Days until the event's next function (0 while a multi-day function is
+ * running, negative once everything is over). Used for the "3d" / "Today"
+ * countdown chips.
+ */
+export const eventCountdown = (ev) => {
+  const next = getAllEventDates(ev).find(d => !d.isPast);
+  if (next) return Math.max(0, daysUntil(next.date));
+  return daysUntil(getActiveDate(ev));
 };
 
 /**
@@ -265,6 +313,15 @@ export const sortByActiveDate = (events) => {
 // rendering) so both always agree on how a section's items/bundles are
 // grouped, ordered, and totaled.
 // ============================================================
+
+/** Days an item is charged for (old quotes have none → 1) */
+export const itemDays = (p) => Math.max(1, Math.round(Number(p?.days)) || 1);
+
+/** One item's amount: qty × rate × days */
+export const lineAmount = (p) => (Number(p?.qty) || 0) * (Number(p?.rate) || 0) * itemDays(p);
+
+/** True when any priced item runs more than one day (documents then show a Days column) */
+export const usesDays = (itemPrices) => Object.values(itemPrices || {}).some(p => itemDays(p) > 1);
 
 /**
  * Builds the ordered list of "line entries" for one section (main event
@@ -321,10 +378,10 @@ export const flattenLineEntries = (entries, sectionId) => {
 /**
  * Computes one section's total, respecting hide-prices mode (a single
  * manually-entered final amount replaces itemized pricing) and bundles
- * (contribute their own fixed amount rather than qty * rate per member).
+ * (contribute their own fixed amount rather than qty × rate × days per member).
  * @param {string} sectionId - 'main' or a sub-event's id
  * @param {string[]} itemNames - item names in this section
- * @param {Object} itemPrices - the event's itemPrices map ({qty, rate} per key)
+ * @param {Object} itemPrices - the event's itemPrices map ({qty, rate, days} per key)
  * @param {Array} bundles - event.bundles
  * @param {boolean} hidePrices - event.hidePrices
  * @param {Object} finalAmounts - event.finalAmounts ({ [sectionId]: number })
@@ -335,8 +392,7 @@ export const computeSectionTotal = (sectionId, itemNames, itemPrices, bundles, h
   const entries = buildLineEntries(sectionId, itemNames, bundles);
   return entries.reduce((sum, entry) => {
     if (entry.type === 'bundle') return sum + (Number(entry.bundle.amount) || 0);
-    const p = (itemPrices || {})[entry.key] || { qty: 1, rate: 0 };
-    return sum + (Number(p.qty) || 0) * (Number(p.rate) || 0);
+    return sum + lineAmount((itemPrices || {})[entry.key] || { qty: 1, rate: 0 });
   }, 0);
 };
 
@@ -362,6 +418,8 @@ export const getEventSections = (event) => {
         id: 'main',
         name: event.mainEvent.name || event.eventType || 'Main Event',
         date: event.mainEvent.date || '',
+        endDate: functionEnd(event.mainEvent),
+        days: functionDays(event.mainEvent),
         time: event.mainEvent.time || '',
         location: event.mainEvent.location || '',
         items: mainItems,
@@ -373,6 +431,8 @@ export const getEventSections = (event) => {
           id: s.id || s.name,
           name: s.name || 'Sub Event',
           date: s.date || '',
+          endDate: functionEnd(s),
+          days: functionDays(s),
           time: s.time || '',
           location: s.location || '',
           items: s.items,
@@ -386,6 +446,8 @@ export const getEventSections = (event) => {
         id: 'main',
         name: event.mainEvent.name || event.eventType || 'Event',
         date: event.mainEvent.date || '',
+        endDate: functionEnd(event.mainEvent),
+        days: functionDays(event.mainEvent),
         location: event.mainEvent.location || '',
         items: allItems,
       });
@@ -418,7 +480,7 @@ const getEventSubtotal = (event) => {
   let total = 0;
   Object.values(prices).forEach(p => {
     if (p && typeof p === 'object' && (p.rate || p.qty)) {
-      total += (Number(p.qty) || 1) * (Number(p.rate) || 0);
+      total += (Number(p.qty) || 1) * (Number(p.rate) || 0) * itemDays(p);
     }
   });
   if (total === 0 && event.mainEvent?.items) {
@@ -426,7 +488,7 @@ const getEventSubtotal = (event) => {
     (event.subEvents || []).forEach(s => allItems.push(...(s.items || [])));
     allItems.forEach(item => {
       const p = prices[`main::${item}`] || prices[item] || {};
-      total += (Number(p.qty) || 1) * (Number(p.rate) || 0);
+      total += (Number(p.qty) || 1) * (Number(p.rate) || 0) * itemDays(p);
     });
   }
   return total;

@@ -9,7 +9,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   monthGrid, addDays, eventFunctions, filterFunctions, groupByDate, dayCount, dayLoad,
-  capacityWarnings, capacityQuestion, upcomingReminders,
+  capacityWarnings, capacityQuestion, upcomingReminders, expandDays, assignLanes,
 } from '../src/utils/calendar.js';
 
 // ============================================================
@@ -50,7 +50,7 @@ test('each function is its own calendar entry, in time order', () => {
 });
 
 test('drafts are shown but don’t fill a day', () => {
-  const byDate = groupByDate(eventFunctions(EVENTS));
+  const byDate = groupByDate(expandDays(eventFunctions(EVENTS)));
   assert.equal(byDate['2026-11-08'].length, 3);
   assert.equal(dayCount(byDate['2026-11-08']), 2);
 });
@@ -84,4 +84,38 @@ test('the confirm question names the dates that go over', () => {
   const draft = EVENTS.find(e => e.id === 'd');
   assert.match(capacityQuestion(draft, EVENTS, 2), /^This puts 3 events on .*8 Nov.* — your limit is 2 a day\. Confirm anyway\?$/);
   assert.equal(capacityQuestion(draft, EVENTS, 3), '');
+});
+
+// ============================================================
+// MULTI-DAY FUNCTIONS
+// ============================================================
+const EXPO = { id: 'x', status: 'confirmed', clientName: 'Expo', eventType: 'Corporate', mainEvent: { name: 'Expo', date: '2026-11-18', endDate: '2026-11-20' } };
+const FEST = { id: 'f', status: 'confirmed', clientName: 'Fest', eventType: 'Corporate', mainEvent: { name: 'Fest', date: '2026-11-19', endDate: '2026-11-21' } };
+const LATER = { id: 'l', status: 'draft', clientName: 'Later', eventType: 'Corporate', mainEvent: { name: 'Later', date: '2026-11-22', endDate: '2026-11-23' } };
+
+test('a 3-day function fills all three days, as Day 1/2/3', () => {
+  const days = expandDays(eventFunctions([EXPO]));
+  assert.deepEqual(days.map(d => [d.date, d.dayIndex, d.days, d.fnKey]), [
+    ['2026-11-18', 1, 3, 'x::main'], ['2026-11-19', 2, 3, 'x::main'], ['2026-11-20', 3, 3, 'x::main'],
+  ]);
+  assert.equal(new Set(days.map(d => d.key)).size, 3);
+  assert.ok(days.every(d => d.startDate === '2026-11-18' && d.endDate === '2026-11-20'));
+});
+
+test('overlapping multi-day functions get separate lanes; a later one reuses lane 0', () => {
+  const lanes = assignLanes(eventFunctions([EXPO, FEST, LATER, ...EVENTS]));
+  assert.deepEqual(lanes, { 'x::main': 0, 'f::main': 1, 'l::main': 0 });
+});
+
+test('every day of a multi-day function counts toward the limit, also when confirming', () => {
+  const byDate = groupByDate(expandDays(eventFunctions([EXPO, FEST])));
+  assert.equal(dayCount(byDate['2026-11-19']), 2);
+  assert.equal(dayCount(byDate['2026-11-21']), 1);
+  const draft = { ...FEST, status: 'draft' };
+  assert.deepEqual(capacityWarnings(draft, [EXPO, draft], 1), [{ date: '2026-11-19', count: 2 }, { date: '2026-11-20', count: 2 }]);
+});
+
+test('reminders use the first day of a multi-day function', () => {
+  const r = upcomingReminders(eventFunctions([EXPO]), '2026-11-10', 14);
+  assert.deepEqual(r.map(x => [x.date, x.remindOn]), [['2026-11-18', '2026-11-16']]);
 });

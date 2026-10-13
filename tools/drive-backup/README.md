@@ -55,7 +55,8 @@ in the company id, name, plan and team from the backup.
 
 `Reminders.gs` lives in the same script. Every morning around 9 am (India
 time) it sends each company's owners a notification for confirmed events:
-**"In 2 days: …"** and **"Today: …"**. Owners turn it on per device in the app
+**"In 2 days: …"** and **"Today: …"** (plus **"Day 2 today: …"** on each extra day
+of a multi-day event). Owners turn it on per device in the app
 (Calendar → Reminders; on iPhone, open the app from the Home Screen first).
 
 One-time setup:
@@ -78,5 +79,5 @@ If a morning run fails, the account gets an email "EventScope reminders FAILED".
 
 ## Updating the script
 
-When `Code.gs` changes in this repo, paste the new version over the old one in
+When `Code.gs` or `Reminders.gs` changes in this repo, paste the new version over the old one in
 the script editor and save. The daily schedule stays as it is.

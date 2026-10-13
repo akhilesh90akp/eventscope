@@ -14,6 +14,8 @@ import assert from 'node:assert/strict';
 import {
   parseMoney, calcGST, roundOff, getEventBill, getEventRevenue,
   computeEventFinancials, inviteKey, genInvoiceNo, nextInvoiceNo,
+  functionDays, functionEnd, formatDateRange, functionDateText, itemDays, lineAmount, usesDays,
+  computeSectionTotal, getAllEventDates, getEventSections,
 } from '../src/utils/helpers.js';
 
 // ============================================================
@@ -157,4 +159,58 @@ test('nextInvoiceNo never repeats a number in the same financial year', () => {
   assert.equal(nextInvoiceNo('BB', evs, oct26), 'BB-B2C2627-008');
   assert.equal(nextInvoiceNo('BB', [], oct26), 'BB-B2C2627-001');
   assert.equal(nextInvoiceNo('BB', evs, new Date('2027-04-02')), 'BB-B2C2728-001'); // new year restarts
+});
+
+// ============================================================
+// MULTI-DAY FUNCTIONS AND DAYS ON ITEMS
+// ============================================================
+
+test('functionDays: single date = 1; start–end counts both days; bad/backwards end = 1', () => {
+  assert.equal(functionDays({ date: '2026-11-07' }), 1);
+  assert.equal(functionDays({ date: '2026-11-07', endDate: '2026-11-08' }), 2);
+  assert.equal(functionDays({ date: '2026-11-30', endDate: '2026-12-02' }), 3);
+  assert.equal(functionDays({ date: '2026-11-07', endDate: '2026-11-07' }), 1);
+  assert.equal(functionDays({ date: '2026-11-07', endDate: '2026-11-01' }), 1);
+  assert.equal(functionDays({ date: '2026-11-07', endDate: '2062-11-07' }), 31);   // typo guard
+  assert.equal(functionDays(null), 1);
+  assert.equal(functionEnd({ date: '2026-11-07', endDate: '2026-11-08' }), '2026-11-08');
+  assert.equal(functionEnd({ date: '2026-11-07', endDate: '2026-11-01' }), '2026-11-07');
+});
+
+test('formatDateRange / functionDateText read naturally', () => {
+  assert.equal(formatDateRange('2026-11-07', '2026-11-08'), '7–8 Nov 2026');
+  assert.equal(formatDateRange('2026-11-30', '2026-12-01'), '30 Nov – 1 Dec 2026');
+  assert.equal(formatDateRange('2026-12-31', '2027-01-01'), '31 Dec 2026 – 1 Jan 2027');
+  assert.equal(formatDateRange('2026-11-07', ''), '7 Nov 2026');
+  assert.equal(functionDateText({ date: '2026-11-07', endDate: '2026-11-08' }), '7–8 Nov 2026 (2 days)');
+  assert.equal(functionDateText({ date: '2026-11-07' }), '7 Nov 2026');
+});
+
+test('lineAmount = qty × rate × days; old prices (no days) are 1 day', () => {
+  assert.equal(lineAmount({ qty: 72, rate: 75, days: 2 }), 10800);
+  assert.equal(lineAmount({ qty: 72, rate: 75 }), 5400);
+  assert.equal(itemDays({ days: '' }), 1);
+  assert.equal(itemDays({ days: 0 }), 1);
+  assert.equal(usesDays({ a: { qty: 1, rate: 5 } }), false);
+  assert.equal(usesDays({ a: { qty: 1, rate: 5 }, b: { qty: 1, rate: 5, days: 3 } }), true);
+});
+
+test('section totals and the bill include days; bundles stay a fixed amount', () => {
+  const prices = { 'main::Serial bulbs': { qty: 72, rate: 75, days: 2 }, 'main::Stage': { qty: 1, rate: 35000, days: 2 }, 'main::Generator': { qty: 1, rate: 8500, days: 1 } };
+  assert.equal(computeSectionTotal('main', ['Serial bulbs', 'Stage', 'Generator'], prices, [], false, {}), 89300);
+  const bundles = [{ id: 'b', amount: 20000, itemKeys: ['main::Stage'] }];
+  assert.equal(computeSectionTotal('main', ['Serial bulbs', 'Stage'], prices, bundles, false, {}), 30800);
+  assert.equal(getEventBill({ itemPrices: prices, mainEvent: { items: ['Serial bulbs'] } }).subtotal, 89300);
+});
+
+test('a multi-day function is not "past" until its last day; sections carry the range', () => {
+  const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const today = new Date(); const yday = new Date(); yday.setDate(today.getDate() - 1);
+  const ev = { mainEvent: { name: 'Expo', date: iso(yday), endDate: iso(today), items: ['Stage'] }, subEvents: [] };
+  const [d] = getAllEventDates(ev);
+  assert.equal(d.isPast, false);
+  assert.equal(d.endDate, iso(today));
+  const { eventGroups } = getEventSections(ev);
+  assert.equal(eventGroups[0].days, 2);
+  assert.equal(eventGroups[0].endDate, iso(today));
 });

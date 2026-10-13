@@ -24,7 +24,7 @@ import Input from '../components/Input';
 import Modal from '../components/Modal';
 import CostsPanel from '../components/CostsPanel';
 import EventSummary from '../components/EventSummary';
-import { telLink, waLink, sortByActiveDate, openJobLog } from '../utils/helpers';
+import { telLink, waLink, sortByActiveDate, openJobLog, functionDays, itemDays, lineAmount } from '../utils/helpers';
 import {
   Search, Phone, MessageSquare, FileText, CheckCircle2,
   MapPin, PackageOpen, Plus, Receipt, Edit3,
@@ -118,7 +118,7 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
         if (!mainItems.includes(item.trim())) {
           mainItems.push(item.trim());
           // Also add keyed price entry
-          const newPrices = { ...(ev.itemPrices || {}), [`main::${item.trim()}`]: { qty: 1, rate: 0 } };
+          const newPrices = { ...(ev.itemPrices || {}), [`main::${item.trim()}`]: { qty: 1, rate: 0, days: functionDays(ev.mainEvent) } };
           result = await updateEvent(eventId, { mainEvent: { ...ev.mainEvent, items: mainItems }, itemPrices: newPrices });
         }
       } else {
@@ -134,7 +134,8 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
           return s;
         });
         // Also add keyed price entry
-        const newPrices = { ...(ev.itemPrices || {}), [`${addItemTarget}::${item.trim()}`]: { qty: 1, rate: 0 } };
+        const target = (ev.subEvents || []).find(s => s.id === addItemTarget);
+        const newPrices = { ...(ev.itemPrices || {}), [`${addItemTarget}::${item.trim()}`]: { qty: 1, rate: 0, days: functionDays(target) } };
         result = await updateEvent(eventId, { subEvents, itemPrices: newPrices });
       }
     } else {
@@ -159,12 +160,12 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
     if (ev.mainEvent) {
       (ev.mainEvent.items || []).forEach(item => {
         const key = `main::${item}`;
-        p[key] = stored[key] || stored[item] || { qty: 1, rate: 0 };
+        p[key] = stored[key] || stored[item] || { qty: 1, rate: 0, days: functionDays(ev.mainEvent) };
       });
       (ev.subEvents || []).forEach(s => {
         (s.items || []).forEach(item => {
           const key = `${s.id}::${item}`;
-          p[key] = stored[key] || stored[item] || { qty: 1, rate: 0 };
+          p[key] = stored[key] || stored[item] || { qty: 1, rate: 0, days: functionDays(s) };
         });
       });
     } else {
@@ -181,7 +182,7 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
   const savePrices = async () => {
     if (!priceModal) return;
     const eventId = priceModal;
-    const total = Object.values(prices).reduce((sum, p) => sum + (p.qty * p.rate), 0);
+    const total = Object.values(prices).reduce((sum, p) => sum + lineAmount(p), 0);
     const result = await updateEvent(eventId, { itemPrices: prices, totalAmount: total });
     setPriceModal(null);
     if (result.success) {
@@ -350,7 +351,7 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
                                     </span>
                                     {price && price.rate > 0 && (
                                       <span className="text-bb-muted text-xs">
-                                        {price.qty} × ₹{price.rate.toLocaleString('en-IN')} = ₹{(price.qty * price.rate).toLocaleString('en-IN')}
+                                        {price.qty} × ₹{price.rate.toLocaleString('en-IN')}{itemDays(price) > 1 ? ` × ${itemDays(price)} days` : ''} = ₹{lineAmount(price).toLocaleString('en-IN')}
                                       </span>
                                     )}
                                   </div>
@@ -547,7 +548,7 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
               ? (ev?.mainEvent?.name || ev?.eventType || 'Main Event')
               : ((ev?.subEvents || []).find(s => s.id === eventPrefix)?.name || 'Sub Event');
             return (
-              // Phone: name (and event) on their own line, qty × rate = amount below
+              // Phone: name (and event) on their own line, qty × rate × days = amount below
               <div key={key} className="flex flex-wrap sm:flex-nowrap items-center gap-x-3 gap-y-2 p-2 bg-bb-input rounded-lg">
                 <div className="basis-full sm:basis-auto sm:flex-1 min-w-0">
                   <p className="text-sm text-bb-text break-words sm:truncate">{itemName}</p>
@@ -572,8 +573,19 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
                   onChange={e => setPrices(p => ({ ...p, [key]: { ...p[key], rate: Number(e.target.value) || 0 } }))}
                   className="w-24 bg-bb-bg border border-bb-border rounded px-2 py-1 text-sm text-bb-text text-right"
                 />
+                <span className="text-bb-muted text-sm">×</span>
+                <input
+                  type="number"
+                  min="1"
+                  placeholder="Days"
+                  aria-label={`${itemName} days`}
+                  value={itemDays(val)}
+                  onChange={e => setPrices(p => ({ ...p, [key]: { ...p[key], days: Math.max(1, Math.round(Number(e.target.value)) || 1) } }))}
+                  className="w-14 bg-bb-bg border border-bb-border rounded px-2 py-1 text-sm text-bb-text text-center"
+                />
+                <span className="text-[11px] text-bb-muted -ml-1">days</span>
                 <span className="text-xs text-bb-muted w-20 text-right ml-auto sm:ml-0">
-                  = ₹{(val.qty * val.rate).toLocaleString('en-IN')}
+                  = ₹{lineAmount(val).toLocaleString('en-IN')}
                 </span>
               </div>
             );
@@ -582,7 +594,7 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
           {/* Total and save */}
           <div className="pt-3 border-t border-bb-border flex justify-between items-center">
             <p className="font-semibold text-bb-text">
-              Total: ₹{Object.values(prices).reduce((s, p) => s + p.qty * p.rate, 0).toLocaleString('en-IN')}
+              Total: ₹{Object.values(prices).reduce((s, p) => s + lineAmount(p), 0).toLocaleString('en-IN')}
             </p>
             <Button onClick={savePrices}>Save Prices</Button>
           </div>

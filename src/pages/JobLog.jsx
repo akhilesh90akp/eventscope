@@ -21,7 +21,7 @@
 // ============================================================
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { getEventBill, computeEventFinancials, parseMoney, formatDateReadable } from '../utils/helpers';
+import { getEventBill, computeEventFinancials, parseMoney, formatDateRange, functionEnd } from '../utils/helpers';
 import { exportJobLogToExcel, readJobLogFromExcel } from '../utils/jobLogExcel';
 import { Download, Upload, Loader2 } from 'lucide-react';
 
@@ -162,6 +162,7 @@ function JobLogGrid() {
       return {
         id: e.id,
         date: eventDate(e),
+        endDate: e.mainEvent ? functionEnd(e.mainEvent) : '',
         time: e.mainEvent?.time || '',
         client: e.clientName || '',
         phone: e.clientPhone || e.clientWhatsapp || '',
@@ -518,7 +519,7 @@ function JobLogGrid() {
                     <div className="leading-tight min-w-[140px] md:min-w-[200px] whitespace-normal">
                       <b className="text-bb-text">{row.client}</b>
                       <div className="text-[10px] sm:text-[11px] text-bb-muted">
-                        {row.date ? formatDateReadable(row.date) : ''}{row.time ? ` ${row.time}` : ''} · {row.event}{row.subEvents ? ` +${row.subEvents} more` : ''}
+                        {row.date ? formatDateRange(row.date, row.endDate) : ''}{row.time ? ` ${row.time}` : ''} · {row.event}{row.subEvents ? ` +${row.subEvents} more` : ''}
                       </div>
                     </div>
                   </td>

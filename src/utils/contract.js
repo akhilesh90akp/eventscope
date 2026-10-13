@@ -10,7 +10,7 @@
 // ============================================================
 // IMPORTS
 // ============================================================
-import { getEventSections, buildLineEntries, computeSectionTotal } from './helpers.js';
+import { getEventSections, buildLineEntries, computeSectionTotal, itemDays, lineAmount } from './helpers.js';
 import { DEFAULT_CONTRACT_TERMS } from '../constants/contract.js';
 
 // ============================================================
@@ -59,8 +59,9 @@ export function dateMinusDays(isoDate, n) {
  * @param {object} settings  company settings (contractTerms inside)
  * @param {object} form      what was typed on the Contract page:
  *   { amount?, advance, balanceDueDate? }
- * @returns {{ functions, price, advance, balance, balanceDueDate, firstDate, terms, hidePrices }}
- *   functions: [{ id, name, date, time, location, total, lines: [{ name, qty, amount|null, included }] }]
+ * @returns {{ functions, price, advance, balance, balanceDueDate, firstDate, terms, hidePrices, showDays }}
+ *   functions: [{ id, name, date, endDate, days, time, location, total, lines: [{ name, qty, days, amount|null, included }] }]
+ *   showDays: some item runs more than one day (Annexure gets a Days column)
  */
 export function buildContract(event, settings = {}, form = {}) {
   // company terms over the defaults — a blank box in Settings keeps the default
@@ -80,10 +81,10 @@ export function buildContract(event, settings = {}, form = {}) {
         return { name: `${entry.bundle.name}${members.length ? ` (${members.join(', ')})` : ''}`, qty: 1, amount: hidePrices ? null : Number(entry.bundle.amount) || 0, included: false };
       }
       const p = prices[entry.key] || prices[entry.name] || { qty: 1, rate: 0 };
-      const amount = (Number(p.qty) || 0) * (Number(p.rate) || 0);
-      return { name: entry.name, qty: Number(p.qty) || 1, amount: hidePrices ? null : amount, included: !hidePrices && amount === 0 };
+      const amount = lineAmount(p);
+      return { name: entry.name, qty: Number(p.qty) || 1, days: itemDays(p), amount: hidePrices ? null : amount, included: !hidePrices && amount === 0 };
     });
-    return { id: g.id, name: g.name, date: g.date, time: g.time || '', location: g.location, total, lines };
+    return { id: g.id, name: g.name, date: g.date, endDate: g.endDate || g.date, days: g.days || 1, time: g.time || '', location: g.location, total, lines };
   }).sort((a, b) => String(a.date).localeCompare(String(b.date)));
 
   const quoteTotal = functions.reduce((s, f) => s + f.total, 0);
@@ -102,5 +103,6 @@ export function buildContract(event, settings = {}, form = {}) {
     firstDate,
     terms,
     hidePrices,
+    showDays: functions.some(f => f.lines.some(l => l.days > 1)),
   };
 }

@@ -15,7 +15,7 @@
 // IMPORTS
 // ============================================================
 import React, { forwardRef } from 'react';
-import { formatCurrency, formatDateReadable } from '../utils/helpers';
+import { formatCurrency, formatDateReadable, formatDateRange } from '../utils/helpers';
 
 // ============================================================
 // CONSTANTS — shared inline styles
@@ -110,7 +110,7 @@ const ContractDocument = forwardRef(function ContractDocument({ settings, detail
           {c.functions.map(f => (
             <tr key={f.id}>
               <td style={S.td}>{f.name}</td>
-              <td style={S.td}>{day(f.date)}{f.time ? `, ${time12(f.time)}` : ''}</td>
+              <td style={S.td}>{f.days > 1 ? `${formatDateRange(f.date, f.endDate)} (${f.days} days)` : day(f.date)}{f.time ? `, ${time12(f.time)}` : ''}</td>
               <td style={S.td}>{f.location || '—'}</td>
               <td style={{ ...S.td, ...S.num }}>{money(f.total)}</td>
             </tr>
@@ -232,8 +232,9 @@ const ContractDocument = forwardRef(function ContractDocument({ settings, detail
             <thead>
               <tr>
                 <th style={{ ...S.th, width: '28px' }}>#</th>
-                <th style={S.th}>{f.name} — {day(f.date)}{f.location ? `, ${f.location}` : ''}</th>
+                <th style={S.th}>{f.name} — {f.days > 1 ? formatDateRange(f.date, f.endDate) : day(f.date)}{f.location ? `, ${f.location}` : ''}</th>
                 <th style={{ ...S.th, width: '40px' }}>Qty</th>
+                {c.showDays && <th style={{ ...S.th, width: '44px' }}>Days</th>}
                 <th style={{ ...S.th, ...S.num, width: '110px' }}>{c.hidePrices ? '' : 'Amount'}</th>
               </tr>
             </thead>
@@ -243,10 +244,11 @@ const ContractDocument = forwardRef(function ContractDocument({ settings, detail
                   <td style={S.td}>{i + 1}</td>
                   <td style={S.td}>{l.name}</td>
                   <td style={S.td}>{l.qty}</td>
+                  {c.showDays && <td style={S.td}>{l.days}</td>}
                   <td style={{ ...S.td, ...S.num }}>{l.amount === null ? '' : l.included ? 'Included' : money(l.amount)}</td>
                 </tr>
               ))}
-              <tr><th style={S.th} colSpan={3}>{f.name} total</th><th style={{ ...S.th, ...S.num }}>{money(f.total)}</th></tr>
+              <tr><th style={S.th} colSpan={c.showDays ? 4 : 3}>{f.name} total</th><th style={{ ...S.th, ...S.num }}>{money(f.total)}</th></tr>
             </tbody>
           </table>
         ))}

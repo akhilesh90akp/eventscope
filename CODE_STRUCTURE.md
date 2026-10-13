@@ -33,14 +33,17 @@ src/
     EventSummary (event card face shared by Home and Confirmed/Completed),
     StickyBar (keeps search boxes / Settings tabs pinned while scrolling),
     PdfButton (makes a PDF of a document, previews it, then Share / Download / Open),
-    ContractDocument (the printable agreement), ReminderSwitch (push reminders on/off per device)
+    ContractDocument (the printable agreement), ReminderSwitch (push reminders on/off per device),
+    FunctionDates (a function's date, or start–end for multi-day — New/Edit event),
+    DaysCell (the Days column of the printed quote/bill)
   constants/
     data.js                 Defaults: event types, service categories, new-company
                             settings, Job Log columns, plans
     legal.js                Business details shown on the legal pages
     contract.js             Default contract terms + payment modes
   utils/
-    helpers.js              Formatting, GST, IDs/links, dates, pricing, bill &
+    helpers.js              Formatting, GST, IDs/links, dates (incl. multi-day functions:
+                            functionDays / formatDateRange), pricing (qty × rate × days), bill &
                             Job Log math, image resizing (no Firestore here)
     jobLogExcel.js          Job Log ⇄ .xlsx (exceljs, loaded on demand)
     tenantImport.js         Reads/cleans a backup file for "Import company" (no Firestore);

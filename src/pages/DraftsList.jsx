@@ -21,7 +21,7 @@ import Button from '../components/Button';
 import Input from '../components/Input';
 import Badge from '../components/Badge';
 import Modal from '../components/Modal';
-import { formatCurrency, formatDateReadable, daysUntil, telLink, waLink, sortByActiveDate, getAllEventDates, getActiveDate } from '../utils/helpers';
+import { formatCurrency, formatDateRange, eventCountdown, telLink, waLink, sortByActiveDate, getAllEventDates, getActiveDate } from '../utils/helpers';
 import { capacityQuestion, DEFAULT_MAX_PER_DAY } from '../utils/calendar';
 import {
   Search, Phone, MessageSquare, Edit, FileText, CheckCircle,
@@ -163,7 +163,7 @@ export default function DraftsList() {
           {drafts.map(ev => {
             const eventDates = getAllEventDates(ev);
             const activeDateStr = getActiveDate(ev);
-            const activeDays = daysUntil(activeDateStr);
+            const activeDays = eventCountdown(ev);
             const allItems = getAllItems(ev);
             const isExpanded = expandedId === ev.id;
             const location = getEventLocation(ev);
@@ -217,7 +217,7 @@ export default function DraftsList() {
                                   ? 'text-bb-accent font-semibold'
                                   : d.isPast ? 'text-bb-muted/50 line-through' : 'text-bb-muted'
                               }`}>
-                                {formatDateReadable(d.date)}
+                                {formatDateRange(d.date, d.endDate)}
                                 {eventDates.length > 1 && (
                                   <span className="text-[10px] ml-0.5">({d.isMain ? 'main' : d.label})</span>
                                 )}

@@ -12,7 +12,7 @@
 // ============================================================
 import React from 'react';
 import Badge from './Badge';
-import { formatCurrency, formatDateReadable, daysUntil, getAllEventDates, getActiveDate } from '../utils/helpers';
+import { formatCurrency, formatDateRange, eventCountdown, getAllEventDates, getActiveDate } from '../utils/helpers';
 import { CalendarDays, MapPin } from 'lucide-react';
 
 // ============================================================
@@ -34,7 +34,7 @@ const countdownText = (days) => (
 export default function EventSummary({ ev, right = null }) {
   const eventDates = getAllEventDates(ev);
   const activeDateStr = getActiveDate(ev);
-  const activeDays = daysUntil(activeDateStr);
+  const activeDays = eventCountdown(ev);
   const venue = ev.mainEvent?.location || ev.eventLocation;
 
   return (
@@ -70,7 +70,7 @@ export default function EventSummary({ ev, right = null }) {
               const isActive = d.date === activeDateStr;
               return (
                 <span key={idx} className={isActive ? 'text-bb-accent font-semibold' : d.isPast ? 'text-bb-muted/50 line-through' : 'text-bb-muted'}>
-                  {formatDateReadable(d.date)}
+                  {formatDateRange(d.date, d.endDate)}
                   {eventDates.length > 1 && <span className="text-[10px] ml-0.5">({d.isMain ? 'main' : d.label})</span>}
                   {idx < eventDates.length - 1 && <span className="text-bb-muted mx-0.5">•</span>}
                 </span>

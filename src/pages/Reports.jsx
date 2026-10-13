@@ -23,7 +23,7 @@ import Button from '../components/Button';
 import Input from '../components/Input';
 import Badge from '../components/Badge';
 import PdfButton from '../components/PdfButton';
-import { formatCurrency, formatDateReadable, getActiveDate, getEventRevenue, computeEventFinancials, openJobLog } from '../utils/helpers';
+import { formatCurrency, formatDateReadable, formatDateRange, functionEnd, getActiveDate, getEventRevenue, computeEventFinancials, openJobLog } from '../utils/helpers';
 import { Printer, Calendar, BarChart3, ExternalLink, Lock } from 'lucide-react';
 
 // ============================================================
@@ -279,7 +279,7 @@ export default function Reports() {
                     <td className="py-2 px-2 text-bb-muted">{i + 1}</td>
                     <td className="py-2 px-2 text-bb-text font-medium truncate max-w-[120px]">{e.clientName}</td>
                     <td className="py-2 px-2 text-bb-muted hidden sm:table-cell">{e.eventType}</td>
-                    <td className="py-2 px-2 text-bb-muted">{formatDateReadable(e.mainEvent?.date || e.date)}</td>
+                    <td className="py-2 px-2 text-bb-muted">{formatDateRange(e.mainEvent?.date || e.date, e.mainEvent ? functionEnd(e.mainEvent) : '')}</td>
                     <td className="py-2 px-2"><Badge variant={e.status}>{e.status}</Badge></td>
                     <td className="py-2 px-2 text-right text-bb-text">{formatCurrency(getEventRevenue(e))}</td>
                   </tr>
@@ -339,7 +339,7 @@ export default function Reports() {
                 <td style={{padding: '8px', fontSize: '11px', color: '#6b7280'}}>{i + 1}</td>
                 <td style={{padding: '8px', fontSize: '11px', color: '#1f2937', fontWeight: '500'}}>{e.clientName}</td>
                 <td style={{padding: '8px', fontSize: '11px', color: '#4b5563'}}>{e.eventType}</td>
-                <td style={{padding: '8px', fontSize: '11px', color: '#4b5563'}}>{formatDateReadable(e.mainEvent?.date || e.date)}</td>
+                <td style={{padding: '8px', fontSize: '11px', color: '#4b5563'}}>{formatDateRange(e.mainEvent?.date || e.date, e.mainEvent ? functionEnd(e.mainEvent) : '')}</td>
                 <td style={{padding: '8px', fontSize: '11px', color: '#1f2937', fontWeight: '600', textAlign: 'right'}}>{formatCurrency(getEventRevenue(e))}</td>
               </tr>
             ))}

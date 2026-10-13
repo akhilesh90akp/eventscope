@@ -9,7 +9,9 @@
  * and a WhatsApp text summary.
  *
  * Pricing model (also read by BillGenerator — see utils/helpers.js):
- *   - Each item's price lives in itemPrices[`${sectionId}::${name}`] = {qty, rate}
+ *   - Each item's price lives in itemPrices[`${sectionId}::${name}`] = {qty, rate, days}
+ *     amount = qty × rate × days (days missing on old quotes = 1). New items
+ *     start at their function's number of days (multi-day functions).
  *   - event.bundles = [{ id, name, itemKeys, amount }] groups 2+ items (from
  *     the SAME section) under one shared price. Membership is explicit and
  *     fixed (set via "Create Group", cleared via "Ungroup") — not inferred
@@ -43,9 +45,11 @@ import Select from '../components/Select';
 import Toggle from '../components/Toggle';
 import Modal from '../components/Modal';
 import PdfButton from '../components/PdfButton';
+import DaysCell from '../components/DaysCell';
 import {
   formatCurrency, formatDateReadable, calcGST, waLink,
   buildLineEntries, flattenLineEntries, computeSectionTotal,
+  functionDays, functionEnd, functionDateText, itemDays, lineAmount, usesDays,
 } from '../utils/helpers';
 import {
   Printer, MessageSquare, X, Plus, Save, Package,
@@ -55,6 +59,17 @@ import {
 // ============================================================
 // HELPERS
 // ============================================================
+
+/** { sectionId: number of days } for an event's functions (main + sub-events) */
+const sectionDaysOf = (ev) => {
+  if (!ev?.mainEvent) return { main: 1 };
+  const out = { main: functionDays(ev.mainEvent) };
+  (ev.subEvents || []).forEach(s => { out[s.id] = functionDays(s); });
+  return out;
+};
+
+/** A fresh price for an item added to a section: 1 × ₹0 × the function's days */
+const newPrice = (days) => ({ qty: 1, rate: 0, days: days || 1 });
 
 // ============================================================
 // SUB-COMPONENTS
@@ -78,6 +93,70 @@ function SortableEntry({ id, children }) {
         <GripVertical size={16} />
       </button>
       <div className="flex-1 min-w-0">{children}</div>
+    </div>
+  );
+}
+
+/**
+ * The number boxes of an item row: Qty · Rate · Days · Amount (Rate and
+ * Amount hidden while "hide prices" is on). Phone: a 4-column grid on its
+ * own line under the item name; wider screens: fixed-width boxes on the same
+ * line. FIELDS_ROW / the widths are shared with PriceHeader so headings line up.
+ */
+const FIELDS_ROW = 'order-last sm:order-none basis-full sm:basis-auto grid grid-cols-4 sm:flex items-center gap-2 pl-6 sm:pl-0';
+const W = { qty: 'sm:w-16', rate: 'sm:w-24', days: 'sm:w-14', amount: 'sm:w-24' };
+const BOX = 'w-full bg-bb-bg border border-bb-border rounded px-2 py-1.5 text-sm text-bb-text';
+
+function PriceFields({ p, hidePrices, onChange, label }) {
+  const days = itemDays(p);
+  return (
+    <div className={FIELDS_ROW}>
+      <input
+        type="number" min="1" placeholder="Qty" aria-label={`${label} quantity`}
+        value={p.qty === '' ? '' : (p.qty || 1)}
+        onChange={e => onChange('qty', e.target.value === '' ? '' : Number(e.target.value))}
+        className={`${BOX} ${W.qty} text-center`}
+      />
+      {!hidePrices && (
+        <input
+          type="number" min="0" placeholder="Rate" aria-label={`${label} rate`}
+          value={p.rate || ''}
+          onChange={e => onChange('rate', Number(e.target.value) || 0)}
+          className={`${BOX} ${W.rate} text-right`}
+        />
+      )}
+      <input
+        type="number" min="1" placeholder="Days" aria-label={`${label} days`}
+        value={p.days === '' ? '' : days}
+        onChange={e => onChange('days', e.target.value === '' ? '' : Math.max(1, Math.round(Number(e.target.value)) || 1))}
+        className={`${BOX} ${W.days} text-center ${days > 1 ? 'border-bb-accent bg-violet-50 font-semibold' : ''}`}
+      />
+      {!hidePrices && (
+        <span className={`${W.amount} text-right text-sm font-semibold text-bb-text whitespace-nowrap`} data-testid="line-amount">
+          ₹{lineAmount(p).toLocaleString('en-IN')}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** Column headings above a section's items, lined up with PriceFields */
+function PriceHeader({ hidePrices }) {
+  const head = 'text-[10.5px] font-semibold uppercase tracking-wider text-bb-muted';
+  return (
+    <div className="flex items-end gap-1 border-b border-bb-border pb-1 mb-2" data-testid="price-header">
+      <span className="w-7 shrink-0" />{/* lines up with the drag handle */}
+      <div className="flex-1 min-w-0 flex flex-wrap sm:flex-nowrap items-end gap-2 px-2">
+        <span className="hidden sm:block w-4 shrink-0" />
+        <span className={`hidden sm:block flex-1 ${head}`}>Item</span>
+        <div className={FIELDS_ROW}>
+          <span className={`${W.qty} ${head} text-center`}>Qty</span>
+          {!hidePrices && <span className={`${W.rate} ${head} text-right`}>Rate (₹)</span>}
+          <span className={`${W.days} ${head} text-center`}>Days</span>
+          {!hidePrices && <span className={`${W.amount} ${head} text-right`}>Amount</span>}
+        </div>
+        <span className="hidden sm:block w-7 shrink-0" />
+      </div>
     </div>
   );
 }
@@ -116,10 +195,11 @@ export default function QuotationGenerator() {
       sectionItems.main = [...(ev.items || [])];
     }
     const itemPrices = {};
+    const daysOf = sectionDaysOf(ev);
     Object.entries(sectionItems).forEach(([sectionId, names]) => {
       names.forEach(name => {
         const key = `${sectionId}::${name}`;
-        itemPrices[key] = stored[key] || stored[name] || { qty: 1, rate: 0 };
+        itemPrices[key] = stored[key] || stored[name] || newPrice(daysOf[sectionId]);
       });
     });
     return {
@@ -213,6 +293,8 @@ export default function QuotationGenerator() {
         id: 'main',
         name: event.mainEvent.name || event.eventType || 'Main Event',
         date: event.mainEvent.date || '',
+        endDate: functionEnd(event.mainEvent),
+        days: functionDays(event.mainEvent),
         location: event.mainEvent.location || '',
         items: sectionItems.main || [],
       }];
@@ -221,6 +303,8 @@ export default function QuotationGenerator() {
           id: s.id,
           name: s.name || 'Sub Event',
           date: s.date || '',
+          endDate: functionEnd(s),
+          days: functionDays(s),
           location: s.location || '',
           items: sectionItems[s.id] || [],
         });
@@ -232,6 +316,8 @@ export default function QuotationGenerator() {
       id: 'main',
       name: event.eventType || 'Event',
       date: event.date || '',
+      endDate: event.date || '',
+      days: 1,
       location: event.eventLocation || '',
       items: sectionItems.main || [],
     }];
@@ -302,7 +388,7 @@ export default function QuotationGenerator() {
     if (!name) return;
     if ((sectionItems[sectionId] || []).includes(name)) return;
     setSectionItems(s => ({ ...s, [sectionId]: [...(s[sectionId] || []), name] }));
-    setItemPrices(p => ({ ...p, [`${sectionId}::${name}`]: { qty: 1, rate: 0 } }));
+    setItemPrices(p => ({ ...p, [`${sectionId}::${name}`]: newPrice(sectionDaysOf(event)[sectionId]) }));
     setNewItemNames(n => ({ ...n, [sectionId]: '' }));
   };
 
@@ -310,7 +396,7 @@ export default function QuotationGenerator() {
   const handleAddFromCategory = (sectionId, itemName) => {
     if ((sectionItems[sectionId] || []).includes(itemName)) return;
     setSectionItems(s => ({ ...s, [sectionId]: [...(s[sectionId] || []), itemName] }));
-    setItemPrices(p => ({ ...p, [`${sectionId}::${itemName}`]: { qty: 1, rate: 0 } }));
+    setItemPrices(p => ({ ...p, [`${sectionId}::${itemName}`]: newPrice(sectionDaysOf(event)[sectionId]) }));
   };
 
   /** Removes an item from the quotation and its price data. If it belonged to a bundle, removes it from that bundle too (deleting the bundle if it drops to 1 member). */
@@ -449,19 +535,30 @@ export default function QuotationGenerator() {
   };
 
   /**
-   * Updates one bundle member's qty/rate, then re-syncs the bundle's total
-   * amount to the sum of all its members' qty * rate — this is what lets
+   * Updates one bundle member's qty/rate/days, then re-syncs the bundle's total
+   * amount to the sum of all its members' qty × rate × days — this is what lets
    * filling in member prices "calculate and give the final group price"
    * automatically, without a separate recalculate step.
    */
   const updateBundleMemberPrice = (bundle, key, field, value) => {
     const nextPrices = { ...itemPrices, [key]: { ...itemPrices[key], [field]: value } };
     setItemPrices(nextPrices);
-    const sum = bundle.itemKeys.reduce((s, k) => {
-      const p = nextPrices[k] || { qty: 1, rate: 0 };
-      return s + (Number(p.qty) || 0) * (Number(p.rate) || 0);
-    }, 0);
+    const sum = bundle.itemKeys.reduce((s, k) => s + lineAmount(nextPrices[k] || { qty: 1, rate: 0 }), 0);
     setBundles(bs => bs.map(b => b.id === bundle.id ? { ...b, amount: sum } : b));
+  };
+
+  /**
+   * "Set all items to N days": every item (and bundle member) of a section
+   * gets the function's number of days; bundle totals follow.
+   */
+  const setSectionDays = (sectionId, days) => {
+    const keys = (sectionItems[sectionId] || []).map(n => `${sectionId}::${n}`);
+    const next = { ...itemPrices };
+    keys.forEach(k => { next[k] = { ...(next[k] || newPrice(1)), days }; });
+    setItemPrices(next);
+    setBundles(bs => bs.map(b => (b.itemKeys.some(k => keys.includes(k))
+      ? { ...b, amount: b.itemKeys.reduce((sum, k) => sum + lineAmount(next[k] || { qty: 1, rate: 0 }), 0) }
+      : b)));
   };
 
   // ------------------------------------------------------------
@@ -520,8 +617,8 @@ export default function QuotationGenerator() {
     msg += `To: ${event.clientName}\n`;
     msg += `Date: ${formatDateReadable(new Date().toISOString())}\n\n`;
     msg += `*Event:* ${event.eventType}\n`;
-    const mainDate = event.mainEvent?.date || event.date;
-    if (mainDate) msg += `*Event Date:* ${formatDateReadable(mainDate)}\n\n`;
+    const mainDate = event.mainEvent ? functionDateText(event.mainEvent) : formatDateReadable(event.date);
+    if (mainDate) msg += `*Event Date:* ${mainDate}\n\n`;
     msg += `*Items:*\n`;
     let idx = 0;
     printGroups.forEach(group => {
@@ -529,7 +626,8 @@ export default function QuotationGenerator() {
         idx++;
         const key = `${group.id}::${name}`;
         const p = itemPrices[key] || { qty: 1, rate: 0 };
-        msg += `${idx}. ${name} - Qty: ${p.qty} × ₹${p.rate} = ₹${(p.qty * p.rate).toLocaleString('en-IN')}\n`;
+        const days = itemDays(p) > 1 ? ` × ${itemDays(p)} days` : '';
+        msg += `${idx}. ${name} - ${p.qty} × ₹${p.rate}${days} = ₹${lineAmount(p).toLocaleString('en-IN')}\n`;
       });
     });
     msg += `\n*Subtotal:* ${formatCurrency(subtotal)}`;
@@ -552,6 +650,10 @@ export default function QuotationGenerator() {
 
   // Get the main event date for display
   const displayDate = event.mainEvent?.date || event.date || '';
+
+  // Printed table: a Days column only when some item runs more than one day
+  const showDays = usesDays(itemPrices);
+  const COLS = showDays ? 6 : 5;
 
   // ------------------------------------------------------------
   // RENDER
@@ -604,8 +706,9 @@ export default function QuotationGenerator() {
                 <div key={group.id}>
                   {/* Section headline — separates Main Event from each Sub Event */}
                   <p className="text-xs font-bold uppercase tracking-wide text-bb-accent mb-2">
-                    {group.name}{group.date ? ` — ${formatDateReadable(group.date)}` : ''}
+                    {group.name}{group.date ? ` — ${functionDateText(group)}` : ''}
                   </p>
+                  {group.items.length > 0 && <PriceHeader hidePrices={hidePrices} />}
 
                   {/* Unified rendering for both modes — bundles stay visually
                       grouped either way; hidePrices only hides the price-
@@ -631,13 +734,13 @@ export default function QuotationGenerator() {
                                     />
                                     <span className="text-sm font-semibold text-bb-text">{b.name}</span>
                                   </div>
-                                  {/* Member rows — same layout/font size as standalone items below, one per line. Qty always shown; rate only when prices aren't hidden. */}
+                                  {/* Member rows — same layout as standalone items below, one per line. Qty and Days always shown; rate/amount only when prices aren't hidden. */}
                                   <div className="space-y-1.5 pl-6">
                                     {b.itemKeys.map(k => {
                                       const memberName = k.split('::').slice(1).join('::');
                                       const p = itemPrices[k] || { qty: 1, rate: 0 };
                                       return (
-                                        // Phone: name on its own line, qty × rate below; one line on wider screens
+                                        // Phone: name on its own line, the number boxes below; one line on wider screens
                                         <div key={k} className="flex flex-wrap sm:flex-nowrap items-center gap-2">
                                           <input
                                             type="checkbox"
@@ -647,25 +750,8 @@ export default function QuotationGenerator() {
                                             title="Select to pull this item out of the group"
                                           />
                                           <p className="flex-1 min-w-0 text-sm text-bb-text break-words sm:truncate">{memberName}</p>
-                                          <div className="basis-full sm:basis-auto flex items-center gap-2 pl-6 sm:pl-0">
-                                          <input
-                                            type="number" min="1" placeholder="Qty"
-                                            value={p.qty === '' ? '' : (p.qty || 1)}
-                                            onChange={e => updateBundleMemberPrice(b, k, 'qty', e.target.value === '' ? '' : Number(e.target.value))}
-                                            className="w-16 bg-bb-bg border border-bb-border rounded px-2 py-1.5 text-sm text-bb-text text-center"
-                                          />
-                                          {!hidePrices && (
-                                            <>
-                                              <span className="text-bb-muted text-sm">×</span>
-                                              <input
-                                                type="number" min="0" placeholder="Rate"
-                                                value={p.rate || ''}
-                                                onChange={e => updateBundleMemberPrice(b, k, 'rate', Number(e.target.value) || 0)}
-                                                className="w-24 bg-bb-bg border border-bb-border rounded px-2 py-1 text-sm text-bb-text text-right"
-                                              />
-                                            </>
-                                          )}
-                                          </div>
+                                          <PriceFields p={p} hidePrices={hidePrices} label={memberName}
+                                            onChange={(field, value) => updateBundleMemberPrice(b, k, field, value)} />
                                         </div>
                                       );
                                     })}
@@ -691,8 +777,8 @@ export default function QuotationGenerator() {
                           const { key, name } = entry;
                           return (
                             <SortableEntry key={key} id={key}>
-                              {/* Phone: name gets its own line (with the ✕), qty × rate below.
-                                  Wider screens: everything on one line. */}
+                              {/* Phone: name gets its own line (with the ✕), Qty · Rate · Days · Amount below.
+                                  Wider screens: everything on one line, under the PriceHeader headings. */}
                               <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 p-2 bg-bb-input rounded-lg">
                                 <input
                                   type="checkbox"
@@ -702,29 +788,8 @@ export default function QuotationGenerator() {
                                   title="Select for grouping"
                                 />
                                 <p className="flex-1 min-w-0 text-sm text-bb-text break-words sm:truncate">{name}</p>
-                                <div className="order-last sm:order-none basis-full sm:basis-auto flex items-center gap-2 pl-6 sm:pl-0">
-                                <input
-                                  type="number" min="1" placeholder="Qty"
-                                  value={itemPrices[key]?.qty === '' ? '' : (itemPrices[key]?.qty || 1)}
-                                  onChange={e => setItemPrices(p => ({ ...p, [key]: { ...p[key], qty: e.target.value === '' ? '' : Number(e.target.value) } }))}
-                                  className="w-16 bg-bb-bg border border-bb-border rounded px-2 py-1.5 text-sm text-bb-text text-center"
-                                />
-                                {!hidePrices && (
-                                  <>
-                                    <span className="text-bb-muted text-sm">×</span>
-                                    <input
-                                      type="number" min="0" placeholder="Rate"
-                                      value={itemPrices[key]?.rate || ''}
-                                      onChange={e => setItemPrices(p => ({ ...p, [key]: { ...p[key], rate: Number(e.target.value) || 0 } }))}
-                                      className="w-24 bg-bb-bg border border-bb-border rounded px-2 py-1 text-sm text-bb-text text-right"
-                                    />
-                                    {/* Line amount — phones only (no room on the one-line desktop row) */}
-                                    <span className="sm:hidden ml-auto text-xs text-bb-muted">
-                                      = ₹{((Number(itemPrices[key]?.qty) || 0) * (itemPrices[key]?.rate || 0)).toLocaleString('en-IN')}
-                                    </span>
-                                  </>
-                                )}
-                                </div>
+                                <PriceFields p={itemPrices[key] || newPrice(1)} hidePrices={hidePrices} label={name}
+                                  onChange={(field, value) => setItemPrices(p => ({ ...p, [key]: { ...(p[key] || newPrice(1)), [field]: value } }))} />
                                 <button
                                   onClick={() => window.confirm(`Remove “${name}” from this quotation?`) && handleRemoveItem(group.id, name)}
                                   className="p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
@@ -753,6 +818,13 @@ export default function QuotationGenerator() {
 
                   {group.items.length === 0 && (
                     <p className="text-sm text-bb-muted text-center py-3">No items in this section yet</p>
+                  )}
+
+                  {/* "Set all items to N days" — when items don't all match the function's days */}
+                  {group.items.some(n => itemDays(itemPrices[`${group.id}::${n}`]) !== group.days) && (
+                    <button onClick={() => setSectionDays(group.id, group.days)} className="mt-2 text-xs font-semibold text-bb-accent hover:underline cursor-pointer">
+                      Set all items to {group.days} {group.days === 1 ? 'day' : 'days'}
+                    </button>
                   )}
 
                   {!hidePrices && (
@@ -898,7 +970,7 @@ export default function QuotationGenerator() {
           <tbody>
             {/* Row 1: Title */}
             <tr>
-              <td colSpan="5" style={{textAlign: 'center', padding: '24px 24px 12px'}}>
+              <td colSpan={COLS} style={{textAlign: 'center', padding: '24px 24px 12px'}}>
                 <span style={{fontSize: '20px', fontWeight: '800', letterSpacing: '0.2em', textTransform: 'uppercase', color: '#652D90'}}>QUOTATION</span>
                 <div style={{height: '3px', width: '80px', margin: '8px auto 0', backgroundColor: '#652D90', borderRadius: '2px'}} />
               </td>
@@ -906,7 +978,7 @@ export default function QuotationGenerator() {
 
             {/* Row 2: Company address left, Logo right */}
             <tr>
-              <td colSpan="3" style={{verticalAlign: 'top', padding: '12px 24px', fontSize: '11px', color: '#4b5563', lineHeight: '1.7'}}>
+              <td colSpan={COLS - 2} style={{verticalAlign: 'top', padding: '12px 24px', fontSize: '11px', color: '#4b5563', lineHeight: '1.7'}}>
                 {/* Company block — from the tenant's own settings */}
                 <span style={{fontWeight: '700', fontSize: '13px', color: '#1f2937'}}>{settings.companyName}</span>
                 {settings.tagline && <span style={{color: '#4b5563'}}> — {settings.tagline}</span>}<br/>
@@ -922,14 +994,14 @@ export default function QuotationGenerator() {
 
             {/* Row 3: Thin gray separator */}
             <tr>
-              <td colSpan="5" style={{padding: '0 24px'}}>
+              <td colSpan={COLS} style={{padding: '0 24px'}}>
                 <div style={{height: '1px', backgroundColor: '#e5e7eb'}} />
               </td>
             </tr>
 
             {/* Row 4: Two boxes with purple top border */}
             <tr>
-              <td colSpan="3" style={{verticalAlign: 'top', padding: '16px 24px 12px', width: '60%'}}>
+              <td colSpan={COLS - 2} style={{verticalAlign: 'top', padding: '16px 24px 12px', width: '60%'}}>
                 <div style={{borderTop: '3px solid #652D90', padding: '12px 0 0'}}>
                   <span style={{fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#652D90'}}>BILL TO/ CLIENT</span><br/>
                   <span style={{fontSize: '14px', fontWeight: '700', color: '#1f2937', lineHeight: '2'}}>{event.clientName}</span><br/>
@@ -941,7 +1013,7 @@ export default function QuotationGenerator() {
                 <div style={{borderTop: '3px solid #652D90', padding: '12px 0 0', fontSize: '11px', color: '#4b5563', lineHeight: '1.9'}}>
                   <span style={{fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#652D90'}}>EVENT DETAILS</span><br/>
                   {event.eventType && <>Event: {event.eventType}<br/></>}
-                  {displayDate && <>Date: {formatDateReadable(displayDate)}<br/></>}
+                  {displayDate && <>Date: {event.mainEvent ? functionDateText(event.mainEvent) : formatDateReadable(displayDate)}<br/></>}
                   {(event.mainEvent?.location || event.eventLocation) && <>Venue: {event.mainEvent?.location || event.eventLocation}<br/></>}
                   Quote Date: {formatDateReadable(new Date().toISOString())}<br/>
                   Valid for: {validityDays} Days
@@ -958,9 +1030,9 @@ export default function QuotationGenerator() {
                 <React.Fragment key={group.id}>
                   {/* Row 5: Event section header */}
                   <tr>
-                    <td colSpan="5" style={{padding: '16px 24px 6px'}}>
+                    <td colSpan={COLS} style={{padding: '16px 24px 6px'}}>
                       <span style={{fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#652D90'}}>
-                        {group.name}{group.date ? ` — ${formatDateReadable(group.date)}` : ''}{group.location ? `, ${group.location}` : ''}
+                        {group.name}{group.date ? ` — ${functionDateText(group)}` : ''}{group.location ? `, ${group.location}` : ''}
                       </span>
                       <div style={{height: '2px', marginTop: '6px', backgroundColor: '#652D90', opacity: 0.3, borderRadius: '1px'}} />
                     </td>
@@ -976,7 +1048,8 @@ export default function QuotationGenerator() {
                     <tr style={{backgroundColor: '#f5f0fa'}}>
                       <th colSpan="1" style={{padding: '8px 12px 8px 24px', textAlign: 'left', fontWeight: '600', color: '#4b5563', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', width: '40px'}}>Sl.</th>
                       <th colSpan="3" style={{padding: '8px 12px', textAlign: 'left', fontWeight: '600', color: '#4b5563', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em'}}>Particulars</th>
-                      <th colSpan="1" style={{padding: '8px 12px 8px 12px', textAlign: 'right', fontWeight: '600', color: '#4b5563', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', width: '90px', paddingRight: '24px'}}>Qty</th>
+                      <th colSpan="1" style={{padding: '8px 12px 8px 12px', textAlign: 'right', fontWeight: '600', color: '#4b5563', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', width: '90px', paddingRight: showDays ? '12px' : '24px'}}>Qty</th>
+                      {showDays && <th style={{padding: '8px 12px', textAlign: 'center', fontWeight: '600', color: '#4b5563', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', width: '60px', paddingRight: '24px'}}>Days</th>}
                     </tr>
                   ) : (
                     <tr style={{backgroundColor: '#f5f0fa'}}>
@@ -984,6 +1057,7 @@ export default function QuotationGenerator() {
                       <th style={{padding: '8px 12px', textAlign: 'left', fontWeight: '600', color: '#4b5563', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em'}}>Particulars</th>
                       <th style={{padding: '8px 12px', textAlign: 'center', fontWeight: '600', color: '#4b5563', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', width: '50px'}}>Qty</th>
                       <th style={{padding: '8px 12px', textAlign: 'right', fontWeight: '600', color: '#4b5563', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', width: '90px'}}>Rate (₹)</th>
+                      {showDays && <th style={{padding: '8px 12px', textAlign: 'center', fontWeight: '600', color: '#4b5563', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', width: '54px'}}>Days</th>}
                       <th style={{padding: '8px 12px 8px 12px', textAlign: 'right', fontWeight: '600', color: '#4b5563', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', width: '100px', paddingRight: '24px'}}>Amount (₹)</th>
                     </tr>
                   )}
@@ -1004,12 +1078,13 @@ export default function QuotationGenerator() {
                                 <div key={i} style={{fontSize: '12px', color: '#1f2937', marginTop: '2px'}}>{mn}</div>
                               ))}
                             </td>
-                            <td colSpan="1" style={{padding: '10px 12px 10px 12px', textAlign: 'right', color: '#4b5563', fontSize: '12px', paddingRight: '24px'}}>
+                            <td colSpan="1" style={{padding: '10px 12px 10px 12px', textAlign: 'right', color: '#4b5563', fontSize: '12px', paddingRight: showDays ? '12px' : '24px'}}>
                               <div style={{visibility: 'hidden', fontWeight: '600'}}>&nbsp;</div>
                               {b.itemKeys.map((k, i) => (
                                 <div key={i} style={{marginTop: i === 0 ? 0 : '2px'}}>{(itemPrices[k] || { qty: 1 }).qty}</div>
                               ))}
                             </td>
+                            {showDays && <DaysCell keys={b.itemKeys} prices={itemPrices} last />}
                           </tr>
                         );
                       }
@@ -1020,7 +1095,8 @@ export default function QuotationGenerator() {
                         <tr key={key} style={{borderBottom: '1px solid #f0f0f0'}}>
                           <td colSpan="1" style={{padding: '10px 12px 10px 24px', color: '#6b7280', fontSize: '12px'}}>{slNo}</td>
                           <td colSpan="3" style={{padding: '10px 12px', color: '#1f2937', fontSize: '12px'}}>{name}</td>
-                          <td colSpan="1" style={{padding: '10px 12px 10px 12px', textAlign: 'right', color: '#4b5563', fontSize: '12px', paddingRight: '24px'}}>{p.qty}</td>
+                          <td colSpan="1" style={{padding: '10px 12px 10px 12px', textAlign: 'right', color: '#4b5563', fontSize: '12px', paddingRight: showDays ? '12px' : '24px'}}>{p.qty}</td>
+                          {showDays && <DaysCell keys={[key]} prices={itemPrices} single last />}
                         </tr>
                       );
                     })
@@ -1053,6 +1129,7 @@ export default function QuotationGenerator() {
                                 return <div key={i} style={{marginTop: i === 0 ? 0 : '2px'}}>{rate > 0 ? formatCurrency(rate) : '—'}</div>;
                               })}
                             </td>
+                            {showDays && <DaysCell keys={b.itemKeys} prices={itemPrices} />}
                             <td style={{padding: '10px 12px', textAlign: 'right', fontWeight: '600', color: '#1f2937', fontSize: '12px', paddingRight: '24px'}}>
                               <div style={{visibility: 'hidden'}}>&nbsp;</div>
                               {formatCurrency(b.amount)}
@@ -1069,7 +1146,8 @@ export default function QuotationGenerator() {
                           <td style={{padding: '10px 12px', color: '#1f2937', fontSize: '12px'}}>{name}</td>
                           <td style={{padding: '10px 12px', textAlign: 'center', color: '#4b5563', fontSize: '12px'}}>{p.qty}</td>
                           <td style={{padding: '10px 12px', textAlign: 'right', color: '#4b5563', fontSize: '12px'}}>{formatCurrency(p.rate)}</td>
-                          <td style={{padding: '10px 12px', textAlign: 'right', fontWeight: '600', color: '#1f2937', fontSize: '12px', paddingRight: '24px'}}>{formatCurrency(p.qty * p.rate)}</td>
+                          {showDays && <DaysCell keys={[key]} prices={itemPrices} single />}
+                          <td style={{padding: '10px 12px', textAlign: 'right', fontWeight: '600', color: '#1f2937', fontSize: '12px', paddingRight: '24px'}}>{formatCurrency(lineAmount(p))}</td>
                         </tr>
                       );
                     })
@@ -1077,7 +1155,7 @@ export default function QuotationGenerator() {
 
                   {/* Section subtotal row — for hide-prices mode this IS the manually-entered final amount */}
                   <tr>
-                    <td colSpan="5" style={{textAlign: 'right', padding: '10px 24px 16px'}}>
+                    <td colSpan={COLS} style={{textAlign: 'right', padding: '10px 24px 16px'}}>
                       <span style={{fontSize: '11px', fontWeight: '600', color: '#6b7280', textTransform: 'uppercase', marginRight: '16px'}}>
                         {hidePrices ? 'Final Amount' : 'Subtotal'}
                       </span>
@@ -1091,7 +1169,7 @@ export default function QuotationGenerator() {
             {/* Fallback if no items */}
             {printGroups.every(g => g.items.length === 0) && (
               <tr>
-                <td colSpan="5" style={{textAlign: 'center', padding: '24px', color: '#6b7280', fontSize: '12px', fontStyle: 'italic'}}>
+                <td colSpan={COLS} style={{textAlign: 'center', padding: '24px', color: '#6b7280', fontSize: '12px', fontStyle: 'italic'}}>
                   No items added to this quotation yet.
                 </td>
               </tr>
@@ -1100,10 +1178,10 @@ export default function QuotationGenerator() {
             {/* Summary section */}
             {printGroups.some(g => g.items.length > 0) && (
               <>
-                <tr><td colSpan="5" style={{padding: '4px 0'}} /></tr>
+                <tr><td colSpan={COLS} style={{padding: '4px 0'}} /></tr>
 
                 <tr>
-                  <td colSpan="5" style={{padding: '0 24px'}}>
+                  <td colSpan={COLS} style={{padding: '0 24px'}}>
                     <table style={{width: '100%', borderCollapse: 'collapse', border: '1px solid #e5e7eb', borderRadius: '6px', overflow: 'hidden'}}>
                       <tbody>
                         <tr style={{backgroundColor: '#f5f0fa'}}>
@@ -1144,7 +1222,7 @@ export default function QuotationGenerator() {
 
             {/* Terms & Conditions */}
             <tr>
-              <td colSpan="5" style={{padding: '20px 24px 8px'}}>
+              <td colSpan={COLS} style={{padding: '20px 24px 8px'}}>
                 <span style={{fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#652D90'}}>TERMS & CONDITIONS</span>
                 <div style={{marginTop: '8px', fontSize: '11px', color: '#4b5563', lineHeight: '1.6'}}>
                   <div style={{padding: '2px 0'}}>1. This quotation is valid for {validityDays} days from the date of issue.</div>
@@ -1159,7 +1237,7 @@ export default function QuotationGenerator() {
 
             {/* Validity bar */}
             <tr>
-              <td colSpan="5" style={{padding: '12px 24px'}}>
+              <td colSpan={COLS} style={{padding: '12px 24px'}}>
                 <div style={{backgroundColor: '#f3f4f6', borderRadius: '4px', padding: '10px 16px', textAlign: 'center'}}>
                   <span style={{fontSize: '11px', color: '#6b7280', fontStyle: 'italic'}}>
                     This quotation is valid for <span style={{fontWeight: '700', color: '#1f2937'}}>{validityDays} days</span> from the date of issue.
@@ -1170,7 +1248,7 @@ export default function QuotationGenerator() {
 
             {/* Footer */}
             <tr>
-              <td colSpan="5" style={{textAlign: 'center', padding: '16px 24px 24px', borderTop: '1px solid #e5e7eb'}}>
+              <td colSpan={COLS} style={{textAlign: 'center', padding: '16px 24px 24px', borderTop: '1px solid #e5e7eb'}}>
                 <span style={{fontSize: '14px', fontWeight: '700', color: '#1f2937'}}>{settings.companyName}</span><br/>
                 <span style={{fontSize: '11px', color: '#6b7280', marginTop: '4px', display: 'inline-block'}}>{settings.phone}</span>
               </td>
