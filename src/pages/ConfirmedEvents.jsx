@@ -275,7 +275,7 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <h1 className="text-xl font-bold text-bb-text">{pageLabel} Events</h1>
+        <h1 className="text-xl font-bold text-bb-text">{pageLabel} Events <span className="text-bb-muted font-semibold tabular-nums" data-testid="title-count">({events.filter(e => e.status === statusFilter).length})</span></h1>
         <span className="flex-1" />
         {/* Job Log is a wide grid — laptop/tablet only (md and up) */}
         {status === 'completed' && isOwner && (

@@ -12,10 +12,11 @@
 // ============================================================
 // IMPORTS
 // ============================================================
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, FilePlus, FileText, CheckCircle2, PartyPopper, Settings, Plus, BarChart3, LogOut, Shield, Menu, X, CalendarDays } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { countByStatus } from '../utils/helpers';
 
 // ============================================================
 // CONSTANTS
@@ -29,9 +30,9 @@ const sidebarNav = [
   { to: '/', icon: LayoutDashboard, label: 'Home', group: 'plan' },
   { to: '/new', icon: FilePlus, label: 'New Event', group: 'plan' },
   { to: '/calendar', icon: CalendarDays, label: 'Calendar', group: 'plan' },
-  { to: '/drafts', icon: FileText, label: 'Drafts', group: 'events' },
-  { to: '/confirmed', icon: CheckCircle2, label: 'Confirmed', group: 'events' },
-  { to: '/completed', icon: PartyPopper, label: 'Completed', group: 'events' },
+  { to: '/drafts', icon: FileText, label: 'Drafts', group: 'events', count: 'draft' },
+  { to: '/confirmed', icon: CheckCircle2, label: 'Confirmed', group: 'events', count: 'confirmed' },
+  { to: '/completed', icon: PartyPopper, label: 'Completed', group: 'events', count: 'completed' },
   { to: '/reports', icon: BarChart3, label: 'Reports', ownerOnly: true, group: 'business' },
   { to: '/settings', icon: Settings, label: 'Settings', group: 'business' },
   { to: '/admin', icon: Shield, label: 'Admin', adminOnly: true, group: 'business' },
@@ -40,9 +41,9 @@ const sidebarNav = [
 /** Mobile bottom bar (the round + in the middle is New Event); Settings is in the ☰ menu */
 const mobileNav = [
   { to: '/', icon: LayoutDashboard, label: 'Home' },
-  { to: '/drafts', icon: FileText, label: 'Drafts' },
-  { to: '/confirmed', icon: CheckCircle2, label: 'Confirmed' },
-  { to: '/completed', icon: PartyPopper, label: 'Completed' },
+  { to: '/drafts', icon: FileText, label: 'Drafts', count: 'draft' },
+  { to: '/confirmed', icon: CheckCircle2, label: 'Confirmed', count: 'confirmed' },
+  { to: '/completed', icon: PartyPopper, label: 'Completed', count: 'completed' },
 ];
 
 // ============================================================
@@ -51,11 +52,36 @@ const mobileNav = [
 
 const LOGO = import.meta.env.BASE_URL + 'eventscope-logo-horizontal.svg';
 
+/** One bottom-bar tab: icon (with a small count badge for the event lists) and label */
+function BottomTab({ item, count }) {
+  const Icon = item.icon;
+  return (
+    <NavLink
+      to={item.to}
+      end={item.to === '/'}
+      className={({ isActive }) =>
+        `flex flex-col items-center justify-center gap-0.5 py-2 transition-colors
+        ${isActive ? 'text-bb-accent' : 'text-bb-sidebar-muted'}`
+      }
+    >
+      <span className="relative">
+        <Icon size={20} />
+        {count > 0 && (
+          <span className="absolute -top-1.5 left-3 min-w-[18px] h-4 px-1 rounded-full bg-bb-accent text-white text-[10px] leading-4 font-bold text-center tabular-nums ring-2 ring-bb-sidebar">
+            {count > 99 ? '99+' : count}
+          </span>
+        )}
+      </span>
+      <span className="text-[10px]">{item.label}</span>
+    </NavLink>
+  );
+}
+
 /**
  * Nav links + account row (company, role, logout). Shared by the desktop
  * sidebar and the mobile slide-in menu so both always list the same pages.
  */
-function NavPanel({ items, companyName, roleLabel, onLogout }) {
+function NavPanel({ items, counts, companyName, roleLabel, onLogout }) {
   return (
     <>
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
@@ -76,6 +102,9 @@ function NavPanel({ items, companyName, roleLabel, onLogout }) {
           >
             <item.icon size={18} />
             {item.label}
+            {item.count && counts[item.count] > 0 && (
+              <span className="ml-auto text-[11px] font-semibold tabular-nums bg-white/10 text-white/80 rounded-full px-2 py-0.5" data-testid={`count-${item.count}`}>{counts[item.count]}</span>
+            )}
           </NavLink>
           </React.Fragment>
         ))}
@@ -114,7 +143,7 @@ function NavPanel({ items, companyName, roleLabel, onLogout }) {
 export default function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { logout, user, tenant, tenantStatus, settings, role, isSuspended, isOwner, isPlatformAdmin } = useApp();
+  const { logout, user, tenant, tenantStatus, settings, role, isSuspended, isOwner, isPlatformAdmin, events } = useApp();
 
   // ------------------------------------------------------------
   // STATE
@@ -144,7 +173,8 @@ export default function Layout() {
   const visibleNav = sidebarNav.filter(item => (adminOnly
     ? item.adminOnly
     : (!item.ownerOnly || isOwner) && (!item.adminOnly || isPlatformAdmin)));
-  const panelProps = { items: visibleNav, companyName, roleLabel, onLogout: logout };
+  const counts = useMemo(() => countByStatus(events), [events]);
+  const panelProps = { items: visibleNav, counts, companyName, roleLabel, onLogout: logout };
 
   // ------------------------------------------------------------
   // RENDER
@@ -215,23 +245,7 @@ export default function Layout() {
       <nav className={`${adminOnly ? 'hidden' : 'lg:hidden'} fixed bottom-0 left-0 right-0 h-[calc(4rem+env(safe-area-inset-bottom))] pb-[env(safe-area-inset-bottom)] bg-bb-sidebar/95 backdrop-blur-md border-t border-bb-sidebar-border z-50`}>
         <div className="grid grid-cols-5 items-center h-full w-full">
           {/* Left 2 items */}
-          {mobileNav.slice(0, 2).map((item) => {
-            const Icon = item.icon;
-            return (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.to === '/'}
-                className={({ isActive }) =>
-                  `flex flex-col items-center justify-center gap-0.5 py-2 transition-colors
-                  ${isActive ? 'text-bb-accent' : 'text-bb-sidebar-muted'}`
-                }
-              >
-                <Icon size={20} />
-                <span className="text-[10px]">{item.label}</span>
-              </NavLink>
-            );
-          })}
+          {mobileNav.slice(0, 2).map(item => <BottomTab key={item.to} item={item} count={counts[item.count]} />)}
 
           {/* Center: FAB Button */}
           <div className="flex justify-center">
@@ -244,22 +258,7 @@ export default function Layout() {
           </div>
 
           {/* Right 2 items */}
-          {mobileNav.slice(2).map((item) => {
-            const Icon = item.icon;
-            return (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                className={({ isActive }) =>
-                  `flex flex-col items-center justify-center gap-0.5 py-2 transition-colors
-                  ${isActive ? 'text-bb-accent' : 'text-bb-sidebar-muted'}`
-                }
-              >
-                <Icon size={20} />
-                <span className="text-[10px]">{item.label}</span>
-              </NavLink>
-            );
-          })}
+          {mobileNav.slice(2).map(item => <BottomTab key={item.to} item={item} count={counts[item.count]} />)}
         </div>
       </nav>
     </div>

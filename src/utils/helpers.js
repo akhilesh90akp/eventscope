@@ -281,6 +281,12 @@ export const eventCountdown = (ev) => {
   return daysUntil(getActiveDate(ev));
 };
 
+/** { draft, confirmed, completed } — how many events each list holds (menu badges, page titles) */
+export const countByStatus = (events = []) => events.reduce((acc, e) => {
+  if (e && acc[e.status] !== undefined) acc[e.status]++;
+  return acc;
+}, { draft: 0, confirmed: 0, completed: 0 });
+
 /**
  * Sorts events by active date: upcoming soonest first, then past most recent first.
  * Draft/Confirmed tabs: nearest upcoming date rises to the top (e.g. Sep 3
