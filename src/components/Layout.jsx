@@ -21,25 +21,28 @@ import { useApp } from '../context/AppContext';
 // CONSTANTS
 // ============================================================
 
-/** Navigation items displayed in the desktop sidebar */
+/**
+ * Navigation items for the desktop sidebar and the mobile slide-in menu.
+ * `group` puts a thin line between sections: planning, event lists, business.
+ */
 const sidebarNav = [
-  { to: '/', icon: LayoutDashboard, label: 'Home' },
-  { to: '/new', icon: FilePlus, label: 'New Event' },
-  { to: '/calendar', icon: CalendarDays, label: 'Calendar' },
-  { to: '/drafts', icon: FileText, label: 'Drafts' },
-  { to: '/confirmed', icon: CheckCircle2, label: 'Confirmed' },
-  { to: '/completed', icon: PartyPopper, label: 'Completed' },
-  { to: '/reports', icon: BarChart3, label: 'Reports', ownerOnly: true },
-  { to: '/settings', icon: Settings, label: 'Settings' },
-  { to: '/admin', icon: Shield, label: 'Admin', adminOnly: true },
+  { to: '/', icon: LayoutDashboard, label: 'Home', group: 'plan' },
+  { to: '/new', icon: FilePlus, label: 'New Event', group: 'plan' },
+  { to: '/calendar', icon: CalendarDays, label: 'Calendar', group: 'plan' },
+  { to: '/drafts', icon: FileText, label: 'Drafts', group: 'events' },
+  { to: '/confirmed', icon: CheckCircle2, label: 'Confirmed', group: 'events' },
+  { to: '/completed', icon: PartyPopper, label: 'Completed', group: 'events' },
+  { to: '/reports', icon: BarChart3, label: 'Reports', ownerOnly: true, group: 'business' },
+  { to: '/settings', icon: Settings, label: 'Settings', group: 'business' },
+  { to: '/admin', icon: Shield, label: 'Admin', adminOnly: true, group: 'business' },
 ];
 
-/** Condensed navigation items for the mobile bottom bar */
+/** Mobile bottom bar (the round + in the middle is New Event); Settings is in the ☰ menu */
 const mobileNav = [
   { to: '/', icon: LayoutDashboard, label: 'Home' },
   { to: '/drafts', icon: FileText, label: 'Drafts' },
   { to: '/confirmed', icon: CheckCircle2, label: 'Confirmed' },
-  { to: '/settings', icon: Settings, label: 'Settings' },
+  { to: '/completed', icon: PartyPopper, label: 'Completed' },
 ];
 
 // ============================================================
@@ -56,9 +59,11 @@ function NavPanel({ items, companyName, roleLabel, onLogout }) {
   return (
     <>
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-        {items.map((item) => (
+        {items.map((item, i) => (
+          <React.Fragment key={item.to}>
+          {/* thin line where a new section starts */}
+          {i > 0 && item.group !== items[i - 1].group && <div role="separator" className="!my-2 mx-3 border-t border-white/10" />}
           <NavLink
-            key={item.to}
             to={item.to}
             end={item.to === '/'}
             className={({ isActive }) =>
@@ -72,6 +77,7 @@ function NavPanel({ items, companyName, roleLabel, onLogout }) {
             <item.icon size={18} />
             {item.label}
           </NavLink>
+          </React.Fragment>
         ))}
       </nav>
 
