@@ -41,9 +41,9 @@ const sidebarNav = [
 /** Mobile bottom bar (the round + in the middle is New Event); Settings is in the ☰ menu */
 const mobileNav = [
   { to: '/', icon: LayoutDashboard, label: 'Home' },
-  { to: '/drafts', icon: FileText, label: 'Drafts', count: 'draft' },
-  { to: '/confirmed', icon: CheckCircle2, label: 'Confirmed', count: 'confirmed' },
-  { to: '/completed', icon: PartyPopper, label: 'Completed', count: 'completed' },
+  { to: '/drafts', icon: FileText, label: 'Drafts' },
+  { to: '/confirmed', icon: CheckCircle2, label: 'Confirmed' },
+  { to: '/completed', icon: PartyPopper, label: 'Completed' },
 ];
 
 // ============================================================
@@ -52,8 +52,8 @@ const mobileNav = [
 
 const LOGO = import.meta.env.BASE_URL + 'eventscope-logo-horizontal.svg';
 
-/** One bottom-bar tab: icon (with a small count badge for the event lists) and label */
-function BottomTab({ item, count }) {
+/** One bottom-bar tab: icon and label */
+function BottomTab({ item }) {
   const Icon = item.icon;
   return (
     <NavLink
@@ -64,14 +64,7 @@ function BottomTab({ item, count }) {
         ${isActive ? 'text-bb-accent' : 'text-bb-sidebar-muted'}`
       }
     >
-      <span className="relative">
-        <Icon size={20} />
-        {count > 0 && (
-          <span className="absolute -top-1.5 left-3 min-w-[18px] h-4 px-1 rounded-full bg-bb-accent text-white text-[10px] leading-4 font-bold text-center tabular-nums ring-2 ring-bb-sidebar">
-            {count > 99 ? '99+' : count}
-          </span>
-        )}
-      </span>
+      <Icon size={20} />
       <span className="text-[10px]">{item.label}</span>
     </NavLink>
   );
@@ -245,7 +238,7 @@ export default function Layout() {
       <nav className={`${adminOnly ? 'hidden' : 'lg:hidden'} fixed bottom-0 left-0 right-0 h-[calc(4rem+env(safe-area-inset-bottom))] pb-[env(safe-area-inset-bottom)] bg-bb-sidebar/95 backdrop-blur-md border-t border-bb-sidebar-border z-50`}>
         <div className="grid grid-cols-5 items-center h-full w-full">
           {/* Left 2 items */}
-          {mobileNav.slice(0, 2).map(item => <BottomTab key={item.to} item={item} count={counts[item.count]} />)}
+          {mobileNav.slice(0, 2).map(item => <BottomTab key={item.to} item={item} />)}
 
           {/* Center: FAB Button */}
           <div className="flex justify-center">
@@ -258,7 +251,7 @@ export default function Layout() {
           </div>
 
           {/* Right 2 items */}
-          {mobileNav.slice(2).map(item => <BottomTab key={item.to} item={item} count={counts[item.count]} />)}
+          {mobileNav.slice(2).map(item => <BottomTab key={item.to} item={item} />)}
         </div>
       </nav>
     </div>

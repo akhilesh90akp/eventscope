@@ -132,7 +132,7 @@ export default function DraftsList() {
   // ------------------------------------------------------------
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-bold text-bb-text">Drafts <span className="text-bb-muted font-semibold tabular-nums" data-testid="title-count">({events.filter(e => e.status === 'draft').length})</span></h1>
+      <h1 className="text-xl font-bold text-bb-text">Drafts<span className="inline-flex items-center justify-center align-middle min-w-[1.75rem] h-7 px-2 ml-2 rounded-full bg-violet-100 text-violet-700 text-sm font-bold tabular-nums" data-testid="title-count">{events.filter(e => e.status === 'draft').length}</span></h1>
 
       {/* Search — stays pinned while scrolling */}
       <StickyBar>
