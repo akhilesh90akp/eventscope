@@ -16,7 +16,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import BackButton from '../components/BackButton';
 import Card from '../components/Card';
 import StickyBar from '../components/StickyBar';
 import Button from '../components/Button';
@@ -31,6 +30,16 @@ import {
   ChevronDown, ChevronUp, Home, Navigation, Trash2, MoreVertical,
   ArrowLeftRight, ExternalLink, FileSignature,
 } from 'lucide-react';
+
+// ============================================================
+// CONSTANTS
+// ============================================================
+
+/**
+ * One group of buttons on an event card. Groups are set apart by extra space
+ * (not divider lines, which end up dangling at the start of a wrapped row).
+ */
+const ACTION_GROUP = 'flex flex-wrap items-center gap-2';
 
 // ============================================================
 // HELPERS
@@ -266,8 +275,6 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        {/* Completed isn't in the bottom bar, so it gets a back arrow */}
-        {status === 'completed' && <BackButton />}
         <h1 className="text-xl font-bold text-bb-text">{pageLabel} Events</h1>
         <span className="flex-1" />
         {/* Job Log is a wide grid — laptop/tablet only (md and up) */}
@@ -426,40 +433,49 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
                     </div>
                   )}
 
-                  {/* Action Buttons - Always visible in collapsed view */}
+                  {/* Action Buttons - Always visible in collapsed view. Grouped: contact ·
+                      edit/delete · items/prices · documents · status, with extra space between
+                      groups; rows wrap cleanly on any screen. */}
                   {!isExpanded && (
-                    <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-bb-border">
-                      {ev.clientPhone && (
-                        <a href={telLink(ev.clientPhone)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-emerald-600 text-emerald-600 hover:bg-emerald-50 transition-colors">
-                          <Phone size={14} /> Call
-                        </a>
+                    <div className="flex flex-wrap items-center gap-x-5 gap-y-2 pt-2 border-t border-bb-border">
+                      {(ev.clientPhone || ev.clientWhatsapp) && (
+                        <div className={ACTION_GROUP}>
+                          {ev.clientPhone && (
+                            <a href={telLink(ev.clientPhone)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-emerald-600 text-emerald-600 hover:bg-emerald-50 transition-colors">
+                              <Phone size={14} /> Call
+                            </a>
+                          )}
+                          <a href={waLink(ev.clientWhatsapp || ev.clientPhone)} target="_blank" rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-emerald-600 text-emerald-600 hover:bg-emerald-50 transition-colors">
+                            <MessageSquare size={14} /> WhatsApp
+                          </a>
+                        </div>
                       )}
-                      {(ev.clientWhatsapp || ev.clientPhone) && (
-                        <a href={waLink(ev.clientWhatsapp || ev.clientPhone)} target="_blank" rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-emerald-600 text-emerald-600 hover:bg-emerald-50 transition-colors">
-                          <MessageSquare size={14} /> WhatsApp
-                        </a>
-                      )}
-                      <span className="w-px h-5 bg-bb-border" />
-                      <Button size="sm" variant="secondary" icon={Edit3} onClick={() => navigate(`/edit/${ev.id}`)}>Edit</Button>
-                      <Button size="sm" variant="outline" icon={Trash2} className="border-red-500 text-red-500 hover:bg-red-50" onClick={() => setDeleteId(ev.id)}>Delete</Button>
-                      <span className="w-px h-5 bg-bb-border" />
-                      <Button size="sm" variant="secondary" icon={Plus} onClick={() => { setAddItemModal(ev.id); setAddItemTarget('main'); }}>Add Item</Button>
-                      <Button size="sm" variant="secondary" onClick={() => openPriceModal(ev)}>Set Prices</Button>
-                      <span className="w-px h-5 bg-bb-border" />
-                      <Button size="sm" variant="secondary" icon={FileText} onClick={() => navigate(`/quotation/${ev.id}`)}>Quote</Button>
-                      <Button size="sm" variant="secondary" icon={Receipt} onClick={() => navigate(`/bill/${ev.id}`)}>Bill</Button>
-                      <Button size="sm" variant="secondary" icon={FileSignature} onClick={() => navigate(`/contract/${ev.id}`)}>Contract</Button>
-                      <span className="w-px h-5 bg-bb-border" />
+                      <div className={ACTION_GROUP}>
+                        <Button size="sm" variant="secondary" icon={Edit3} onClick={() => navigate(`/edit/${ev.id}`)}>Edit</Button>
+                        <Button size="sm" variant="outline" icon={Trash2} className="border-red-500 text-red-500 hover:bg-red-50" onClick={() => setDeleteId(ev.id)}>Delete</Button>
+                      </div>
+                      <div className={ACTION_GROUP}>
+                        <Button size="sm" variant="secondary" icon={Plus} onClick={() => { setAddItemModal(ev.id); setAddItemTarget('main'); }}>Add Item</Button>
+                        <Button size="sm" variant="secondary" onClick={() => openPriceModal(ev)}>Set Prices</Button>
+                      </div>
+                      <div className={ACTION_GROUP}>
+                        <Button size="sm" variant="secondary" icon={FileText} onClick={() => navigate(`/quotation/${ev.id}`)}>Quote</Button>
+                        <Button size="sm" variant="secondary" icon={Receipt} onClick={() => navigate(`/bill/${ev.id}`)}>Bill</Button>
+                        <Button size="sm" variant="secondary" icon={FileSignature} onClick={() => navigate(`/contract/${ev.id}`)}>Contract</Button>
+                        {/* Completed has no "Mark Done", so "Move to…" sits with the documents */}
+                        {ev.status !== 'confirmed' && getMoveOptions(ev.status).length > 0 && (
+                          <Button size="sm" variant="ghost" icon={MoreVertical} onClick={() => setMoveId(ev.id)} title="Move to..." aria-label="Move to" />
+                        )}
+                      </div>
                       {ev.status === 'confirmed' && (
-                        <Button size="sm" variant="success" icon={CheckCircle2} onClick={() => markDone(ev.id)}>Mark Done</Button>
-                      )}
-                      {getMoveOptions(ev.status).length > 0 && (
-                        <>
-                          <span className="w-px h-5 bg-bb-border" />
-                          <Button size="sm" variant="ghost" icon={MoreVertical} onClick={() => setMoveId(ev.id)} title="Move to..." />
-                        </>
+                        <div className={ACTION_GROUP}>
+                          <Button size="sm" variant="success" icon={CheckCircle2} onClick={() => markDone(ev.id)}>Mark Done</Button>
+                          {getMoveOptions(ev.status).length > 0 && (
+                            <Button size="sm" variant="ghost" icon={MoreVertical} onClick={() => setMoveId(ev.id)} title="Move to..." aria-label="Move to" />
+                          )}
+                        </div>
                       )}
                     </div>
                   )}
