@@ -27,8 +27,8 @@
  * Discount (quoteDetails.discount): an amount ("5000") or a percentage
  * ("10%"), taken off before GST; the bill starts with it (helpers.getEventBill).
  *
- * Saving: changes auto-save about 1.5 s after you stop typing ("✓ Saved" next
- * to the title); the Save button saves at once. Both await
+ * Saving: changes auto-save about 1.5 s after you stop typing (toast "✓ Saved");
+ * the Save button saves at once, or says "Already saved ✌️". Both await
  * AppContext.updateEvent() — see CODE_STRUCTURE.md §4.
  */
 
@@ -257,7 +257,7 @@ export default function QuotationGenerator() {
 
   // `saving` disables the Save button while the Firestore write is in flight.
   const [saving, setSaving] = useState(false);
-  const [saveState, setSaveState] = useState('saved');   // 'saved' | 'unsaved' | 'saving' | 'error' (auto-save indicator)
+  const [saveState, setSaveState] = useState('saved');   // 'saved' | 'unsaved' | 'saving' | 'error' (auto-save; shown as toasts)
   const lastSavedRef = useRef(null);                      // JSON of what's saved — null until the quote has loaded
   const autoSaveTimer = useRef(null);
 
@@ -411,7 +411,7 @@ export default function QuotationGenerator() {
     return data;
   };
 
-  /** Writes the quote. `manual` = Save button (toasts); auto-save only updates the indicator. */
+  /** Writes the quote and shows a toast. `manual` = Save button ("Quotation saved"); auto-save says "✓ Saved". */
   const saveQuote = async (manual) => {
     clearTimeout(autoSaveTimer.current);
     const data = buildUpdateData();
@@ -421,10 +421,10 @@ export default function QuotationGenerator() {
     if (result.success) {
       lastSavedRef.current = snap;
       setSaveState(JSON.stringify(latestDataRef.current) === snap ? 'saved' : 'unsaved');
-      if (manual) showToast('Quotation saved');
+      showToast(manual ? 'Quotation saved' : '✓ Saved');
     } else {
       setSaveState('error');
-      if (manual) showToast(result.error || 'Failed to save quotation', 'error');
+      showToast(result.error || 'Couldn’t save the quotation — tap Save to try again', 'error');
     }
     return result.success;
   };
@@ -658,9 +658,13 @@ export default function QuotationGenerator() {
   // EVENT HANDLERS — SAVE
   // ------------------------------------------------------------
 
-  /** Save button — saves straight away */
+  /** Save button — saves straight away (nothing new to save → a friendly "already saved") */
   const handleSave = async () => {
     if (saving) return;
+    if (saveState === 'saved' && currentSnap === lastSavedRef.current) {
+      showToast('Already saved ✌️');
+      return;
+    }
     setSaving(true);
     try { await saveQuote(true); } finally { setSaving(false); }
   };
@@ -740,10 +744,6 @@ export default function QuotationGenerator() {
         <div className="flex items-center gap-3">
           <BackButton />
           <h1 className="text-xl font-bold text-bb-text">Quotation</h1>
-          {/* Auto-save status */}
-          <span className={`text-xs font-semibold ${saveState === 'error' ? 'text-red-600' : saveState === 'saved' ? 'text-emerald-600' : 'text-bb-muted'}`} data-testid="save-state">
-            {saveState === 'saving' ? 'Saving…' : saveState === 'unsaved' ? 'Unsaved changes' : saveState === 'error' ? 'Not saved — tap Save' : '✓ Saved'}
-          </span>
         </div>
 
         {/* Items & Pricing Card */}
