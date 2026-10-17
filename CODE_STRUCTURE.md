@@ -19,7 +19,8 @@ src/
     Dashboard, NewDraft, EditDraft, DraftsList, ConfirmedEvents (Confirmed + Completed),
     QuotationGenerator, BillGenerator, ContractGenerator (event services agreement),
     Calendar (month/list view, daily limit, owner reminders),
-    Reports (owner), JobLog (owner, own tab),
+    Reports (owner; All time / month / year / custom, purchases), JobLog (owner, own tab;
+    cells take sums like 12000+3500), Purchases (owner; business purchases by financial year),
     Settings, Admin (platform admins), CreateCompany (sign-up),
     JoinInvite (accept/decline an invite), Login,
     Legal (Terms / Privacy / Data protection — public)
@@ -36,7 +37,11 @@ src/
     PdfButton (makes a PDF of a document, previews it, then Share / Download / Open),
     ContractDocument (the printable agreement), ReminderSwitch (push reminders on/off per device),
     FunctionDates (a function's date, or start–end for multi-day — New/Edit event),
-    DaysCell (the Days column of the printed quote/bill)
+    DaysCell (the Days column of the printed quote/bill),
+    ConfirmDialog (the app's own "Are you sure?" pop-up: <ConfirmProvider> in main.jsx +
+      useConfirm() — use it instead of window.confirm; tone 'danger' for deletes),
+    PurchaseDialog (Add / Edit purchase: "Just the total" or "Item by item";
+      wide table on laptops, fold-open rows on phones)
   constants/
     data.js                 Defaults: event types, service categories, new-company
                             settings, Job Log columns, plans
@@ -54,6 +59,7 @@ src/
                             on demand); page breaks avoid cutting rows; [data-no-pdf] skipped
     contract.js             Agreement number + figures for the contract (no Firestore)
     calendar.js             Month grid, functions per day, daily limit, reminder dates
+    purchases.js            Purchases: financial year (Apr–Mar), totals, form cleaning, Excel download
     push.js                 This device's push token (Firebase Cloud Messaging); saving is in AppContext
     startupTiming.js        Records how long opening the app took (shown at the bottom of Settings)
 tools/
@@ -66,7 +72,8 @@ tests/
   firestore.rules.test.mjs  Rules tests (emulator; also run on GitHub)
   helpers.test.mjs          Unit tests for money/bill math
   tenantImport.test.mjs     Unit tests for reading backup files (old export, Drive and owner backups)
-  pdfExport / contract / calendar .test.mjs   Unit tests for page breaks, contract figures, calendar math
+  pdfExport / contract / calendar / purchases .test.mjs   Unit tests for page breaks, contract
+                            figures, calendar math, purchases
 public/                     Logos, icons, manifest, service worker, login-bg.* (video),
                             export-bluebell.html (one-time old-app export — delete after migration)
 ```

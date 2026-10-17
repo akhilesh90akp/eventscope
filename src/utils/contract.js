@@ -10,7 +10,7 @@
 // ============================================================
 // IMPORTS
 // ============================================================
-import { getEventSections, buildLineEntries, computeSectionTotal, itemDays, lineAmount } from './helpers.js';
+import { getEventSections, buildLineEntries, computeSectionTotal, itemDays, lineAmount, parseDiscount } from './helpers.js';
 import { DEFAULT_CONTRACT_TERMS } from '../constants/contract.js';
 
 // ============================================================
@@ -88,7 +88,9 @@ export function buildContract(event, settings = {}, form = {}) {
   }).sort((a, b) => String(a.date).localeCompare(String(b.date)));
 
   const quoteTotal = functions.reduce((s, f) => s + f.total, 0);
-  const price = form.amount !== undefined && form.amount !== '' ? Math.max(0, Number(form.amount) || 0) : quoteTotal;
+  // the quote's discount comes off the default price (typing an amount overrides)
+  const quoteDiscount = parseDiscount(event?.quoteDetails?.discount, quoteTotal).amount;
+  const price = form.amount !== undefined && form.amount !== '' ? Math.max(0, Number(form.amount) || 0) : quoteTotal - quoteDiscount;
   const advance = Math.max(0, Number(form.advance) || 0);
   const firstDate = functions.find(f => f.date)?.date || '';
   const balanceDueDate = form.balanceDueDate || dateMinusDays(firstDate, Number(terms.balanceDaysBefore) || 0);
@@ -96,6 +98,7 @@ export function buildContract(event, settings = {}, form = {}) {
   return {
     functions,
     quoteTotal,
+    quoteDiscount,
     price,
     advance,
     balance: Math.max(0, price - advance),

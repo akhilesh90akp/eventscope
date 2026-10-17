@@ -15,6 +15,7 @@ import { useApp } from '../context/AppContext';
 import Button from './Button';
 import { genId } from '../utils/helpers';
 import { ArrowUp, ArrowDown, Save, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { useConfirm } from './ConfirmDialog';
 
 // ============================================================
 // JobLogColumnsEditor — MAIN COMPONENT
@@ -22,6 +23,7 @@ import { ArrowUp, ArrowDown, Save, Plus, RotateCcw, Trash2 } from 'lucide-react'
 
 export default function JobLogColumnsEditor() {
   const { allJobLogColumns, saveJobLogColumns, canEditSettings, showToast } = useApp();
+  const confirm = useConfirm();
 
   // ------------------------------------------------------------
   // STATE
@@ -115,7 +117,7 @@ export default function JobLogColumnsEditor() {
             </select>
             <button
               type="button"
-              onClick={() => window.confirm(`Remove the “${c.label || 'untitled'}” column? Values already entered are kept, and you can restore it later.`) && update(c.id, { hidden: true })}
+              onClick={async () => (await confirm({ title: `Remove the “${c.label || 'untitled'}” column?`, message: 'Values already entered are kept, and you can bring the column back later.', confirmLabel: 'Remove', tone: 'danger' })) && update(c.id, { hidden: true })}
               className="p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
               title="Remove column"
               aria-label={`Remove ${c.label} column`}

@@ -29,18 +29,20 @@
       // means an already-open tab can keep running old code indefinitely
       // even after a new version is deployed, since ES modules already
       // loaded in memory don't re-fetch on their own. This shows a
-      // dismissible "New version available" banner the moment a new SW
+      // "New version ready" pop-up the moment a new SW
       // takes over, instead of silently serving stale code forever.
       // ============================================================
       if ('serviceWorker' in navigator) {
-        function showUpdateBanner() {
-          if (document.getElementById('bb-update-banner')) return; // already shown
+        // Pop-up in the same style as the app's confirm pop-ups. "Later"
+        // closes it and leaves a small bar at the bottom to refresh from.
+        function showUpdateBar() {
+          if (document.getElementById('bb-update-banner')) return;
           var bar = document.createElement('div');
           bar.id = 'bb-update-banner';
           bar.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:99999;' +
             'background:#331948;color:#fff;padding:12px 16px;display:flex;' +
-            'align-items:center;justify-content:center;gap:12px;font:14px system-ui,sans-serif;' +
-            'box-shadow:0 -2px 8px rgba(0,0,0,0.15);';
+            'align-items:center;justify-content:center;gap:12px;font:14px Inter,system-ui,sans-serif;' +
+            'box-shadow:0 -2px 8px rgba(0,0,0,0.15);padding-bottom:calc(12px + env(safe-area-inset-bottom));';
           bar.innerHTML =
             '<span>A new version of EventScope is available.</span>' +
             '<button id="bb-update-btn" style="background:#fff;color:#331948;border:none;' +
@@ -48,6 +50,42 @@
           document.body.appendChild(bar);
           document.getElementById('bb-update-btn').addEventListener('click', function() {
             window.location.reload();
+          });
+        }
+
+        function showUpdateBanner() {
+          if (document.getElementById('bb-update-popup') || document.getElementById('bb-update-banner')) return;
+          var pop = document.createElement('div');
+          pop.id = 'bb-update-popup';
+          pop.setAttribute('role', 'alertdialog');
+          pop.setAttribute('aria-modal', 'true');
+          pop.style.cssText = 'position:fixed;inset:0;z-index:99999;display:flex;align-items:center;' +
+            'justify-content:center;padding:16px;font-family:Inter,system-ui,sans-serif;';
+          pop.innerHTML =
+            '<div style="position:absolute;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)"></div>' +
+            '<div style="position:relative;width:100%;max-width:384px;background:#fff;border-radius:16px;' +
+              'box-shadow:0 25px 50px -12px rgba(0,0,0,.35);padding:20px;color:#1f2937">' +
+              '<div style="width:44px;height:44px;border-radius:999px;background:#ede9fe;color:#6d28d9;' +
+                'display:flex;align-items:center;justify-content:center;margin-bottom:12px">' +
+                '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+                '<path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>' +
+                '<path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg></div>' +
+              '<h2 style="margin:0 0 6px;font-size:18px;font-weight:700">New version ready</h2>' +
+              '<p style="margin:0;font-size:14px;line-height:1.6;color:#6b7280">Refresh to get the latest changes. ' +
+                'Everything you have saved stays as it is.</p>' +
+              '<div style="display:flex;gap:10px;margin-top:20px">' +
+                '<button id="bb-update-later" style="flex:1;padding:10px 0;border-radius:12px;border:1px solid #e5e7eb;' +
+                  'background:#fff;color:#1f2937;font:600 14px Inter,system-ui,sans-serif;cursor:pointer">Later</button>' +
+                '<button id="bb-update-now" style="flex:1;padding:10px 0;border-radius:12px;border:none;' +
+                  'background:#652D90;color:#fff;font:600 14px Inter,system-ui,sans-serif;cursor:pointer">Refresh now</button>' +
+              '</div></div>';
+          document.body.appendChild(pop);
+          document.getElementById('bb-update-now').addEventListener('click', function() {
+            window.location.reload();
+          });
+          document.getElementById('bb-update-later').addEventListener('click', function() {
+            pop.remove();
+            showUpdateBar();
           });
         }
 

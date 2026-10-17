@@ -89,3 +89,14 @@ test('multi-day function: date range, Days on lines, balance due before the firs
   assert.equal(c.showDays, true);
   assert.equal(c.balanceDueDate, '2026-11-05');
 });
+
+// ============================================================
+// Quote discount
+// ============================================================
+test('buildContract: default price takes off the quote discount', () => {
+  const c = buildContract({ ...EVENT, quoteDetails: { discount: '10%' } });
+  assert.equal(c.quoteDiscount, Math.round(c.quoteTotal * 0.1));
+  assert.equal(c.price, c.quoteTotal - c.quoteDiscount);
+  const typed = buildContract({ ...EVENT, quoteDetails: { discount: '5000' } }, {}, { amount: 90000 });
+  assert.equal(typed.price, 90000);
+});

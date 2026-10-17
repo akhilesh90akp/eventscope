@@ -9,6 +9,9 @@
  * Owner only (staff don't see Reports in the nav, and the route shows a
  * notice). Profit comes from the Job Log (tenants/{id}/financials) —
  * revenue + income columns − cost columns — not from a Google Sheet.
+ * Purchases (tenants/{id}/purchases) in the same period give "Spent on
+ * purchases" and "Profit after purchases"; they never change an event's profit.
+ * The All time tab groups the list by financial year (Apr–Mar).
  * Read-only: this page doesn't write anything back.
  */
 
@@ -23,7 +26,25 @@ import Input from '../components/Input';
 import Badge from '../components/Badge';
 import PdfButton from '../components/PdfButton';
 import { formatCurrency, formatDateReadable, formatDateRange, functionEnd, getActiveDate, getEventRevenue, computeEventFinancials, openJobLog } from '../utils/helpers';
+import { fyStart, fyLabel, purchasesBetween, purchaseTotal } from '../utils/purchases';
 import { Printer, Calendar, BarChart3, ExternalLink, Lock } from 'lucide-react';
+
+// ============================================================
+// HELPERS
+// ============================================================
+const eventDateOf = (e) => e.mainEvent?.date || e.date || '';
+
+/** First and last day ('YYYY-MM-DD') the selected tab covers; blank = open-ended */
+const periodRange = (filter, month, year, dateFrom, dateTo) => {
+  if (filter === 'monthly') {
+    const [y, m] = month.split('-').map(Number);
+    const last = new Date(y, m, 0).getDate();
+    return [`${month}-01`, `${month}-${String(last).padStart(2, '0')}`];
+  }
+  if (filter === 'yearly') return [`${year}-01-01`, `${year}-12-31`];
+  if (filter === 'custom') return [dateFrom, dateTo];
+  return ['', ''];
+};
 
 // ============================================================
 // Reports — MAIN COMPONENT
@@ -31,12 +52,12 @@ import { Printer, Calendar, BarChart3, ExternalLink, Lock } from 'lucide-react';
 
 /** Displays event reports with date-based filtering and summary stats */
 export default function Reports() {
-  const { events, settings, financials, jobLogColumns, isOwner } = useApp();
+  const { events, settings, financials, jobLogColumns, isOwner, purchases } = useApp();
 
   // ------------------------------------------------------------
   // STATE
   // ------------------------------------------------------------
-  const [filter, setFilter] = useState('monthly'); // monthly | yearly | custom
+  const [filter, setFilter] = useState('monthly'); // all | monthly | yearly | custom
   const reportRef = useRef(null);   // the printable report — what the PDF is made from
   const [statusFilter, setStatusFilter] = useState('completed'); // all | completed | confirmed
   const [excludeGST, setExcludeGST] = useState(false);
@@ -63,6 +84,7 @@ export default function Reports() {
       // Support both new format (mainEvent.date) and old format (e.date)
       const eventDate = e.mainEvent?.date || e.date;
       if (!eventDate) return false;
+      if (filter === 'all') return true;
       const d = new Date(eventDate);
       if (filter === 'monthly') {
         const [y, m] = month.split('-');
@@ -78,6 +100,8 @@ export default function Reports() {
       }
       return true;
     }).sort((a, b) => {
+      // All time: newest first (grouped by financial year below)
+      if (filter === 'all') return String(eventDateOf(b)).localeCompare(String(eventDateOf(a)));
       const dateA = new Date(getActiveDate(a));
       const dateB = new Date(getActiveDate(b));
       const now = Date.now();
@@ -95,7 +119,6 @@ export default function Reports() {
   const stats = useMemo(() => {
     const total = filteredEvents.length;
     const drafts = filteredEvents.filter(e => e.status === 'draft').length;
-    const confirmed = filteredEvents.filter(e => e.status === 'confirmed').length;
     const completed = filteredEvents.filter(e => e.status === 'completed').length;
     const revenue = filteredEvents.reduce((s, e) => s + getEventRevenue(e), 0);
     // Profit from the Job Log: completed events with at least one cost/income entered
@@ -105,8 +128,24 @@ export default function Reports() {
       const calc = computeEventFinancials(getEventRevenue(e), financials[e.id]?.values, jobLogColumns);
       if (calc.hasAny) { profit += calc.profit; profitEvents++; }
     });
-    return { total, drafts, confirmed, completed, revenue, profit, profitEvents };
-  }, [filteredEvents, financials, jobLogColumns]);
+    // Purchases dated in the same period (all of them for All time)
+    const spent = purchaseTotal(purchasesBetween(purchases || [], ...periodRange(filter, month, year, dateFrom, dateTo)));
+    return { total, drafts, completed, revenue, profit, profitEvents, spent, afterPurchases: profit - spent };
+  }, [filteredEvents, financials, jobLogColumns, purchases, filter, month, year, dateFrom, dateTo]);
+
+  // All time: events by financial year, newest year first
+  const yearGroups = useMemo(() => {
+    if (filter !== 'all') return null;
+    const groups = [];
+    filteredEvents.forEach(e => {
+      const fy = fyStart(eventDateOf(e));
+      let g = groups[groups.length - 1];
+      if (!g || g.fy !== fy) { g = { fy, label: fy ? fyLabel(fy) : 'No date', events: [], revenue: 0 }; groups.push(g); }
+      g.events.push(e);
+      g.revenue += getEventRevenue(e);
+    });
+    return groups;
+  }, [filter, filteredEvents]);
 
 
   // ------------------------------------------------------------
@@ -114,7 +153,7 @@ export default function Reports() {
   // ------------------------------------------------------------
 
   /** File name for the PDF / print: "<Company> Report - completed - 2026-10" */
-  const period = filter === 'monthly' ? month : filter === 'yearly' ? year : `${dateFrom} to ${dateTo}`;
+  const period = filter === 'all' ? 'All time' : filter === 'monthly' ? month : filter === 'yearly' ? year : `${dateFrom} to ${dateTo}`;
   const reportTitle = `${settings.companyName ? settings.companyName + ' ' : ''}Report - ${statusFilter} - ${period}`;
 
   /** Prints the report layout (laptop) */
@@ -134,6 +173,7 @@ export default function Reports() {
 
   // Filter tab configuration
   const filterTabs = [
+    { key: 'all', label: 'All time' },
     { key: 'monthly', label: 'Monthly' },
     { key: 'yearly', label: 'Yearly' },
     { key: 'custom', label: 'Custom' },
@@ -165,14 +205,14 @@ export default function Reports() {
             <h1 className="text-xl font-bold text-bb-text">Reports</h1>
           </div>
           <div className="flex items-center gap-2">
-            <PdfButton docRef={reportRef} fileName={`${reportTitle}.pdf`} label="Download PDF" variant="secondary" />
+            <PdfButton docRef={reportRef} fileName={`${reportTitle}.pdf`} label={`Download PDF · ${filterTabs.find(t => t.key === filter)?.label}`} variant="secondary" />
             <span className="hidden md:contents"><Button icon={Printer} variant="secondary" onClick={handlePrint}>Print</Button></span>
             {/* Job Log is a wide grid — laptop/tablet only (md and up) */}
             <span className="hidden md:contents"><Button icon={ExternalLink} onClick={openJobLog}>Open Job Log</Button></span>
           </div>
         </div>
         <p className="text-sm text-bb-muted -mt-1">
-          How the business is doing for any month, year or dates you pick: number of events, revenue and profit. Download it as a PDF for your accountant or partners.
+          How the business is doing — all time, or any month, year or dates you pick: number of events, revenue, profit and what you spent on purchases. Download it as a PDF for your accountant or partners.
         </p>
 
         {/* Filter Tabs */}
@@ -192,8 +232,8 @@ export default function Reports() {
         ))}
       </div>
 
-      {/* Date Inputs - changes based on active filter tab */}
-      <Card>
+      {/* Date Inputs - changes based on active filter tab (none for All time) */}
+      {filter !== 'all' && <Card>
         <div className="flex flex-wrap gap-3 items-end">
           {filter === 'monthly' && (
             <Input label="Month" type="month" value={month} onChange={e => setMonth(e.target.value)} icon={Calendar} />
@@ -208,7 +248,7 @@ export default function Reports() {
             </>
           )}
         </div>
-      </Card>
+      </Card>}
 
       {/* Status Filter + GST Toggle */}
       <div className="flex flex-wrap items-center gap-3">
@@ -227,14 +267,10 @@ export default function Reports() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
         <Card>
           <p className="text-xs text-bb-muted">Total</p>
           <p className="text-xl font-bold text-bb-text">{stats.total}</p>
-        </Card>
-        <Card>
-          <p className="text-xs text-bb-muted">Confirmed</p>
-          <p className="text-xl font-bold text-emerald-400">{stats.confirmed}</p>
         </Card>
         <Card>
           <p className="text-xs text-bb-muted">Completed</p>
@@ -245,9 +281,19 @@ export default function Reports() {
           <p className="text-lg font-bold text-bb-gold">{formatCurrency(stats.revenue)}</p>
         </Card>
         <Card>
-          <p className="text-xs text-bb-muted">Profit</p>
+          <p className="text-xs text-bb-muted">Profit without purchases</p>
           <p className={`text-lg font-bold ${stats.profit >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>{formatCurrency(stats.profit)}</p>
           <p className="text-[10px] text-bb-muted">{stats.profitEvents} of {stats.completed} completed with costs</p>
+        </Card>
+        <Card>
+          <p className="text-xs text-bb-muted">Profit after purchases</p>
+          <p className={`text-lg font-bold ${stats.afterPurchases >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>{formatCurrency(stats.afterPurchases)}</p>
+          <p className="text-[10px] text-bb-muted">Without purchases − spent</p>
+        </Card>
+        <Card>
+          <p className="text-xs text-bb-muted">Spent on purchases</p>
+          <p className="text-lg font-bold text-rose-600">{stats.spent ? '− ' : ''}{formatCurrency(stats.spent)}</p>
+          <p className="text-[10px] text-bb-muted">Chairs, lights etc. bought</p>
         </Card>
       </div>
 
@@ -272,7 +318,16 @@ export default function Reports() {
                 </tr>
               </thead>
               <tbody>
-                {filteredEvents.map((e, i) => (
+                {(yearGroups || [{ fy: null, events: filteredEvents }]).map(g => (
+                <React.Fragment key={g.fy ?? 'list'}>
+                {yearGroups && (
+                  <tr className="bg-bb-accent/5 border-b border-bb-border" data-testid="year-heading">
+                    <td colSpan="3" className="py-2 px-2 font-bold text-bb-accent sm:hidden">{g.label} · {g.events.length}</td>
+                    <td colSpan="4" className="py-2 px-2 font-bold text-bb-accent hidden sm:table-cell">{g.label} · {g.events.length} event{g.events.length === 1 ? '' : 's'}</td>
+                    <td colSpan="2" className="py-2 px-2 text-right font-bold text-bb-text">{formatCurrency(g.revenue)}</td>
+                  </tr>
+                )}
+                {g.events.map((e, i) => (
                   <tr key={e.id} className="border-b border-bb-border/50">
                     <td className="py-2 px-2 text-bb-muted">{i + 1}</td>
                     <td className="py-2 px-2 text-bb-text font-medium truncate max-w-[120px]">{e.clientName}</td>
@@ -281,6 +336,8 @@ export default function Reports() {
                     <td className="py-2 px-2"><Badge variant={e.status}>{e.status}</Badge></td>
                     <td className="py-2 px-2 text-right text-bb-text">{formatCurrency(getEventRevenue(e))}</td>
                   </tr>
+                ))}
+                </React.Fragment>
                 ))}
               </tbody>
             </table>
@@ -307,7 +364,7 @@ export default function Reports() {
                 Ph: {settings.phone}
               </td>
               <td colSpan="2" style={{padding: '8px 0', fontSize: '12px', color: '#374151', textAlign: 'right'}}>
-                <strong>Period:</strong> {filter === 'monthly' ? month : filter === 'yearly' ? year : `${dateFrom} to ${dateTo}`}<br/>
+                <strong>Period:</strong> {period}<br/>
                 <strong>Status:</strong> {statusFilter}<br/>
                 <strong>Generated:</strong> {formatDateReadable(new Date().toISOString())}
               </td>
@@ -319,8 +376,10 @@ export default function Reports() {
               <td colSpan="5" style={{padding: '12px 0 8px'}}>
                 <strong style={{fontSize: '11px'}}>Total Events: {stats.total}</strong> &nbsp;|&nbsp;
                 <span style={{fontSize: '11px'}}>Completed: {stats.completed}</span> &nbsp;|&nbsp;
-                <span style={{fontSize: '11px'}}>Confirmed: {stats.confirmed}</span> &nbsp;|&nbsp;
-                <span style={{fontSize: '11px', fontWeight: 'bold', color: '#652D90'}}>Revenue: {formatCurrency(stats.revenue)}</span>
+                <span style={{fontSize: '11px', fontWeight: 'bold', color: '#652D90'}}>Revenue: {formatCurrency(stats.revenue)}</span><br/>
+                <span style={{fontSize: '11px'}}>Profit without purchases: {formatCurrency(stats.profit)}</span> &nbsp;|&nbsp;
+                <span style={{fontSize: '11px'}}>Spent on purchases: {formatCurrency(stats.spent)}</span> &nbsp;|&nbsp;
+                <span style={{fontSize: '11px', fontWeight: 'bold'}}>Profit after purchases: {formatCurrency(stats.afterPurchases)}</span>
               </td>
             </tr>
             {/* Table Header */}
@@ -331,8 +390,16 @@ export default function Reports() {
               <th style={{padding: '8px', textAlign: 'left', fontSize: '10px', fontWeight: '600', textTransform: 'uppercase'}}>Date</th>
               <th style={{padding: '8px', textAlign: 'right', fontSize: '10px', fontWeight: '600', textTransform: 'uppercase'}}>Amount</th>
             </tr>
-            {/* Data Rows */}
-            {filteredEvents.map((e, i) => (
+            {/* Data Rows (All time: under a heading per financial year) */}
+            {(yearGroups || [{ fy: null, events: filteredEvents }]).map(g => (
+            <React.Fragment key={g.fy ?? 'list'}>
+            {yearGroups && (
+              <tr style={{backgroundColor: '#faf7fd', borderBottom: '1px solid #e9dcf5'}}>
+                <td colSpan="4" style={{padding: '8px', fontSize: '11px', fontWeight: '700', color: '#652D90'}}>{g.label} · {g.events.length} event{g.events.length === 1 ? '' : 's'}</td>
+                <td style={{padding: '8px', fontSize: '11px', fontWeight: '700', textAlign: 'right'}}>{formatCurrency(g.revenue)}</td>
+              </tr>
+            )}
+            {g.events.map((e, i) => (
               <tr key={e.id} style={{borderBottom: '1px solid #f3f4f6'}}>
                 <td style={{padding: '8px', fontSize: '11px', color: '#6b7280'}}>{i + 1}</td>
                 <td style={{padding: '8px', fontSize: '11px', color: '#1f2937', fontWeight: '500'}}>{e.clientName}</td>
@@ -340,6 +407,8 @@ export default function Reports() {
                 <td style={{padding: '8px', fontSize: '11px', color: '#4b5563'}}>{formatDateRange(e.mainEvent?.date || e.date, e.mainEvent ? functionEnd(e.mainEvent) : '')}</td>
                 <td style={{padding: '8px', fontSize: '11px', color: '#1f2937', fontWeight: '600', textAlign: 'right'}}>{formatCurrency(getEventRevenue(e))}</td>
               </tr>
+            ))}
+            </React.Fragment>
             ))}
             {/* Total Row */}
             <tr style={{borderTop: '2px solid #652D90'}}>

@@ -20,7 +20,6 @@ import StickyBar from '../components/StickyBar';
 import Button from '../components/Button';
 import Input from '../components/Input';
 import Badge from '../components/Badge';
-import Modal from '../components/Modal';
 import { formatCurrency, formatDateRange, eventCountdown, telLink, waLink, sortByActiveDate, getAllEventDates, getActiveDate } from '../utils/helpers';
 import { capacityQuestion, DEFAULT_MAX_PER_DAY } from '../utils/calendar';
 import {
@@ -28,6 +27,7 @@ import {
   Trash2, CalendarDays, MapPin, PackageOpen, ChevronDown, ChevronUp,
   Home, Navigation, IndianRupee,
 } from 'lucide-react';
+import { useConfirm } from '../components/ConfirmDialog';
 
 // ============================================================
 // HELPERS
@@ -64,13 +64,13 @@ function getEventLocation(ev) {
 /** Lists all draft events with search, expand/collapse, and actions */
 export default function DraftsList() {
   const { events, settings, deleteEvent, updateEvent, showToast } = useApp();
+  const confirm = useConfirm();
   const navigate = useNavigate();
 
   // ------------------------------------------------------------
   // STATE
   // ------------------------------------------------------------
   const [search, setSearch] = useState('');
-  const [deleteId, setDeleteId] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
 
   // ------------------------------------------------------------
@@ -100,8 +100,14 @@ export default function DraftsList() {
   const confirmEvent = async (id) => {
     // Warn when this would push a day past the company's daily limit (see Calendar)
     const ev = events.find(e => e.id === id);
-    const question = ev && capacityQuestion(ev, events, Number(settings.maxEventsPerDay) || DEFAULT_MAX_PER_DAY);
-    if (question && !window.confirm(question)) return;
+    const max = Number(settings.maxEventsPerDay) || DEFAULT_MAX_PER_DAY;
+    const question = ev && capacityQuestion(ev, events, max);
+    if (question && !(await confirm({
+      title: 'Over your daily limit',
+      message: <>Confirming <b className="text-bb-text">{ev.clientName}</b>: {question.replace(/ Confirm anyway\?$/, '')}</>,
+      note: 'Check crew and vehicles before you confirm.',
+      confirmLabel: 'Confirm anyway', cancelLabel: 'Not now', tone: 'warning',
+    }))) return;
     const result = await updateEvent(id, { status: 'confirmed' });
     if (result.success) {
       showToast('Event confirmed');
@@ -109,18 +115,20 @@ export default function DraftsList() {
       showToast(result.error || 'Failed to confirm event', 'error');
     }
   };
-
-  /** Executes the delete after modal confirmation — only toasts success if the write actually succeeded */
-  const handleDelete = async () => {
-    if (!deleteId) return;
-    const id = deleteId;
-    setDeleteId(null); // close modal immediately regardless of outcome
-    const result = await deleteEvent(id);
-    if (result.success) {
-      showToast('Event deleted');
-    }
+  /** Asks first (app pop-up), then deletes. Only toasts success if the write actually succeeded. */
+  const handleDelete = async (ev) => {
+    const ok = await confirm({
+      title: 'Delete this draft?',
+      message: <><b className="text-bb-text">{ev.clientName || 'This draft'}</b> and its quote will be deleted.</>,
+      note: 'This can’t be undone.',
+      confirmLabel: 'Delete', tone: 'danger',
+    });
+    if (!ok) return;
+    const result = await deleteEvent(ev.id);
+    if (result.success) showToast('Event deleted');
     // On failure, deleteEvent() already shows its own error toast.
   };
+
 
   /** Toggles the expanded/collapsed state of a draft card */
   const toggleExpand = (id) => {
@@ -309,7 +317,7 @@ export default function DraftsList() {
                         <Button size="sm" variant="secondary" icon={Edit} onClick={() => navigate(`/edit/${ev.id}`)}>Edit</Button>
                         <Button size="sm" variant="secondary" icon={FileText} onClick={() => navigate(`/quotation/${ev.id}`)}>Quote</Button>
                         <Button size="sm" variant="success" icon={CheckCircle} onClick={() => confirmEvent(ev.id)}>Confirm</Button>
-                        <Button size="sm" variant="outline" icon={Trash2} className="border-red-500 text-red-500 hover:bg-red-50" onClick={() => setDeleteId(ev.id)}>Delete</Button>
+                        <Button size="sm" variant="outline" icon={Trash2} className="border-red-500 text-red-500 hover:bg-red-50" onClick={() => handleDelete(ev)}>Delete</Button>
                       </div>
                     </div>
                   )}
@@ -320,7 +328,7 @@ export default function DraftsList() {
                       <Button size="sm" variant="secondary" icon={Edit} onClick={() => navigate(`/edit/${ev.id}`)}>Edit</Button>
                       <Button size="sm" variant="secondary" icon={FileText} onClick={() => navigate(`/quotation/${ev.id}`)}>Quote</Button>
                       <Button size="sm" variant="success" icon={CheckCircle} onClick={() => confirmEvent(ev.id)}>Confirm</Button>
-                      <Button size="sm" variant="outline" icon={Trash2} className="border-red-500 text-red-500 hover:bg-red-50" onClick={() => setDeleteId(ev.id)}>Delete</Button>
+                      <Button size="sm" variant="outline" icon={Trash2} className="border-red-500 text-red-500 hover:bg-red-50" onClick={() => handleDelete(ev)}>Delete</Button>
                     </div>
                   )}
                 </div>
@@ -330,14 +338,6 @@ export default function DraftsList() {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
-      <Modal isOpen={!!deleteId} onClose={() => setDeleteId(null)} title="Delete Draft?" size="sm">
-        <p className="text-bb-muted mb-4">This action cannot be undone. Are you sure you want to delete this draft?</p>
-        <div className="flex gap-2 justify-end">
-          <Button variant="secondary" onClick={() => setDeleteId(null)}>Cancel</Button>
-          <Button variant="danger" onClick={handleDelete}>Delete</Button>
-        </div>
-      </Modal>
     </div>
   );
 }

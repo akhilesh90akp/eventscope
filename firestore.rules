@@ -15,6 +15,7 @@
 //   tenants/{tenantId}/config/{doc}          settings | categories | jobLog (owner-editable)
 //   tenants/{tenantId}/events/{eventId}      events/drafts (members)
 //   tenants/{tenantId}/financials/{eventId}  Job Log costs/income/notes per event (members)
+//   tenants/{tenantId}/purchases/{id}       things bought for the business (owners only)
 //
 // Guarantees (each covered by tests/firestore.rules.test.mjs):
 //   - A login only ever reaches the tenant named in its own users/{uid}.
@@ -231,6 +232,13 @@ service cloud.firestore {
       match /financials/{eventId} {
         allow read: if isMember(tenantId) || isPlatformAdmin();
         allow write: if (isMember(tenantId) && tenantActive(tenantId)) || isPlatformAdmin();
+      }
+
+      // Purchases for the business (equipment, furniture, …) — owners only,
+      // like Reports. Staff can't read or change them.
+      match /purchases/{purchaseId} {
+        allow read: if isOwner(tenantId) || isPlatformAdmin();
+        allow write: if (isOwner(tenantId) && tenantActive(tenantId)) || isPlatformAdmin();
       }
 
       // Owners' devices that get event reminders (push tokens). Each owner

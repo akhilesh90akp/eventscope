@@ -335,6 +335,17 @@ test('members can read/write own Job Log data; other tenants cannot', async () =
   await assertFails(setDoc(doc(as('fred'), 'tenants/frozen/financials/e1'), { values: { labour: 1 } }));
 });
 
+test('purchases: owners only, not staff, not other companies, not while suspended', async () => {
+  const p = { mode: 'total', date: '2026-10-01', amount: 70000 };
+  await assertSucceeds(setDoc(doc(as('alice'), 'tenants/acme/purchases/p1'), p));
+  await assertSucceeds(getDoc(doc(as('alice'), 'tenants/acme/purchases/p1')));
+  await assertSucceeds(deleteDoc(doc(as('alice'), 'tenants/acme/purchases/p1')));
+  await assertFails(getDoc(doc(as('sam'), 'tenants/acme/purchases/p1')));
+  await assertFails(setDoc(doc(as('sam'), 'tenants/acme/purchases/p2'), p));
+  await assertFails(getDoc(doc(as('zara'), 'tenants/acme/purchases/p1')));
+  await assertFails(setDoc(doc(as('fred'), 'tenants/frozen/purchases/p1'), p));
+});
+
 test('only the owner can change Job Log columns', async () => {
   await assertSucceeds(setDoc(doc(as('alice'), 'tenants/acme/config/jobLog'), { columns: [] }));
   await assertFails(setDoc(doc(as('sam'), 'tenants/acme/config/jobLog'), { columns: [] }));

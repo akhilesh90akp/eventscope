@@ -1,6 +1,6 @@
 # EventScope
 
-**Every event, in focus.** Quotations, bills, a cost & profit Job Log and
+**Every event, in focus.** Quotations, bills, a cost & profit Job Log, purchases and
 reports for event management companies — one app, many companies, each
 company's data kept separate.
 
@@ -33,7 +33,7 @@ multi-tenant data rules.
 - Every company (tenant) has its own data under `tenants/{tenantId}/…`.
 - `users/{uid}` links each Google login to one company with a role:
   **owner** (everything) or **staff** (events, quotes, bills, costs —
-  not settings, team, reports or profit).
+  not settings, team, reports, profit or purchases).
 - `firestore.rules` enforces all of this on the server; the app's own
   checks only shape the UI. Rules are covered by `tests/firestore.rules.test.mjs`.
 - EventScope platform admins are listed in `platformAdmins/{uid}`, added by

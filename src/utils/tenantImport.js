@@ -95,6 +95,13 @@ export function parseBackup(json) {
     financials.push({ id: f.id, data: unwrapDates(f.data) });
   }
 
+  // Purchases for the business (v2, under other.purchases)
+  const purchases = [];
+  for (const p of Array.isArray(data.other?.purchases) ? data.other.purchases : []) {
+    if (!okId(p?.id) || !p.data) return { ok: false, error: 'The backup has a damaged purchase record — please use another backup.' };
+    purchases.push({ id: p.id, data: unwrapDates(p.data) });
+  }
+
   // Who was in the company (v2 only) — used to pre-fill the owner/staff boxes
   const people = [...(Array.isArray(data.members) ? data.members : []), ...(Array.isArray(data.invites) ? data.invites : [])]
     .filter(m => m && EMAIL_RE.test(String(m.email || '').trim()))
@@ -134,6 +141,7 @@ export function parseBackup(json) {
     jobLogColumns,
     events,
     financials,
+    purchases,
     owners,
     staff,
     contact,
@@ -142,6 +150,7 @@ export function parseBackup(json) {
       bills: events.filter(e => e.data.billDetails).length,
       categories: categories?.length || 0,
       costs: financials.length,
+      purchases: purchases.length,
       byStatus,
     },
   };

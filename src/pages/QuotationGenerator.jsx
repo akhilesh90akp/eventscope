@@ -24,8 +24,12 @@
  *     sub-event's items — reordering (via drag) rewrites that array directly,
  *     so Bill automatically shows the same order with no extra data needed.
  *
- * Save flow: handleSave awaits AppContext.updateEvent() and only confirms
- * success once Firestore actually returns it. See CODE_STRUCTURE.md §4.
+ * Discount (quoteDetails.discount): an amount ("5000") or a percentage
+ * ("10%"), taken off before GST; the bill starts with it (helpers.getEventBill).
+ *
+ * Saving: changes auto-save about 1.5 s after you stop typing ("✓ Saved" next
+ * to the title); the Save button saves at once. Both await
+ * AppContext.updateEvent() — see CODE_STRUCTURE.md §4.
  */
 
 // ============================================================
@@ -49,12 +53,13 @@ import DaysCell from '../components/DaysCell';
 import {
   formatCurrency, formatDateReadable, calcGST, waLink,
   buildLineEntries, flattenLineEntries, computeSectionTotal,
-  functionDays, functionEnd, functionDateText, itemDays, lineAmount, usesDays,
+  functionDays, functionEnd, functionDateText, itemDays, lineAmount, usesDays, parseDiscount,
 } from '../utils/helpers';
 import {
   Printer, MessageSquare, X, Plus, Save, Package,
   ChevronDown, ChevronRight, GripVertical, Layers, Ungroup,
 } from 'lucide-react';
+import { useConfirm } from '../components/ConfirmDialog';
 
 // ============================================================
 // HELPERS
@@ -169,6 +174,7 @@ function PriceHeader({ hidePrices }) {
 export default function QuotationGenerator() {
   const { eventId } = useParams();
   const { events, settings, categories, updateEvent, showToast } = useApp();
+  const confirm = useConfirm();
   const navigate = useNavigate();
   const event = events.find(e => e.id === eventId);
 
@@ -222,6 +228,7 @@ export default function QuotationGenerator() {
   const [gstEnabled, setGstEnabled] = useState(() => deriveState(event).quoteDetails.gstEnabled ?? false);
   const [gstRate, setGstRate] = useState(() => deriveState(event).quoteDetails.gstRate ?? String(settings.defaultGstRate || 18));
   const [validityDays, setValidityDays] = useState(() => deriveState(event).quoteDetails.validityDays ?? 15);
+  const [discountText, setDiscountText] = useState(() => deriveState(event).quoteDetails.discount ?? '');
 
   // Add item state — each section (main event / each sub-event) gets its
   // own free-text "add item" box, so items go into the section actually
@@ -250,6 +257,9 @@ export default function QuotationGenerator() {
 
   // `saving` disables the Save button while the Firestore write is in flight.
   const [saving, setSaving] = useState(false);
+  const [saveState, setSaveState] = useState('saved');   // 'saved' | 'unsaved' | 'saving' | 'error' (auto-save indicator)
+  const lastSavedRef = useRef(null);                      // JSON of what's saved — null until the quote has loaded
+  const autoSaveTimer = useRef(null);
 
   // Drag sensor: small activation distance so it doesn't fight with taps
   // on the qty/rate inputs or the remove button within the same row.
@@ -258,6 +268,7 @@ export default function QuotationGenerator() {
   // Track whether initial data has loaded yet, since `event` (and its
   // items) can arrive asynchronously from Firestore after first render.
   const loadedRef = useRef(!!event);
+  const justSyncedRef = useRef(false);
 
   // ------------------------------------------------------------
   // DATA LOADING / EFFECTS
@@ -276,7 +287,9 @@ export default function QuotationGenerator() {
       if (derived.quoteDetails.gstEnabled !== undefined) setGstEnabled(derived.quoteDetails.gstEnabled);
       if (derived.quoteDetails.gstRate !== undefined) setGstRate(derived.quoteDetails.gstRate);
       if (derived.quoteDetails.validityDays !== undefined) setValidityDays(derived.quoteDetails.validityDays);
+      if (derived.quoteDetails.discount !== undefined) setDiscountText(derived.quoteDetails.discount);
       loadedRef.current = true;
+      justSyncedRef.current = true;   // the auto-save baseline is taken once these values have rendered
     }
   }, [event]);
 
@@ -338,8 +351,18 @@ export default function QuotationGenerator() {
     [sectionTotals]
   );
 
-  // Calculate GST breakdown
-  const gstData = useMemo(() => calcGST(subtotal, gstEnabled ? Number(gstRate) : 0), [subtotal, gstEnabled, gstRate]);
+  // Discount (amount or %), then GST on what's left
+  const discount = useMemo(() => parseDiscount(discountText, subtotal), [discountText, subtotal]);
+  const afterDiscount = subtotal - discount.amount;
+  const gstData = useMemo(() => calcGST(afterDiscount, gstEnabled ? Number(gstRate) : 0), [afterDiscount, gstEnabled, gstRate]);
+
+  /** Hide-prices helper line per section: groups total + single items total (from the prices entered) */
+  const sectionSplit = (group) => {
+    const entries = buildLineEntries(group.id, group.items, bundles);
+    const groups = entries.filter(e => e.type === 'bundle').reduce((t, e) => t + (Number(e.bundle.amount) || 0), 0);
+    const items = entries.filter(e => e.type === 'item').reduce((t, e) => t + lineAmount(itemPrices[e.key] || { qty: 1, rate: 0 }), 0);
+    return { groups, items, total: groups + items };
+  };
 
   // Whether the top "Group" button should be enabled: 2+ standalone items
   // selected, all within the same section (a bundle can't span sections).
@@ -369,6 +392,63 @@ export default function QuotationGenerator() {
   // checked inside a bundle (pulls just that item out).
   const canUngroup = selectedBundles.size > 0 || selectedBundleMembers.size > 0;
 
+  // ------------------------------------------------------------
+  // SAVING — auto-save 1.5 s after the last change, plus the Save button
+  // ------------------------------------------------------------
+  /** Everything the quote saves onto the event */
+  const buildUpdateData = () => {
+    if (!event) return null;
+    const data = {
+      itemPrices, bundles, hidePrices, finalAmounts, totalAmount: subtotal,
+      quoteDetails: { gstEnabled, gstRate: String(gstRate), validityDays: Number(validityDays) || 15, discount: String(discountText ?? '').trim() },
+    };
+    if (event.mainEvent) {
+      data.mainEvent = { ...event.mainEvent, items: sectionItems.main || [] };
+      data.subEvents = (event.subEvents || []).map(s => ({ ...s, items: sectionItems[s.id] || [] }));
+    } else {
+      data.items = sectionItems.main || [];
+    }
+    return data;
+  };
+
+  /** Writes the quote. `manual` = Save button (toasts); auto-save only updates the indicator. */
+  const saveQuote = async (manual) => {
+    clearTimeout(autoSaveTimer.current);
+    const data = buildUpdateData();
+    const snap = JSON.stringify(data);
+    setSaveState('saving');
+    const result = await updateEvent(eventId, data);
+    if (result.success) {
+      lastSavedRef.current = snap;
+      setSaveState(JSON.stringify(latestDataRef.current) === snap ? 'saved' : 'unsaved');
+      if (manual) showToast('Quotation saved');
+    } else {
+      setSaveState('error');
+      if (manual) showToast(result.error || 'Failed to save quotation', 'error');
+    }
+    return result.success;
+  };
+
+  // Latest data, so a save that finishes can tell whether more edits came in meanwhile
+  const currentData = buildUpdateData();
+  const currentSnap = currentData ? JSON.stringify(currentData) : null;
+  const latestDataRef = useRef(null);
+  latestDataRef.current = currentData;
+
+  // First load sets the baseline (opening a quote never saves by itself);
+  // after that, any change schedules a quiet save.
+  useEffect(() => {
+    if (!loadedRef.current || currentSnap === null) return undefined;
+    if (justSyncedRef.current) { justSyncedRef.current = false; return undefined; }   // values from the event are still being applied
+    if (lastSavedRef.current === null) { lastSavedRef.current = currentSnap; return undefined; }
+    if (currentSnap === lastSavedRef.current) { setSaveState('saved'); return undefined; }
+    setSaveState('unsaved');
+    clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = setTimeout(() => { saveQuote(false); }, 1500);
+    return () => clearTimeout(autoSaveTimer.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSnap]);
+
   if (!event) {
     return (
       <div className="text-center py-12">
@@ -397,6 +477,12 @@ export default function QuotationGenerator() {
     if ((sectionItems[sectionId] || []).includes(itemName)) return;
     setSectionItems(s => ({ ...s, [sectionId]: [...(s[sectionId] || []), itemName] }));
     setItemPrices(p => ({ ...p, [`${sectionId}::${itemName}`]: newPrice(sectionDaysOf(event)[sectionId]) }));
+  };
+
+  /** Asks first (app pop-up), then removes the item from this quotation */
+  const askRemoveItem = async (sectionId, name) => {
+    const ok = await confirm({ title: 'Remove this item?', message: <><b className="text-bb-text">{name}</b> will be taken off this quotation.</>, confirmLabel: 'Remove', tone: 'danger' });
+    if (ok) handleRemoveItem(sectionId, name);
   };
 
   /** Removes an item from the quotation and its price data. If it belonged to a bundle, removes it from that bundle too (deleting the bundle if it drops to 1 member). */
@@ -572,33 +658,13 @@ export default function QuotationGenerator() {
   // EVENT HANDLERS — SAVE
   // ------------------------------------------------------------
 
-  /** Persists the current items, prices, bundles, and hide-prices settings back to the event in context. Awaits the write; toasts real success/failure. */
+  /** Save button — saves straight away */
   const handleSave = async () => {
     if (saving) return;
     setSaving(true);
-    try {
-      const updateData = {
-        itemPrices, bundles, hidePrices, finalAmounts, totalAmount: subtotal,
-        quoteDetails: { gstEnabled, gstRate: String(gstRate), validityDays: Number(validityDays) || 15 },
-      };
-
-      if (event.mainEvent) {
-        updateData.mainEvent = { ...event.mainEvent, items: sectionItems.main || [] };
-        updateData.subEvents = (event.subEvents || []).map(s => ({ ...s, items: sectionItems[s.id] || [] }));
-      } else {
-        updateData.items = sectionItems.main || [];
-      }
-
-      const result = await updateEvent(eventId, updateData);
-      if (result.success) {
-        showToast('Quotation saved');
-      } else {
-        showToast(result.error || 'Failed to save quotation', 'error');
-      }
-    } finally {
-      setSaving(false);
-    }
+    try { await saveQuote(true); } finally { setSaving(false); }
   };
+
 
   // ------------------------------------------------------------
   // EVENT HANDLERS — PRINT / SHARE
@@ -638,6 +704,7 @@ export default function QuotationGenerator() {
       });
     });
     msg += `\n*Subtotal:* ${formatCurrency(subtotal)}`;
+    if (discount.amount > 0) msg += `\n*Discount${discount.pct ? ` (${discount.pct}%)` : ''}:* − ${formatCurrency(discount.amount)}`;
     if (gstEnabled) {
       msg += `\n*GST (${gstRate}%):* ${formatCurrency(gstData.tax)}`;
     }
@@ -673,6 +740,10 @@ export default function QuotationGenerator() {
         <div className="flex items-center gap-3">
           <BackButton />
           <h1 className="text-xl font-bold text-bb-text">Quotation</h1>
+          {/* Auto-save status */}
+          <span className={`text-xs font-semibold ${saveState === 'error' ? 'text-red-600' : saveState === 'saved' ? 'text-emerald-600' : 'text-bb-muted'}`} data-testid="save-state">
+            {saveState === 'saving' ? 'Saving…' : saveState === 'unsaved' ? 'Unsaved changes' : saveState === 'error' ? 'Not saved — tap Save' : '✓ Saved'}
+          </span>
         </div>
 
         {/* Items & Pricing Card */}
@@ -759,6 +830,13 @@ export default function QuotationGenerator() {
                                           <p className="flex-1 min-w-0 text-sm text-bb-text break-words sm:truncate">{memberName}</p>
                                           <PriceFields p={p} hidePrices={hidePrices} label={memberName}
                                             onChange={(field, value) => updateBundleMemberPrice(b, k, field, value)} />
+                                          <button
+                                            onClick={() => askRemoveItem(k.split('::')[0], memberName)}
+                                            className="p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
+                                            title="Remove item" aria-label={`Remove ${memberName}`}
+                                          >
+                                            <X size={16} />
+                                          </button>
                                         </div>
                                       );
                                     })}
@@ -798,7 +876,7 @@ export default function QuotationGenerator() {
                                 <PriceFields p={itemPrices[key] || newPrice(1)} hidePrices={hidePrices} label={name}
                                   onChange={(field, value) => setItemPrices(p => ({ ...p, [key]: { ...(p[key] || newPrice(1)), [field]: value } }))} />
                                 <button
-                                  onClick={() => window.confirm(`Remove “${name}” from this quotation?`) && handleRemoveItem(group.id, name)}
+                                  onClick={() => askRemoveItem(group.id, name)}
                                   className="p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
                                   title="Remove item"
                                 >
@@ -812,15 +890,30 @@ export default function QuotationGenerator() {
                     </SortableContext>
                   </DndContext>
 
-                  {/* Final Amount — only shown while Hide Prices is on; this becomes the section's actual charged total instead of the itemized/bundle sum above */}
+                  {/* Hide Prices on: a guide line (groups + single items, from the prices
+                      entered), then the Final Amount you type — which is what the quote charges */}
+                  {hidePrices && group.items.length > 0 && (() => {
+                    const split = sectionSplit(group);
+                    return (
+                      <p className="mt-3 flex flex-wrap justify-end gap-x-2 text-xs text-violet-900 bg-violet-50 rounded-lg px-3 py-2" data-testid="hidden-summary">
+                        <span>Groups <b>{formatCurrency(split.groups)}</b></span><span>+</span>
+                        <span>Individual items <b>{formatCurrency(split.items)}</b></span><span>=</span>
+                        <span>Total <b>{formatCurrency(split.total)}</b></span>
+                      </p>
+                    );
+                  })()}
                   {hidePrices && (
-                    <Input
-                      label={`${group.name} — Final Amount (₹)`}
-                      type="number" min="0"
-                      value={finalAmounts[group.id] ?? ''}
-                      onChange={e => setFinalAmounts(f => ({ ...f, [group.id]: Number(e.target.value) || 0 }))}
-                      className="mt-2"
-                    />
+                    <div className="mt-2 space-y-1.5">
+                      <label htmlFor={`final-${group.id}`} className="block text-sm font-semibold text-bb-accent">{group.name} — Final Amount (₹)</label>
+                      <input
+                        id={`final-${group.id}`}
+                        type="number" min="0"
+                        value={finalAmounts[group.id] ?? ''}
+                        placeholder="Type the amount to charge"
+                        onChange={e => setFinalAmounts(f => ({ ...f, [group.id]: Number(e.target.value) || 0 }))}
+                        className="w-full rounded-lg px-3 py-2.5 border-2 border-bb-accent bg-violet-50 text-base font-bold text-bb-text focus:outline-none focus:ring-2 focus:ring-bb-accent/40"
+                      />
+                    </div>
                   )}
 
                   {group.items.length === 0 && (
@@ -882,6 +975,20 @@ export default function QuotationGenerator() {
               onChange={e => setValidityDays(Number(e.target.value))}
               className="w-32"
             />
+            <div className="space-y-1.5">
+              <label htmlFor="quote-discount" className="block text-sm font-medium text-bb-text">Discount</label>
+              <div className="flex items-center gap-2">
+                <input
+                  id="quote-discount"
+                  value={discountText}
+                  onChange={e => setDiscountText(e.target.value)}
+                  placeholder="5000 or 10%"
+                  className="w-32 bg-bb-input border border-bb-border rounded-lg px-3 py-2.5 text-bb-text placeholder:text-bb-muted/60 focus:outline-none focus:ring-2 focus:ring-bb-accent"
+                />
+                {discount.amount > 0 && <span className="text-sm font-semibold text-emerald-600" data-testid="discount-amount">− {formatCurrency(discount.amount)}</span>}
+              </div>
+              <p className="text-[11px] text-bb-muted">Amount (5000) or % (10%)</p>
+            </div>
           </div>
         </Card>
 
@@ -1209,6 +1316,12 @@ export default function QuotationGenerator() {
                           <td style={{fontSize: '12px', color: '#6b7280', padding: '8px 16px'}}>Subtotal</td>
                           <td style={{fontSize: '12px', color: '#1f2937', fontWeight: '500', textAlign: 'right', padding: '8px 16px'}}>{formatCurrency(subtotal)}</td>
                         </tr>
+                        {discount.amount > 0 && (
+                          <tr style={{borderTop: '1px solid #f3f4f6'}}>
+                            <td style={{fontSize: '12px', color: '#059669', padding: '6px 16px'}}>Discount{discount.pct ? ` (${discount.pct}%)` : ''}</td>
+                            <td style={{fontSize: '12px', color: '#059669', textAlign: 'right', padding: '6px 16px'}}>− {formatCurrency(discount.amount)}</td>
+                          </tr>
+                        )}
                         {gstEnabled && (
                           <>
                             <tr style={{borderTop: '1px solid #f3f4f6'}}>

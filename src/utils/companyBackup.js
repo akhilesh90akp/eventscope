@@ -20,11 +20,11 @@ export function backupFileName(companyName, now = new Date()) {
  * @param {object} p
  * @param {string} p.tenantId
  * @param {object} p.tenant      tenants/{id} doc
- * @param {Array<{id,data}>} p.events, p.config, p.financials, p.private
+ * @param {Array<{id,data}>} p.events, p.config, p.financials, p.private, p.purchases
  * @param {Array<{uid,email,role,name}>} p.members
  * @param {Array<{email,role}>} p.invites
  */
-export function buildCompanyBackup({ tenantId, tenant, events, config, financials, private: priv, members, invites, exportedAt = new Date().toISOString(), sourceProject = '' }) {
+export function buildCompanyBackup({ tenantId, tenant, events, config, financials, private: priv, purchases, members, invites, exportedAt = new Date().toISOString(), sourceProject = '' }) {
   return {
     format: 'eventscope-backup',
     version: 2,
@@ -37,6 +37,10 @@ export function buildCompanyBackup({ tenantId, tenant, events, config, financial
     financials: financials || [],
     members: (members || []).map(m => ({ uid: m.uid || '', email: m.email || '', role: m.role || 'staff', name: m.name || '' })),
     invites: (invites || []).map(i => ({ email: i.email, role: i.role || 'staff' })),
-    other: priv && priv.length ? { private: priv } : {},
+    // same place the daily Drive backup puts them (other sub-collections)
+    other: {
+      ...(priv && priv.length ? { private: priv } : {}),
+      ...(purchases && purchases.length ? { purchases } : {}),
+    },
   };
 }

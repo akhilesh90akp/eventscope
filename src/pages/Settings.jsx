@@ -31,6 +31,7 @@ import Toggle from '../components/Toggle';
 import ReminderSwitch from '../components/ReminderSwitch';
 import { DEFAULT_CONTRACT_TERMS } from '../constants/contract';
 import { DEFAULT_MAX_PER_DAY } from '../utils/calendar';
+import { useConfirm } from '../components/ConfirmDialog';
 
 // ============================================================
 // CONSTANTS
@@ -56,6 +57,7 @@ const TAB_HELP = {
 /** Multi-tab settings page for company, bank, invoice, and service configuration */
 export default function Settings() {
   const { settings, categories, updateSettings, addCategory, deleteCategory, addItemToCat, removeItemFromCat, logout, user, showToast, canEditSettings, isOwner, isSuspended, team, invites, inviteTeammate, cancelInvite, removeTeammate, promoteToOwner, downloadCompanyBackup } = useApp();
+  const confirm = useConfirm();
   const [backingUp, setBackingUp] = useState(false);
   const [startupText] = useState(lastStartupText);
 
@@ -174,7 +176,7 @@ export default function Settings() {
     if (inviting || !inviteEmail.trim()) return;
     setInviting(true);
     try {
-      if (inviteRole === 'owner' && !window.confirm(`Add ${inviteEmail.trim()} as an OWNER? Owners have full access — settings, team, reports and profit — and can't be removed by other owners.`)) return;
+      if (inviteRole === 'owner' && !(await confirm({ title: 'Add as an owner?', message: <><b className="text-bb-text">{inviteEmail.trim()}</b> will get full access: settings, team, reports and profit.</>, note: 'Owners can’t be removed by other owners.', confirmLabel: 'Add owner', tone: 'warning' }))) return;
       const result = await inviteTeammate(inviteEmail, inviteRole);
       if (result.success) {
         showToast(`Invite added — ask them to sign in with ${inviteEmail.trim()}`);
@@ -196,14 +198,14 @@ export default function Settings() {
 
   /** Makes a staff member an owner, after confirmation (one way for owners) */
   const handlePromote = async (member) => {
-    if (!window.confirm(`Make ${member.name || member.email} an owner? They get full access, including settings, team, reports and profit. Owners can't downgrade or remove each other.`)) return;
+    if (!(await confirm({ title: `Make ${member.name || member.email} an owner?`, message: 'They get full access, including settings, team, reports and profit.', note: 'Owners can’t downgrade or remove each other.', confirmLabel: 'Make owner', tone: 'warning' }))) return;
     const result = await promoteToOwner(member.uid);
     showToast(result.success ? `${member.name || member.email} is now an owner` : result.error, result.success ? 'success' : 'error');
   };
 
   /** Removes a staff member after confirmation */
   const handleRemove = async (member) => {
-    if (!window.confirm(`Remove ${member.name || member.email} from your company? They will lose access immediately.`)) return;
+    if (!(await confirm({ title: 'Remove teammate?', message: <><b className="text-bb-text">{member.name || member.email}</b> will lose access to your company straight away.</>, note: 'You can invite them again later.', confirmLabel: 'Remove', tone: 'danger' }))) return;
     const result = await removeTeammate(member.uid);
     showToast(result.success ? 'Teammate removed' : result.error, result.success ? 'success' : 'error');
   };
@@ -441,7 +443,7 @@ export default function Settings() {
                   <button onClick={() => { setCatModal(cat.id); setNewItemInput(''); }} className="p-1.5 rounded text-bb-muted hover:text-bb-accent cursor-pointer">
                     <Edit2 size={16} />
                   </button>
-                  <button onClick={() => window.confirm(`Delete the “${cat.name}” category and its ${cat.items.length} items? Existing quotations aren’t affected.`) && deleteCategory(cat.id)} className="p-1.5 rounded text-bb-muted hover:text-red-400 cursor-pointer" title="Delete category">
+                  <button onClick={async () => (await confirm({ title: `Delete “${cat.name}”?`, message: `The category and its ${cat.items.length} items will be removed. Existing quotations aren’t affected.`, confirmLabel: 'Delete', tone: 'danger' })) && deleteCategory(cat.id)} className="p-1.5 rounded text-bb-muted hover:text-red-400 cursor-pointer" title="Delete category">
                     <Trash2 size={16} />
                   </button>
                 </div>

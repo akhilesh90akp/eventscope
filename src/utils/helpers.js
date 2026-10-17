@@ -64,6 +64,21 @@ export const parseMoney = (raw) => {
   return Number.isFinite(n) ? n : null;
 };
 
+/**
+ * A Job Log money cell: a plain number, or a quick sum like "12000+15000-500".
+ * → { value, formula } — formula is the cleaned sum text when there was one
+ *   (shown again when the cell is opened), otherwise null.
+ * Blank → { value: null, formula: null }; not a number or sum → null.
+ */
+export const parseMoneyExpr = (raw) => {
+  const text = String(raw ?? '').replace(/[₹,\s]/g, '').replace(/^Rs\.?/i, '');
+  if (text === '' || text === '-' || text === '—') return { value: null, formula: null };
+  if (!/^[-+]?\d+(\.\d+)?([-+]\d+(\.\d+)?)*$/.test(text)) return null;
+  const parts = text.match(/[-+]?\d+(\.\d+)?/g);
+  const value = Math.round(parts.reduce((s, n) => s + Number(n), 0) * 100) / 100;
+  return { value, formula: parts.length > 1 ? text.replace(/^\+/, '') : null };
+};
+
 // ============================================================
 // CALCULATIONS
 // ============================================================
@@ -80,6 +95,24 @@ export const calcGST = (subtotal, rate = 18, interState = false) => {
   const tax = (subtotal * rate) / 100;
   if (interState) return { cgst: 0, sgst: 0, igst: tax, tax, total: subtotal + tax };
   return { cgst: tax/2, sgst: tax/2, igst: 0, tax, total: subtotal + tax };
+};
+
+/**
+ * A discount typed as an amount ("5000", "₹5,000") or a percentage ("10%")
+ * → { amount, pct } against `base` (rounded to the rupee, never more than base).
+ * Blank or invalid → { amount: 0, pct: null }.
+ */
+export const parseDiscount = (raw, base = 0) => {
+  const text = String(raw ?? '').trim();
+  if (!text) return { amount: 0, pct: null };
+  const pctMatch = text.match(/^(\d+(?:\.\d+)?)\s*%$/);
+  if (pctMatch) {
+    const pct = Math.min(100, Number(pctMatch[1]));
+    return { amount: Math.round((Number(base) || 0) * pct / 100), pct };
+  }
+  const n = Number(text.replace(/[₹,\s]/g, ''));
+  if (!Number.isFinite(n) || n <= 0) return { amount: 0, pct: null };
+  return { amount: Math.min(Math.round(n), Math.max(0, Number(base) || 0)), pct: null };
 };
 
 /**
@@ -509,7 +542,10 @@ const getEventSubtotal = (event) => {
 export const getEventBill = (event) => {
   const bd = event?.billDetails || {};
   const subtotal = getEventSubtotal(event);
-  const discount = Number(bd.discount) || 0;
+  // the bill's own discount once it's been set; until then, the quote's
+  const discount = bd.discount !== undefined && bd.discount !== ''
+    ? Number(bd.discount) || 0
+    : parseDiscount(event?.quoteDetails?.discount, subtotal).amount;
   const revenue = Math.max(0, subtotal - discount);
   const gstOn = bd.gstEnabled !== undefined ? !!bd.gstEnabled : false;
   const gst = gstOn ? calcGST(revenue, Number(bd.gstRate) || 0, !!bd.interState).tax : 0;

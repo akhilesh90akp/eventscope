@@ -16,6 +16,7 @@ const sizeClasses = {
   sm: 'max-w-sm',
   md: 'max-w-md',
   lg: 'max-w-lg',
+  xl: 'max-w-lg md:max-w-[980px]',   // phone-sized on phones, wide on laptops
 };
 
 /** Renders a centered overlay modal with title and close controls */
@@ -45,7 +46,7 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md' })
       {/* Modal panel */}
       <div
         className={`
-          relative w-full ${sizeClasses[size]}
+          relative w-full ${sizeClasses[size]} ${size === 'xl' ? 'max-h-[92dvh] flex flex-col' : ''}
           bg-white border border-bb-border rounded-xl shadow-2xl
         `}
       >
@@ -61,7 +62,7 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md' })
         </div>
 
         {/* Body content */}
-        <div className="px-5 py-4">{children}</div>
+        <div className={`px-5 py-4 ${size === 'xl' ? 'overflow-y-auto' : ''}`}>{children}</div>
       </div>
     </div>
   );

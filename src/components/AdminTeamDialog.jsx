@@ -13,6 +13,7 @@
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import Modal from './Modal';
+import { useConfirm } from './ConfirmDialog';
 
 // ============================================================
 // AdminTeamDialog — MAIN COMPONENT
@@ -20,6 +21,7 @@ import Modal from './Modal';
 
 export default function AdminTeamDialog({ tenant, onClose }) {
   const { subscribeTenantTeam, adminTeamAction, showToast } = useApp();
+  const confirm = useConfirm();
 
   // ------------------------------------------------------------
   // STATE
@@ -47,7 +49,7 @@ export default function AdminTeamDialog({ tenant, onClose }) {
   // EVENT HANDLERS
   // ------------------------------------------------------------
   const run = async (key, action, target, confirmText, okText) => {
-    if (confirmText && !window.confirm(confirmText)) return;
+    if (confirmText && !(await confirm(confirmText))) return;
     setBusy(key);
     const result = await adminTeamAction(action, target);
     setBusy(null);
@@ -82,15 +84,15 @@ export default function AdminTeamDialog({ tenant, onClose }) {
                   </span>
                   {m.role === 'owner' ? (
                     <button disabled={busy === m.uid || isLastOwner(m)} title={isLastOwner(m) ? 'A company needs at least one owner' : ''}
-                      onClick={() => run(m.uid, 'setRole', { uid: m.uid, role: 'staff' }, `Make ${name} staff? They lose settings, team, reports and profit.`, `${name} is now staff`)}
+                      onClick={() => run(m.uid, 'setRole', { uid: m.uid, role: 'staff' }, { title: `Make ${name} staff?`, message: 'They lose settings, team, reports and profit.', confirmLabel: 'Make staff', tone: 'warning' }, `${name} is now staff`)}
                       className={`${link} text-amber-700`}>Make staff</button>
                   ) : (
                     <button disabled={busy === m.uid}
-                      onClick={() => run(m.uid, 'setRole', { uid: m.uid, role: 'owner' }, `Make ${name} an owner?`, `${name} is now an owner`)}
+                      onClick={() => run(m.uid, 'setRole', { uid: m.uid, role: 'owner' }, { title: `Make ${name} an owner?`, message: 'They get full access: settings, team, reports and profit.', confirmLabel: 'Make owner', tone: 'warning' }, `${name} is now an owner`)}
                       className={`${link} text-bb-accent`}>Make owner</button>
                   )}
                   <button disabled={busy === m.uid || isLastOwner(m)} title={isLastOwner(m) ? 'A company needs at least one owner' : ''}
-                    onClick={() => run(m.uid, 'remove', { uid: m.uid }, `Remove ${name} from ${tenant.name}? They lose access immediately.`, `${name} removed`)}
+                    onClick={() => run(m.uid, 'remove', { uid: m.uid }, { title: `Remove ${name}?`, message: `They lose access to ${tenant.name} straight away.`, confirmLabel: 'Remove', tone: 'danger' }, `${name} removed`)}
                     className={`${link} text-red-600`}>Remove</button>
                 </div>
               );
@@ -103,7 +105,7 @@ export default function AdminTeamDialog({ tenant, onClose }) {
                 </div>
                 <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 whitespace-nowrap">Invited · {inv.role === 'owner' ? 'Owner' : 'Staff'}</span>
                 <button disabled={busy === inv.email}
-                  onClick={() => run(inv.email, 'cancelInvite', { email: inv.email }, `Cancel the invite for ${inv.email}?`, 'Invite cancelled')}
+                  onClick={() => run(inv.email, 'cancelInvite', { email: inv.email }, { title: 'Cancel this invite?', message: inv.email, confirmLabel: 'Cancel invite', cancelLabel: 'Keep', tone: 'danger' }, 'Invite cancelled')}
                   className={`${link} text-bb-muted hover:text-red-600`}>Cancel</button>
               </div>
             ))}

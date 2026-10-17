@@ -26,7 +26,7 @@ import Select from '../components/Select';
 import Toggle from '../components/Toggle';
 import Card from '../components/Card';
 import DaysCell from '../components/DaysCell';
-import { formatCurrency, formatDateReadable, calcGST, roundOff, nextInvoiceNo, waLink, buildLineEntries, computeSectionTotal, getEventSections, functionDateText, itemDays, lineAmount, usesDays } from '../utils/helpers';
+import { formatCurrency, formatDateReadable, calcGST, roundOff, nextInvoiceNo, waLink, buildLineEntries, computeSectionTotal, getEventSections, functionDateText, itemDays, lineAmount, usesDays, getEventBill } from '../utils/helpers';
 import { DEFAULT_SAC_CODE } from '../constants/data';
 import { Printer, MessageSquare, Save } from 'lucide-react';
 
@@ -55,7 +55,9 @@ export default function BillGenerator() {
   const [invoiceDate, setInvoiceDate] = useState(() => bd.invoiceDate ?? new Date().toISOString().split('T')[0]);
   const [billToName, setBillToName] = useState(() => bd.billToName ?? event?.clientName ?? '');
   const [billToAddress, setBillToAddress] = useState(() => bd.billToAddress ?? event?.clientAddress ?? '');
-  const [discount, setDiscount] = useState(() => bd.discount ?? 0);
+  // A new bill starts with the discount given on the quote (if any)
+  const quoteDiscount = (ev) => (ev ? getEventBill({ ...ev, billDetails: undefined }).discount : 0);
+  const [discount, setDiscount] = useState(() => bd.discount ?? quoteDiscount(event));
   const [advance, setAdvance] = useState(() => bd.advance ?? 0);
   // A new bill starts with the GST choice made on the quote (if any)
   const qd = event?.quoteDetails || {};
@@ -95,7 +97,7 @@ export default function BillGenerator() {
       invoiceDate: loaded.invoiceDate ?? invoiceDate,
       billToName: loaded.billToName ?? billToName,
       billToAddress: loaded.billToAddress ?? billToAddress,
-      discount: loaded.discount ?? discount,
+      discount: loaded.discount ?? quoteDiscount(event),
       advance: loaded.advance ?? advance,
       gstEnabled: loaded.gstEnabled ?? event.quoteDetails?.gstEnabled ?? gstEnabled,
       gstRate: loaded.gstRate ?? event.quoteDetails?.gstRate ?? gstRate,

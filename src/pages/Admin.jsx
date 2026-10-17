@@ -20,6 +20,7 @@ import AdminTeamDialog from '../components/AdminTeamDialog';
 import { PLANS } from '../constants/data';
 import { formatDateReadable } from '../utils/helpers';
 import { Shield, Search, Lock, Upload } from 'lucide-react';
+import { useConfirm } from '../components/ConfirmDialog';
 
 // ============================================================
 // HELPERS
@@ -33,6 +34,7 @@ const isNew = (t) => t.createdAt && Date.now() - new Date(t.createdAt).getTime()
 
 export default function Admin() {
   const { isPlatformAdmin, subscribeAllTenants, getTenantCounts, adminUpdateTenant, showToast } = useApp();
+  const confirm = useConfirm();
 
   // ------------------------------------------------------------
   // STATE
@@ -90,7 +92,7 @@ export default function Admin() {
   // EVENT HANDLERS
   // ------------------------------------------------------------
   const update = async (t, patch, confirmText) => {
-    if (confirmText && !window.confirm(confirmText)) return;
+    if (confirmText && !(await confirm(confirmText))) return;
     setBusyId(t.id);
     const result = await adminUpdateTenant(t.id, patch);
     setBusyId(null);
@@ -196,7 +198,7 @@ export default function Admin() {
                 </select>
                 <button onClick={() => setTeamFor(t)} className="text-sm font-semibold text-bb-accent px-2 py-1.5 cursor-pointer">Manage team</button>
                 {status === 'active' ? (
-                  <button disabled={busyId === t.id} onClick={() => update(t, { status: 'suspended' }, `Suspend ${t.name || t.id}? Their team can still view data but can't make changes.`)}
+                  <button disabled={busyId === t.id} onClick={() => update(t, { status: 'suspended' }, { title: `Suspend ${t.name || t.id}?`, message: 'Their team can still view their data but can’t make changes.', confirmLabel: 'Suspend', tone: 'warning' })}
                     className="ml-auto text-sm font-semibold text-amber-700 px-2 py-1.5 cursor-pointer disabled:opacity-40">Suspend</button>
                 ) : (
                   <button disabled={busyId === t.id} onClick={() => update(t, { status: 'active' })}
@@ -261,7 +263,7 @@ export default function Admin() {
                       </td>
                       <td className="py-2.5 px-2 text-right whitespace-nowrap">
                         {status === 'active' ? (
-                          <button disabled={busyId === t.id} onClick={() => update(t, { status: 'suspended' }, `Suspend ${t.name || t.id}? Their team can still view data but can't make changes.`)}
+                          <button disabled={busyId === t.id} onClick={() => update(t, { status: 'suspended' }, { title: `Suspend ${t.name || t.id}?`, message: 'Their team can still view their data but can’t make changes.', confirmLabel: 'Suspend', tone: 'warning' })}
                             className="text-xs font-semibold text-amber-700 hover:underline cursor-pointer disabled:opacity-40">Suspend</button>
                         ) : (
                           <button disabled={busyId === t.id} onClick={() => update(t, { status: 'active' })}

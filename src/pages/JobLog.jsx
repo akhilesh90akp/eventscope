@@ -21,9 +21,10 @@
 // ============================================================
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { getEventBill, computeEventFinancials, parseMoney, formatDateRange, functionEnd } from '../utils/helpers';
+import { getEventBill, computeEventFinancials, parseMoneyExpr, formatDateRange, functionEnd } from '../utils/helpers';
 import { exportJobLogToExcel, readJobLogFromExcel } from '../utils/jobLogExcel';
 import { Download, Upload, Loader2 } from 'lucide-react';
+import { useConfirm } from '../components/ConfirmDialog';
 
 // ============================================================
 // CONSTANTS
@@ -112,6 +113,7 @@ function JobLogGrid() {
     events, loaded, financials, financialsLoaded, jobLogColumns, saveFinancials,
     settings, tenant, isOwner, canEditEvents, showToast,
   } = useApp();
+  const confirm = useConfirm();
 
   // ------------------------------------------------------------
   // STATE
@@ -172,6 +174,7 @@ function JobLogGrid() {
         type: e.eventType || '',
         ...bill,
         values,
+        formulas: financials[e.id]?.formulas || {},
         calc: computeEventFinancials(bill.revenue, values, jobLogColumns),
       };
     }), [completed, period, typeFilter, financials, jobLogColumns]);
@@ -223,15 +226,16 @@ function JobLogGrid() {
       save([{ eventId: row.id, columnId: col.id, value }]);
       return;
     }
-    const value = parseMoney(text);
-    if (text.trim() !== '' && value === null) {
-      showToast(`“${text}” isn’t a number — not saved`, 'error');
+    const parsed = parseMoneyExpr(text);
+    if (!parsed) {
+      showToast(`“${text}” isn’t a number or a sum like 12000+3500 — not saved`, 'error');
       return;
     }
+    const { value, formula } = parsed;
     const current = row.values[col.id];
     const currentNum = current === null || current === undefined || current === '' ? null : Number(current);
-    if (value === currentNum) return;
-    save([{ eventId: row.id, columnId: col.id, value }]);
+    if (value === currentNum && formula === (row.formulas[col.id] || null)) return;
+    save([{ eventId: row.id, columnId: col.id, value, formula }]);
   };
 
   // ------------------------------------------------------------
@@ -279,9 +283,9 @@ function JobLogGrid() {
           changes.push({ eventId: row.id, columnId: col.id, value: cellText.trim() || null });
           return;
         }
-        const value = parseMoney(cellText);
-        if (cellText.trim() !== '' && value === null) { skipped++; return; }
-        changes.push({ eventId: row.id, columnId: col.id, value });
+        const parsed = parseMoneyExpr(cellText);
+        if (!parsed) { skipped++; return; }
+        changes.push({ eventId: row.id, columnId: col.id, value: parsed.value, formula: parsed.formula });
       });
     });
     // Drop any half-typed text in the pasted cells (incl. the focused one),
@@ -341,8 +345,13 @@ function JobLogGrid() {
         res.unknownEventRows ? `${res.unknownEventRows} rows didn’t match an event` : '',
         res.badCells ? `${res.badCells} cells weren’t numbers` : '',
       ].filter(Boolean).join(', ');
-      if (!window.confirm(`Update ${changes.length} value${changes.length === 1 ? '' : 's'} across ${eventsTouched} event${eventsTouched === 1 ? '' : 's'}?${notes ? `\n(${notes} — these will be skipped.)` : ''}`)) return;
-      if (await save(changes)) showToast(`Updated ${eventsTouched} events from Excel`);
+      if (!(await confirm({
+        title: `Update ${changes.length} value${changes.length === 1 ? '' : 's'}?`,
+        message: `From your Excel file, across ${eventsTouched} event${eventsTouched === 1 ? '' : 's'}.`,
+        note: notes ? `${notes} — these will be skipped.` : undefined,
+        confirmLabel: 'Update', tone: 'warning',
+      }))) return;
+      if (await save(changes.map(ch => ({ ...ch, formula: null })))) showToast(`Updated ${eventsTouched} events from Excel`);
     } catch (err) {
       showToast('Couldn’t read that file: ' + err.message, 'error');
     } finally {
@@ -387,6 +396,7 @@ function JobLogGrid() {
     const key = draftKey(row.id, col.id);
     const stored = row.values[col.id];
     const isText = col.type === 'text';
+    const formula = isText ? null : row.formulas[col.id] || null;
     const shown = key in drafts ? drafts[key] : (isText ? (stored || '') : rupees(stored));
     const bg = col.type === 'income' ? 'bg-emerald-50/60' : isText ? 'bg-slate-50/60' : 'bg-white';
     return (
@@ -398,9 +408,10 @@ function JobLogGrid() {
           disabled={readOnly}
           value={shown}
           placeholder="—"
-          title={isText ? (stored || '') : undefined}
+          title={isText ? (stored || '') : formula ? `${formula.replace(/([-+])/g, ' $1 ')} = ${rupees(stored)}` : undefined}
           onFocus={e => {
-            setDrafts(d => ({ ...d, [key]: stored === null || stored === undefined ? '' : String(stored) }));
+            // a cell saved as a sum opens showing the sum, so it can be edited
+            setDrafts(d => ({ ...d, [key]: formula || (stored === null || stored === undefined ? '' : String(stored)) }));
             requestAnimationFrame(() => e.target.select());
           }}
           onChange={e => setDrafts(d => ({ ...d, [key]: e.target.value }))}
@@ -457,7 +468,7 @@ function JobLogGrid() {
         <button onClick={handleDownload} disabled={busy} className="sm:hidden inline-flex items-center gap-1 text-sm font-semibold border border-bb-border bg-white rounded-lg px-3 py-2"><Download size={14} /> Excel</button>
         <button onClick={() => fileRef.current?.click()} disabled={busy || readOnly} className="sm:hidden inline-flex items-center gap-1 text-sm font-semibold border border-bb-border bg-white rounded-lg px-3 py-2"><Upload size={14} /></button>
         <span className="hidden md:inline text-xs text-bb-muted ml-1">
-          Click a cell and type · Tab → next column · Enter ↓ next row · Paste a block copied from Excel
+          Click a cell and type · sums work too: 12000+3500 · Tab → next column · Enter ↓ next row · Paste a block copied from Excel
         </span>
       </div>
 

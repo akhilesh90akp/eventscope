@@ -40,7 +40,7 @@ test('parseBackup cleans old-app fields and counts what will be imported', () =>
   assert.equal(r.events[0].data.sheetSyncedAt, undefined);
   assert.equal(r.events[0].data.totalAmount, 100);
   assert.equal(r.events[0].data.createdAt, '2026-01-01T00:00:00.000Z');
-  assert.deepEqual(r.counts, { events: 2, bills: 1, categories: 1, costs: 0, byStatus: { completed: 1, draft: 1 } });
+  assert.deepEqual(r.counts, { events: 2, bills: 1, categories: 1, costs: 0, purchases: 0, byStatus: { completed: 1, draft: 1 } });
   assert.deepEqual([r.owners, r.staff, r.financials, r.jobLogColumns, r.tenantId], [[], [], [], null, '']); // v1 has none of these
 });
 
@@ -52,7 +52,10 @@ test('parseBackup reads a full EventScope backup (v2): Job Log, team and contact
     financials: [{ id: 'e1', data: { values: { labour: 1200 }, updatedAt: '2026-10-01T00:00:00Z' } }],
     members: [{ uid: 'u1', email: 'Boss@Gmail.com', role: 'owner' }, { uid: 'u2', email: 'staff@gmail.com', role: 'staff' }, { email: 'bad', role: 'staff' }],
     invites: [{ email: 'new@gmail.com', role: 'staff' }, { email: 'boss@gmail.com', role: 'staff' }],
-    other: { private: [{ id: 'contact', data: { recoveryEmail: 'r@gmail.com' } }] },
+    other: {
+      private: [{ id: 'contact', data: { recoveryEmail: 'r@gmail.com' } }],
+      purchases: [{ id: 'p1', data: { mode: 'total', date: '2026-09-30', amount: 70000 } }],
+    },
   };
   const r = parseBackup(v2);
   assert.equal(r.ok, true);
@@ -63,6 +66,8 @@ test('parseBackup reads a full EventScope backup (v2): Job Log, team and contact
   assert.deepEqual(r.staff, ['staff@gmail.com', 'new@gmail.com']);
   assert.deepEqual(r.contact, { recoveryEmail: 'r@gmail.com' });
   assert.equal(r.counts.costs, 1);
+  assert.deepEqual(r.purchases, [{ id: 'p1', data: { mode: 'total', date: '2026-09-30', amount: 70000 } }]);
+  assert.equal(r.counts.purchases, 1);
   assert.equal(parseBackup({ ...v2, financials: [{ id: 'x/y', data: {} }] }).ok, false);
 });
 

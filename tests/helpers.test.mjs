@@ -15,7 +15,7 @@ import {
   parseMoney, calcGST, roundOff, getEventBill, getEventRevenue,
   computeEventFinancials, inviteKey, genInvoiceNo, nextInvoiceNo,
   functionDays, functionEnd, formatDateRange, functionDateText, itemDays, lineAmount, usesDays,
-  computeSectionTotal, getAllEventDates, getEventSections,
+  computeSectionTotal, getAllEventDates, getEventSections, parseDiscount, parseMoneyExpr,
 } from '../src/utils/helpers.js';
 
 // ============================================================
@@ -213,4 +213,33 @@ test('a multi-day function is not "past" until its last day; sections carry the 
   const { eventGroups } = getEventSections(ev);
   assert.equal(eventGroups[0].days, 2);
   assert.equal(eventGroups[0].endDate, iso(today));
+});
+
+// ============================================================
+// DISCOUNT (quote → bill)
+// ============================================================
+test('parseDiscount: amount, percent, blank, too big', () => {
+  assert.deepEqual(parseDiscount('5000', 100000), { amount: 5000, pct: null });
+  assert.deepEqual(parseDiscount('₹5,000', 100000), { amount: 5000, pct: null });
+  assert.deepEqual(parseDiscount('10%', 85500), { amount: 8550, pct: 10 });
+  assert.deepEqual(parseDiscount('', 1000), { amount: 0, pct: null });
+  assert.deepEqual(parseDiscount('abc', 1000), { amount: 0, pct: null });
+  assert.equal(parseDiscount('9999', 1000).amount, 1000);
+});
+
+test('getEventBill: uses the quote discount until the bill sets its own', () => {
+  const ev = { totalAmount: 100000, quoteDetails: { discount: '10%' }, billDetails: { invoiceNo: 'INV-2' } };
+  assert.equal(getEventBill(ev).revenue, 90000);
+  assert.equal(getEventBill({ ...ev, billDetails: { invoiceNo: 'INV-2', discount: 2000 } }).revenue, 98000);
+  assert.equal(getEventBill({ ...ev, billDetails: { invoiceNo: 'INV-2', discount: 0 } }).revenue, 100000);
+});
+
+test('parseMoneyExpr: sums in Job Log cells', () => {
+  assert.deepEqual(parseMoneyExpr('12000+15000+3500'), { value: 30500, formula: '12000+15000+3500' });
+  assert.deepEqual(parseMoneyExpr('₹12,000 + 500 - 200'), { value: 12300, formula: '12000+500-200' });
+  assert.deepEqual(parseMoneyExpr('4500'), { value: 4500, formula: null });
+  assert.deepEqual(parseMoneyExpr('-300'), { value: -300, formula: null });
+  assert.deepEqual(parseMoneyExpr(''), { value: null, formula: null });
+  assert.equal(parseMoneyExpr('12k'), null);
+  assert.equal(parseMoneyExpr('1++2'), null);
 });

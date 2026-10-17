@@ -15,6 +15,7 @@
  *   tenants/{tenantId}/config/jobLog          Job Log columns (owner-editable)
  *   tenants/{tenantId}/events/{eventId}       one doc per event/draft
  *   tenants/{tenantId}/financials/{eventId}   { values: { [columnId]: number|string|null } } — costs/income/notes
+ *   tenants/{tenantId}/purchases/{id}         things bought for the business (owners only, see utils/purchases.js)
  *   tenants/{tenantId}/pushTokens/{tokenId}   { uid, token, device, createdAt } — an owner device for reminders (own only)
  *
  * firestore.rules enforces the same boundaries server-side; the permission
@@ -39,6 +40,7 @@ import { genId, inviteKey } from '../utils/helpers';
 import { buildCompanyBackup, backupFileName } from '../utils/companyBackup';
 import { markStartup } from '../utils/startupTiming';
 import { requestPushToken, dropPushToken, rememberTokenId, savedTokenId, deviceLabel } from '../utils/push';
+import { useConfirm } from '../components/ConfirmDialog';
 
 // ============================================================
 // CONSTANTS
@@ -123,6 +125,7 @@ async function joinViaInvite(user, invite) {
 // ============================================================
 
 export function AppProvider({ children }) {
+  const confirm = useConfirm();   // app-style confirmation pop-ups (components/ConfirmDialog)
   // ------------------------------------------------------------
   // STATE
   // ------------------------------------------------------------
@@ -151,6 +154,8 @@ export function AppProvider({ children }) {
   const [jobLogColumns, setJobLogColumns] = useState(DEFAULT_JOBLOG_COLUMNS);
   const [financials, setFinancials] = useState({});       // { [eventId]: { values, updatedAt, updatedBy } }
   const [financialsLoaded, setFinancialsLoaded] = useState(false);
+  const [purchases, setPurchases] = useState([]);         // [{ id, mode, date, name, qty, category, amount, note }] — owners only
+  const [purchasesLoaded, setPurchasesLoaded] = useState(false);
 
   // Team (owner only)
   const [team, setTeam] = useState([]);
@@ -195,7 +200,7 @@ export function AppProvider({ children }) {
    * Always asks first — every Log out / Sign out button goes through here.
    */
   const logout = async () => {
-    if (!window.confirm('Log out of EventScope?\n\nYou’ll need to sign in with Google again, and this device’s saved copy of your data will be cleared.')) return;
+    if (!(await confirm({ title: 'Log out of EventScope?', message: 'You’ll need to sign in with Google again, and this device’s saved copy of your data will be cleared.', confirmLabel: 'Log out', tone: 'logout' }))) return;
     clearBoot();
     setSigningOut(true);
     // Cap the cleanup so a slow phone never sits on "Signing out" for long
@@ -382,6 +387,22 @@ export function AppProvider({ children }) {
   const isSuspended = tenant?.status === 'suspended';
   const canEditEvents = !!tenantId && !isSuspended;
   const canEditSettings = isOwner && !isSuspended;
+
+  // Purchases — owners only (the rules refuse staff, so staff never listen)
+  useEffect(() => {
+    if (!tenantId || role !== 'owner') {
+      setPurchases([]);
+      setPurchasesLoaded(false);
+      return undefined;
+    }
+    return onSnapshot(collection(db, 'tenants', tenantId, 'purchases'), (snap) => {
+      setPurchases(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setPurchasesLoaded(true);
+    }, (err) => {
+      console.error('Purchases listener error:', err.code, err.message);
+      setPurchasesLoaded(true);
+    });
+  }, [tenantId, role, loadAttempt]);
 
   /** Job Log columns the owner hasn't removed (removed ones keep their values) */
   const activeJobLogColumns = jobLogColumns.filter(c => !c.hidden);
@@ -662,6 +683,59 @@ export function AppProvider({ children }) {
   };
 
   // ------------------------------------------------------------
+  // PURCHASES (owner only)
+  // ------------------------------------------------------------
+
+  /** Saves one or more new purchases together (already cleaned by cleanPurchase). */
+  const addPurchases = async (list) => {
+    const blocked = writeBlockedReason({ ownerOnly: true });
+    if (blocked) { showToast(blocked, 'error'); return { success: false, error: blocked }; }
+    try {
+      const now = new Date().toISOString();
+      const batch = writeBatch(db);
+      list.forEach((p, i) => batch.set(doc(db, 'tenants', tenantId, 'purchases', genId()), {
+        ...p, createdAt: new Date(Date.parse(now) + i).toISOString(), createdBy: user.uid,
+      }));
+      await batch.commit();
+      return { success: true };
+    } catch (err) {
+      console.error('Error adding purchases:', err.code, err.message);
+      const error = friendlyError(err, 'save the purchase');
+      showToast(error, 'error');
+      return { success: false, error };
+    }
+  };
+
+  /** Replaces one purchase's fields (keeps createdAt/createdBy). */
+  const updatePurchase = async (id, data) => {
+    const blocked = writeBlockedReason({ ownerOnly: true });
+    if (blocked) { showToast(blocked, 'error'); return { success: false, error: blocked }; }
+    try {
+      await updateDoc(doc(db, 'tenants', tenantId, 'purchases', id), { ...data, updatedAt: new Date().toISOString() });
+      return { success: true };
+    } catch (err) {
+      console.error('Error updating purchase:', err.code, err.message);
+      const error = friendlyError(err, 'save the purchase');
+      showToast(error, 'error');
+      return { success: false, error };
+    }
+  };
+
+  const deletePurchase = async (id) => {
+    const blocked = writeBlockedReason({ ownerOnly: true });
+    if (blocked) { showToast(blocked, 'error'); return { success: false, error: blocked }; }
+    try {
+      await deleteDoc(doc(db, 'tenants', tenantId, 'purchases', id));
+      return { success: true };
+    } catch (err) {
+      console.error('Error deleting purchase:', err.code, err.message);
+      const error = friendlyError(err, 'delete the purchase');
+      showToast(error, 'error');
+      return { success: false, error };
+    }
+  };
+
+  // ------------------------------------------------------------
   // SETTINGS OPERATIONS (owner only)
   // ------------------------------------------------------------
 
@@ -741,9 +815,13 @@ export function AppProvider({ children }) {
     }
     if (!changes.length) return { success: true };
 
+    // a money cell typed as a sum ("12000+3500") also keeps that sum in
+    // formulas[col]; any other change to the cell clears it
     const byEvent = {};
-    changes.forEach(({ eventId, columnId, value }) => {
+    const formulasByEvent = {};
+    changes.forEach(({ eventId, columnId, value, formula }) => {
       (byEvent[eventId] = byEvent[eventId] || {})[columnId] = value;
+      if (formula !== undefined) (formulasByEvent[eventId] = formulasByEvent[eventId] || {})[columnId] = formula || null;
     });
     const now = new Date().toISOString();
     try {
@@ -753,7 +831,7 @@ export function AppProvider({ children }) {
         ids.slice(i, i + BATCH_LIMIT).forEach(eventId => {
           batch.set(
             doc(db, 'tenants', tenantId, 'financials', eventId),
-            { values: byEvent[eventId], updatedAt: now, updatedBy: user.uid },
+            { values: byEvent[eventId], ...(formulasByEvent[eventId] ? { formulas: formulasByEvent[eventId] } : {}), updatedAt: now, updatedBy: user.uid },
             { merge: true }, // merge keeps the event's other columns
           );
         });
@@ -813,16 +891,16 @@ export function AppProvider({ children }) {
     if (!isOwner || !tenantId) return { success: false, error: 'Only owners can download a backup.' };
     try {
       const sub = async (name) => (await getDocs(collection(db, 'tenants', tenantId, name))).docs.map(d => ({ id: d.id, data: d.data() }));
-      const [tSnap, evs, cfg, fin, priv, mem, inv] = await Promise.all([
+      const [tSnap, evs, cfg, fin, priv, pur, mem, inv] = await Promise.all([
         getDoc(doc(db, 'tenants', tenantId)),
-        sub('events'), sub('config'), sub('financials'), sub('private'),
+        sub('events'), sub('config'), sub('financials'), sub('private'), sub('purchases'),
         getDocs(query(collection(db, 'users'), where('tenantId', '==', tenantId))),
         getDocs(query(collection(db, 'invites'), where('tenantId', '==', tenantId))),
       ]);
       const backup = buildCompanyBackup({
         tenantId,
         tenant: tSnap.exists() ? tSnap.data() : {},
-        events: evs, config: cfg, financials: fin, private: priv,
+        events: evs, config: cfg, financials: fin, private: priv, purchases: pur,
         members: mem.docs.map(d => ({ uid: d.id, ...d.data() })),
         invites: inv.docs.map(d => ({ email: d.id, ...d.data() })),
         sourceProject: db.app?.options?.projectId || '',
@@ -950,6 +1028,7 @@ export function AppProvider({ children }) {
       const rows = [
         ...backup.events.map(e => [doc(db, 'tenants', newId, 'events', e.id), e.data]),
         ...(backup.financials || []).map(f => [doc(db, 'tenants', newId, 'financials', f.id), f.data]),
+        ...(backup.purchases || []).map(p => [doc(db, 'tenants', newId, 'purchases', p.id), p.data]),
       ];
       for (let i = 0; i < rows.length; i += BATCH_LIMIT) {
         const batch = writeBatch(db);
@@ -1008,6 +1087,8 @@ export function AppProvider({ children }) {
       // Job Log
       jobLogColumns: activeJobLogColumns, allJobLogColumns: jobLogColumns,
       financials, financialsLoaded, saveFinancials, saveJobLogColumns,
+      // Purchases (owner only)
+      purchases, purchasesLoaded, addPurchases, updatePurchase, deletePurchase,
       // Backup
       downloadCompanyBackup,
       // Reminders (push notifications)

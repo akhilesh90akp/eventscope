@@ -109,7 +109,7 @@ export default function ImportCompanyDialog({ isOpen, onClose }) {
           <CheckCircle2 size={40} className="mx-auto text-emerald-500 mb-3" />
           <p className="font-semibold text-bb-text mb-1">{name} is in.</p>
           <p className="text-sm text-bb-muted mb-5">
-            {backup.counts.events} events{backup.counts.costs > 0 && `, ${backup.counts.costs} Job Log records`}, settings and categories saved. {done.invited} {done.invited === 1 ? 'person was' : 'people were'} invited —
+            {backup.counts.events} events{backup.counts.costs > 0 && `, ${backup.counts.costs} Job Log records`}{backup.counts.purchases > 0 && `, ${backup.counts.purchases} purchases`}, settings and categories saved. {done.invited} {done.invited === 1 ? 'person was' : 'people were'} invited —
             they’ll see a Join screen the next time they sign in with that Google account.
             {done.selfInvite && ' You’re one of them — click Done to join now.'}
           </p>
@@ -135,7 +135,7 @@ export default function ImportCompanyDialog({ isOpen, onClose }) {
                   {backup.counts.events} events
                   {' ('}{Object.entries(backup.counts.byStatus).map(([s, n]) => `${n} ${STATUS_LABELS[s] || s}`).join(', ')}{')'}
                   {' · '}{backup.counts.bills} bills · {backup.counts.categories} categories
-                  {backup.counts.costs > 0 && ` · ${backup.counts.costs} Job Log records`}
+                  {backup.counts.costs > 0 && ` · ${backup.counts.costs} Job Log records`}{backup.counts.purchases > 0 && ` · ${backup.counts.purchases} purchases`}
                   {backup.jobLogColumns && ' · cost columns'} · settings ✓
                 </p>
                 <p className="text-xs text-bb-muted mt-1">Preview only — nothing is saved until you click Import.</p>

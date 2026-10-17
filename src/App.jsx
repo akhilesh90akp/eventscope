@@ -31,6 +31,7 @@ import QuotationGenerator from './pages/QuotationGenerator';
 import ContractGenerator from './pages/ContractGenerator';
 import Calendar from './pages/Calendar';
 import Reports from './pages/Reports';
+import Purchases from './pages/Purchases';
 import Settings from './pages/Settings';
 import JobLog, { JobLogLoader } from './pages/JobLog';
 import Admin from './pages/Admin';
@@ -176,6 +177,7 @@ function AppRoutes() {
           <Route path="/quotation/:eventId" element={<PerEvent page={QuotationGenerator} />} />
           <Route path="/contract/:eventId" element={<PerEvent page={ContractGenerator} />} />
           <Route path="/reports" element={<Reports />} />
+          <Route path="/purchases" element={<Purchases />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/admin" element={<Admin />} />
           {/* Unknown address → Home, instead of a blank page */}

@@ -21,6 +21,7 @@ import StickyBar from '../components/StickyBar';
 import Button from '../components/Button';
 import Input from '../components/Input';
 import Modal from '../components/Modal';
+import { useConfirm } from '../components/ConfirmDialog';
 import CostsPanel from '../components/CostsPanel';
 import EventSummary from '../components/EventSummary';
 import { telLink, waLink, sortByActiveDate, openJobLog, functionDays, itemDays, lineAmount } from '../utils/helpers';
@@ -72,6 +73,7 @@ function getAllItems(ev) {
  */
 export default function ConfirmedEvents({ status = 'confirmed' }) {
   const { events, categories, updateEvent, deleteEvent, showToast, isOwner } = useApp();
+  const confirm = useConfirm();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -85,7 +87,6 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
   const [addItemTarget, setAddItemTarget] = useState('main'); // which event to add item to
   const [prices, setPrices] = useState({});
   const [expandedId, setExpandedId] = useState(location.state?.expandId || null); // Home links open one event
-  const [deleteId, setDeleteId] = useState(null); // event id for delete confirmation
   const [moveId, setMoveId] = useState(null); // event id for the "Move to..." status-change modal
 
   // ------------------------------------------------------------
@@ -238,17 +239,20 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
     if (status === 'confirmed') return ['draft'];
     return [];
   };
-
-  /** Executes the delete after modal confirmation. Awaits the write; deleteEvent() shows its own error toast on failure. */
-  const handleDelete = async () => {
-    if (!deleteId) return;
-    const id = deleteId;
-    setDeleteId(null); // close modal immediately regardless of outcome
-    const result = await deleteEvent(id);
-    if (result.success) {
-      showToast('Event deleted');
-    }
+  /** Asks first (app pop-up), then deletes. Only toasts success if the write actually succeeded. */
+  const handleDelete = async (ev) => {
+    const ok = await confirm({
+      title: 'Delete this event?',
+      message: <><b className="text-bb-text">{ev.clientName || 'This event'}</b> and its quote, bill, contract and Job Log costs will be deleted.</>,
+      note: 'This can’t be undone.',
+      confirmLabel: 'Delete', tone: 'danger',
+    });
+    if (!ok) return;
+    const result = await deleteEvent(ev.id);
+    if (result.success) showToast('Event deleted');
+    // On failure, deleteEvent() already shows its own error toast.
   };
+
 
   // ------------------------------------------------------------
   // EVENT HANDLERS — CARD UI
@@ -425,7 +429,7 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
                         {ev.status === 'confirmed' && (
                           <Button size="sm" variant="success" icon={CheckCircle2} onClick={() => markDone(ev.id)}>Mark Done</Button>
                         )}
-                        <Button size="sm" variant="outline" icon={Trash2} className="border-red-500 text-red-500 hover:bg-red-50" onClick={() => setDeleteId(ev.id)}>Delete</Button>
+                        <Button size="sm" variant="outline" icon={Trash2} className="border-red-500 text-red-500 hover:bg-red-50" onClick={() => handleDelete(ev)}>Delete</Button>
                         {getMoveOptions(ev.status).length > 0 && (
                           <Button size="sm" variant="ghost" icon={MoreVertical} onClick={() => setMoveId(ev.id)} title="Move to..." />
                         )}
@@ -454,7 +458,7 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
                       )}
                       <div className={ACTION_GROUP}>
                         <Button size="sm" variant="secondary" icon={Edit3} onClick={() => navigate(`/edit/${ev.id}`)}>Edit</Button>
-                        <Button size="sm" variant="outline" icon={Trash2} className="border-red-500 text-red-500 hover:bg-red-50" onClick={() => setDeleteId(ev.id)}>Delete</Button>
+                        <Button size="sm" variant="outline" icon={Trash2} className="border-red-500 text-red-500 hover:bg-red-50" onClick={() => handleDelete(ev)}>Delete</Button>
                       </div>
                       <div className={ACTION_GROUP}>
                         <Button size="sm" variant="secondary" icon={Plus} onClick={() => { setAddItemModal(ev.id); setAddItemTarget('main'); }}>Add Item</Button>
@@ -617,14 +621,6 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
         </div>
       </Modal>
 
-      {/* Delete Confirmation Modal */}
-      <Modal isOpen={!!deleteId} onClose={() => setDeleteId(null)} title="Delete Event?" size="sm">
-        <p className="text-bb-muted mb-4">Are you sure you want to delete this event? This action cannot be undone.</p>
-        <div className="flex gap-2 justify-end">
-          <Button variant="secondary" onClick={() => setDeleteId(null)}>Cancel</Button>
-          <Button variant="danger" onClick={handleDelete}>Delete</Button>
-        </div>
-      </Modal>
 
       {/* Move-to-status Modal — undo path for accidental Mark Done / Confirm clicks */}
       <Modal isOpen={!!moveId} onClose={() => setMoveId(null)} title="Move Event" size="sm">

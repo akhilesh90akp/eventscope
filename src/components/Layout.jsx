@@ -14,7 +14,7 @@
 // ============================================================
 import React, { useEffect, useMemo, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, FilePlus, FileText, CheckCircle2, PartyPopper, Settings, Plus, BarChart3, LogOut, Shield, Menu, X, CalendarDays } from 'lucide-react';
+import { LayoutDashboard, FilePlus, FileText, CheckCircle2, PartyPopper, Settings, Plus, BarChart3, LogOut, Shield, Menu, X, CalendarDays, ShoppingBag } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { countByStatus } from '../utils/helpers';
 
@@ -34,6 +34,7 @@ const sidebarNav = [
   { to: '/confirmed', icon: CheckCircle2, label: 'Confirmed', group: 'events', count: 'confirmed' },
   { to: '/completed', icon: PartyPopper, label: 'Completed', group: 'events', count: 'completed' },
   { to: '/reports', icon: BarChart3, label: 'Reports', ownerOnly: true, group: 'business' },
+  { to: '/purchases', icon: ShoppingBag, label: 'Purchases', ownerOnly: true, group: 'business' },
   { to: '/settings', icon: Settings, label: 'Settings', group: 'business' },
   { to: '/admin', icon: Shield, label: 'Admin', adminOnly: true, group: 'business' },
 ];
