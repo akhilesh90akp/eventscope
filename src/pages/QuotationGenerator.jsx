@@ -466,10 +466,16 @@ export default function QuotationGenerator() {
   };
 
   /** Opens the "Create Group" popup for whichever section currently has 2+ standalone items selected. */
+  /** Sum of the selected items' prices (qty × rate × days) in a section */
+  const selectedSum = (sectionId) => Array.from(selectedForGroup[sectionId] || [])
+    .reduce((sum, n) => sum + lineAmount(itemPrices[`${sectionId}::${n}`] || { qty: 1, rate: 0 }), 0);
+
+  /** Opens "Create Group" with the price already added up from the selected items (editable) */
   const openGroupModal = (sectionId) => {
     setGroupModalSection(sectionId);
     setGroupName('');
-    setGroupAmount('');
+    const sum = selectedSum(sectionId);
+    setGroupAmount(sum > 0 ? String(sum) : '');
   };
 
   /**
@@ -486,8 +492,9 @@ export default function QuotationGenerator() {
       const namesToAdd = Array.from(selectedForGroup[sectionId] || []);
       if (namesToAdd.length === 0) return;
       const keysToAdd = namesToAdd.map(n => `${sectionId}::${n}`);
+      const added = selectedSum(sectionId);   // the new items' prices go onto the group price
       setBundles(bs => bs.map(b => b.id === mergeTargetBundle.id
-        ? { ...b, itemKeys: [...b.itemKeys, ...keysToAdd] }
+        ? { ...b, itemKeys: [...b.itemKeys, ...keysToAdd], amount: (Number(b.amount) || 0) + added }
         : b));
       setSelectedForGroup(prev => ({ ...prev, [sectionId]: new Set() }));
       setSelectedBundles(new Set());
@@ -910,6 +917,11 @@ export default function QuotationGenerator() {
               value={groupAmount}
               onChange={e => setGroupAmount(e.target.value)}
             />
+            {selectedSum(groupModalSection) > 0 && (
+              <p className="text-xs text-bb-muted -mt-2" data-testid="group-sum-hint">
+                Added up from the selected items ({formatCurrency(selectedSum(groupModalSection))}). Change it for a package price.
+              </p>
+            )}
             <div className="flex gap-2 justify-end">
               <Button variant="secondary" onClick={() => setGroupModalSection(null)}>Cancel</Button>
               <Button onClick={handleCreateGroup}>Create Group</Button>
