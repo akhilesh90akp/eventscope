@@ -262,7 +262,7 @@ export default function Reports() {
       {/* Status Filter + GST Toggle */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex gap-1">
-          {[{key: 'completed', label: 'Completed'}, {key: 'confirmed', label: 'Confirmed'}, {key: 'all', label: 'All'}].map(s => (
+          {[{key: 'completed', label: 'Completed'}, {key: 'all', label: 'All'}].map(s => (
             <button key={s.key} onClick={() => setStatusFilter(s.key)}
               className={`px-3 py-1.5 text-xs font-medium rounded-lg cursor-pointer transition-colors ${
                 statusFilter === s.key ? 'bg-bb-accent text-white' : 'bg-bb-card border border-bb-border text-bb-muted'
@@ -288,13 +288,14 @@ export default function Reports() {
         <Card>
           <p className="text-xs text-bb-muted">Revenue</p>
           <p className="text-lg font-bold text-bb-gold">{formatCurrency(stats.revenue)}</p>
+          <p className="text-[10px] text-bb-muted">What your clients pay you for these events (after discount, before GST)</p>
         </Card>
         <Card>
           <p className="text-xs text-bb-muted" data-testid="profit-label">Profit without purchases</p>
           <p className={`text-lg font-bold ${stats.profit >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>{formatCurrency(stats.profit)}</p>
           {stats.missingCosts > 0 ? (
             <p className="text-[11px] leading-snug text-amber-800" data-testid="missing-costs">
-              Expenses added for {stats.profitEvents} event{stats.profitEvents === 1 ? '' : 's'} only — {stats.missingCosts} event{stats.missingCosts === 1 ? '’s' : 's’'} expenses still to add.
+              Based on {stats.profitEvents} event{stats.profitEvents === 1 ? '' : 's'} only. Add expenses for the other {stats.missingCosts} to see your real profit.
             </p>
           ) : <p className="text-[10px] text-bb-muted">Expenses added for all {stats.completed} completed events</p>}
         </Card>
@@ -303,19 +304,19 @@ export default function Reports() {
           {stats.enoughCosts ? (
             <>
               <p className={`text-lg font-bold ${stats.afterPurchases >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>{formatCurrency(stats.afterPurchases)}</p>
-              <p className="text-[10px] text-bb-muted">Without purchases − spent</p>
+              <p className="text-[10px] text-bb-muted">Profit, minus what you spent on purchases</p>
             </>
           ) : (
             <>
               <p className="text-lg font-bold text-bb-muted" data-testid="after-hidden">—</p>
-              <p className="text-[10px] text-bb-muted">Shows once most events have expenses added ({stats.profitEvents} of {stats.completed} now)</p>
+              <p className="text-[10px] text-bb-muted">Profit, minus what you spent on purchases. Shows up once most events have expenses added.</p>
             </>
           )}
         </Card>
         <Card>
           <p className="text-xs text-bb-muted">Spent on purchases</p>
           <p className="text-lg font-bold text-rose-600">{stats.spent ? '− ' : ''}{formatCurrency(stats.spent)}</p>
-          <p className="text-[10px] text-bb-muted">Chairs, lights etc. bought</p>
+          <p className="text-[10px] text-bb-muted">Things you bought for the business — chairs, lights, equipment</p>
         </Card>
       </div>
 
