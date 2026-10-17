@@ -976,7 +976,7 @@ export default function QuotationGenerator() {
               className="w-32"
             />
             <div className="space-y-1.5">
-              <label htmlFor="quote-discount" className="block text-sm font-medium text-bb-text">Discount</label>
+              <label htmlFor="quote-discount" className="block text-sm font-medium text-bb-text">Discount <span className="text-xs font-normal text-bb-muted">· Amount (5000) or % (10%)</span></label>
               <div className="flex items-center gap-2">
                 <input
                   id="quote-discount"
@@ -987,7 +987,6 @@ export default function QuotationGenerator() {
                 />
                 {discount.amount > 0 && <span className="text-sm font-semibold text-emerald-600" data-testid="discount-amount">− {formatCurrency(discount.amount)}</span>}
               </div>
-              <p className="text-[11px] text-bb-muted">Amount (5000) or % (10%)</p>
             </div>
           </div>
         </Card>
