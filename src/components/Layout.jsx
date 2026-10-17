@@ -14,8 +14,11 @@
 // ============================================================
 import React, { useEffect, useMemo, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, FilePlus, FileText, CheckCircle2, PartyPopper, Settings, Plus, BarChart3, LogOut, Shield, Menu, X, CalendarDays, ShoppingBag } from 'lucide-react';
+import { LayoutDashboard, FilePlus, FileText, CheckCircle2, PartyPopper, Settings, Plus, BarChart3, LogOut, Shield, Menu, X, CalendarDays, ShoppingBag, CreditCard } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { useConfirm } from './ConfirmDialog';
+import { PlanNotice } from './NoticeBar';
+import { PlanTag } from './UpgradeCard';
 import { countByStatus } from '../utils/helpers';
 
 // ============================================================
@@ -33,8 +36,9 @@ const sidebarNav = [
   { to: '/drafts', icon: FileText, label: 'Drafts', group: 'events', count: 'draft' },
   { to: '/confirmed', icon: CheckCircle2, label: 'Confirmed', group: 'events', count: 'confirmed' },
   { to: '/completed', icon: PartyPopper, label: 'Completed', group: 'events', count: 'completed' },
-  { to: '/reports', icon: BarChart3, label: 'Reports', ownerOnly: true, group: 'business' },
-  { to: '/purchases', icon: ShoppingBag, label: 'Purchases', ownerOnly: true, group: 'business' },
+  { to: '/reports', icon: BarChart3, label: 'Reports', ownerOnly: true, group: 'business', feature: 'reports' },
+  { to: '/purchases', icon: ShoppingBag, label: 'Purchases', ownerOnly: true, group: 'business', feature: 'purchases' },
+  { to: '/billing', icon: CreditCard, label: 'Plan & billing', ownerOnly: true, group: 'business' },
   { to: '/settings', icon: Settings, label: 'Settings', group: 'business' },
   { to: '/admin', icon: Shield, label: 'Admin', adminOnly: true, group: 'business' },
 ];
@@ -75,7 +79,7 @@ function BottomTab({ item }) {
  * Nav links + account row (company, role, logout). Shared by the desktop
  * sidebar and the mobile slide-in menu so both always list the same pages.
  */
-function NavPanel({ items, counts, companyName, roleLabel, onLogout }) {
+function NavPanel({ items, counts, companyName, roleLabel, onLogout, canUse }) {
   return (
     <>
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
@@ -99,6 +103,7 @@ function NavPanel({ items, counts, companyName, roleLabel, onLogout }) {
             {item.count && counts[item.count] > 0 && (
               <span className="ml-auto text-[11px] font-semibold tabular-nums bg-white/10 text-white/80 rounded-full px-2 py-0.5" data-testid={`count-${item.count}`}>{counts[item.count]}</span>
             )}
+            {item.feature && !canUse(item.feature) && <span className="ml-auto"><PlanTag feature={item.feature} dark /></span>}
           </NavLink>
           </React.Fragment>
         ))}
@@ -137,7 +142,8 @@ function NavPanel({ items, counts, companyName, roleLabel, onLogout }) {
 export default function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { logout, user, tenant, tenantStatus, settings, role, isSuspended, isOwner, isPlatformAdmin, events } = useApp();
+  const { logout, user, tenant, tenantStatus, settings, role, isOwner, isPlatformAdmin, events, lockAsked, access, canUse } = useApp();
+  const confirm = useConfirm();
 
   // ------------------------------------------------------------
   // STATE
@@ -147,6 +153,27 @@ export default function Layout() {
   // ------------------------------------------------------------
   // EFFECTS
   // ------------------------------------------------------------
+
+  // Something tried to save while the company is read-only → explain once
+  useEffect(() => {
+    if (!lockAsked) return;
+    const paused = access?.phase === 'suspended';
+    (async () => {
+      const go = await confirm({
+        tone: 'lock',
+        title: paused ? 'This account is paused' : 'Your plan has ended',
+        message: paused
+          ? 'EventScope has paused this account. Everything you saved is safe — contact EventScope support to switch it back on.'
+          : isOwner
+            ? 'Renew to create events and make changes. Everything you saved is safe — nothing is deleted.'
+            : 'Ask your company owner to renew. Everything you saved is safe — nothing is deleted.',
+        confirmLabel: !paused && isOwner ? 'See plans & pay' : 'OK',
+        cancelLabel: !paused && isOwner ? 'Not now' : null,
+      });
+      if (go && !paused && isOwner) navigate('/billing');
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lockAsked]);
 
   // Close the mobile menu whenever the page changes
   useEffect(() => { setMenuOpen(false); }, [location.pathname]);
@@ -168,7 +195,7 @@ export default function Layout() {
     ? item.adminOnly
     : (!item.ownerOnly || isOwner) && (!item.adminOnly || isPlatformAdmin)));
   const counts = useMemo(() => countByStatus(events), [events]);
-  const panelProps = { items: visibleNav, counts, companyName, roleLabel, onLogout: logout };
+  const panelProps = { items: visibleNav, counts, companyName, roleLabel, onLogout: logout, canUse };
 
   // ------------------------------------------------------------
   // RENDER
@@ -223,12 +250,8 @@ export default function Layout() {
 
       {/* === MAIN CONTENT === */}
       <main className="lg:ml-[240px] pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-6">
-        {/* Suspended account banner (tenant set to read-only by EventScope) */}
-        {isSuspended && (
-          <div className="bg-amber-50 border-b border-amber-200 text-amber-800 text-sm px-4 py-3 text-center">
-            This account is suspended — you can view your data, but changes are disabled. Please contact EventScope support.
-          </div>
-        )}
+        {/* Plan notice: pilot ending, payment due, read-only… (one at a time) */}
+        {!adminOnly && <div className="px-3 pt-3 sm:px-4 md:px-6 lg:px-8 lg:pt-5 empty:hidden"><PlanNotice /></div>}
         <div className="p-3 sm:p-4 md:p-6 lg:p-8 w-full">
           <Outlet />
         </div>

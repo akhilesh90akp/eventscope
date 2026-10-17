@@ -16,6 +16,9 @@
  *   tenants/{tenantId}/events/{eventId}       one doc per event/draft
  *   tenants/{tenantId}/financials/{eventId}   { values: { [columnId]: number|string|null } } — costs/income/notes
  *   tenants/{tenantId}/purchases/{id}         things bought for the business (owners only, see utils/purchases.js)
+ *   tenants/{tenantId}/payments/{id}          plan payments; 'pending' = owner's "I've paid" claim (see utils/billing.js)
+ *   tenants/{tenantId}/history/{id}           what EventScope changed for the company (admins only)
+ *   platform/billing                          EventScope's UPI ID / payee / QR for the Plan & billing page
  *   tenants/{tenantId}/pushTokens/{tokenId}   { uid, token, device, createdAt } — an owner device for reminders (own only)
  *
  * firestore.rules enforces the same boundaries server-side; the permission
@@ -32,7 +35,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import {
   collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, getDoc, getDocs, query, where,
-  writeBatch, getCountFromServer, terminate, clearIndexedDbPersistence,
+  writeBatch, getCountFromServer, terminate, clearIndexedDbPersistence, collectionGroup,
 } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { DEFAULT_SETTINGS, DEFAULT_CATEGORIES, DEFAULT_JOBLOG_COLUMNS } from '../constants/data';
@@ -41,6 +44,7 @@ import { buildCompanyBackup, backupFileName } from '../utils/companyBackup';
 import { markStartup } from '../utils/startupTiming';
 import { requestPushToken, dropPushToken, rememberTokenId, savedTokenId, deviceLabel } from '../utils/push';
 import { useConfirm } from '../components/ConfirmDialog';
+import { accessInfo, todayIST, pilotFields, paidFields, DEFAULT_PILOT, hasFeature } from '../utils/billing';
 
 // ============================================================
 // CONSTANTS
@@ -50,6 +54,8 @@ const Ctx = createContext();
 
 /** Firestore batches cap at 500 writes; stay safely under it */
 const BATCH_LIMIT = 450;
+/** Returned by writeBlockedReason when the company is read-only (no toast — a pop-up explains) */
+export const READ_ONLY_MSG = 'This account is read-only — renew your plan to make changes.';
 
 /** A fresh tab can hit a brief sign-in race on its first read; retry this
  *  many times (with a growing pause) before showing "Couldn't load your account" */
@@ -156,6 +162,10 @@ export function AppProvider({ children }) {
   const [financialsLoaded, setFinancialsLoaded] = useState(false);
   const [purchases, setPurchases] = useState([]);         // [{ id, mode, date, name, qty, category, amount, note }] — owners only
   const [purchasesLoaded, setPurchasesLoaded] = useState(false);
+  const [pendingPayment, setPendingPayment] = useState(null);  // the owner's "I've paid" claim, waiting for EventScope
+  const [payments, setPayments] = useState([]);              // confirmed payments (owners: Plan & billing history)
+  const [platformBilling, setPlatformBilling] = useState(null); // { upiId, payeeName, qr } from platform/billing
+  const [lockAsked, setLockAsked] = useState(0);             // bump → Layout shows the "plan has ended" pop-up
 
   // Team (owner only)
   const [team, setTeam] = useState([]);
@@ -171,6 +181,7 @@ export function AppProvider({ children }) {
 
   /** Shows a toast message that auto-dismisses after 3 seconds */
   const showToast = useCallback((message, type = 'success') => {
+    if (message === READ_ONLY_MSG) return;   // the read-only pop-up already says it
     if (toastTimer.current) clearTimeout(toastTimer.current);
     setToast({ message, type, visible: true });
     toastTimer.current = setTimeout(() => {
@@ -384,9 +395,34 @@ export function AppProvider({ children }) {
 
   const role = membership?.role || null;
   const isOwner = role === 'owner';
-  const isSuspended = tenant?.status === 'suspended';
+  // Plan / pilot / paid-until state (utils/billing.js). Read-only when the
+  // company is suspended, or its date + grace days have passed and no
+  // "I've paid" claim is waiting — the same rule firestore.rules applies.
+  const access = { ...accessInfo(tenant, todayIST(), !!pendingPayment), pendingAmount: pendingPayment?.amount || 0 };
+  const isSuspended = !!tenant && access.readOnly;
   const canEditEvents = !!tenantId && !isSuspended;
   const canEditSettings = isOwner && !isSuspended;
+
+  // Payments: everyone sees the pending claim (it keeps the app working);
+  // owners also get the confirmed list. Plus EventScope's UPI details.
+  useEffect(() => {
+    if (!tenantId) { setPendingPayment(null); setPayments([]); return undefined; }
+    const logErr = (what) => (err) => console.error(`${what} listener error:`, err.code, err.message);
+    const unsubPending = onSnapshot(doc(db, 'tenants', tenantId, 'payments', 'pending'),
+      (snap) => setPendingPayment(snap.exists() ? { id: snap.id, ...snap.data() } : null), logErr('Pending payment'));
+    const unsubPayments = role === 'owner'
+      ? onSnapshot(collection(db, 'tenants', tenantId, 'payments'),
+        (snap) => setPayments(snap.docs.filter(d => d.id !== 'pending').map(d => ({ id: d.id, ...d.data() }))), logErr('Payments'))
+      : () => {};
+    return () => { unsubPending(); unsubPayments(); };
+  }, [tenantId, role, loadAttempt]);
+
+  useEffect(() => {
+    if (!user) { setPlatformBilling(null); return undefined; }
+    return onSnapshot(doc(db, 'platform', 'billing'),
+      (snap) => setPlatformBilling(snap.exists() ? snap.data() : {}),
+      (err) => { console.error('Platform billing listener error:', err.code, err.message); setPlatformBilling({}); });
+  }, [user, loadAttempt]);
 
   // Purchases — owners only (the rules refuse staff, so staff never listen)
   useEffect(() => {
@@ -411,7 +447,10 @@ export function AppProvider({ children }) {
   const writeBlockedReason = ({ ownerOnly = false } = {}) => {
     if (!user) return 'You are signed out — please log in again before saving.';
     if (!tenantId) return 'Your login is not linked to a company yet.';
-    if (isSuspended) return 'This account is suspended — changes are disabled. Please contact EventScope support.';
+    if (isSuspended) {
+      setLockAsked(n => n + 1);              // Layout explains why and offers to renew
+      return READ_ONLY_MSG;
+    }
     if (ownerOnly && !isOwner) return 'Only the account owner can change this.';
     return null;
   };
@@ -446,6 +485,8 @@ export function AppProvider({ children }) {
         status: 'active',
         createdAt: now,
         acceptedTermsAt: now,
+        // free pilot from today (standard length), auto-suspends when it ends
+        ...pilotFields({ start: todayIST(), length: DEFAULT_PILOT.length, unit: DEFAULT_PILOT.unit }),
       });
       batch.set(doc(db, 'users', user.uid), {
         tenantId: newTenantId,
@@ -937,6 +978,125 @@ export function AppProvider({ children }) {
   // PLATFORM ADMIN (EventScope staff only — firestore.rules enforces it)
   // ------------------------------------------------------------
 
+  // ------------------------------------------------------------
+  // BILLING — owner's "I've paid" and EventScope's actions
+  // ------------------------------------------------------------
+
+  /**
+   * Owner tells EventScope they've paid (UPI reference). Works while
+   * read-only — it reopens editing until EventScope confirms or rejects.
+   */
+  const submitPaymentClaim = async ({ plan, cycle, amount, ref, start, end }) => {
+    if (!user || !tenantId) return { success: false, error: 'Please sign in again.' };
+    if (!isOwner) return { success: false, error: 'Only the account owner can do this.' };
+    try {
+      await setDoc(doc(db, 'tenants', tenantId, 'payments', 'pending'), {
+        plan, cycle, amount: Number(amount) || 0, ref: String(ref).replace(/\s+/g, ''), start, end,
+        createdAt: new Date().toISOString(), createdBy: user.uid, createdByName: user.displayName || user.email || '',
+      });
+      return { success: true };
+    } catch (err) {
+      console.error('Payment claim failed:', err.code, err.message);
+      return { success: false, error: friendlyError(err, 'send the payment details') };
+    }
+  };
+
+  /** Writes a history line for a company (in the same batch as the change) */
+  const addHistory = (batch, tenantIdArg, action, detail = '') => {
+    batch.set(doc(collection(db, 'tenants', tenantIdArg, 'history')), {
+      at: new Date().toISOString(), by: user?.email || '', action, detail,
+    });
+  };
+
+  /**
+   * Admin: change a company (pilot dates, plan, suspend, reactivate…) and
+   * record it in its history. Returns { success, error? }.
+   */
+  const adminTenantAction = async (id, patch, action, detail = '') => {
+    if (!isPlatformAdmin) return { success: false, error: 'Admins only.' };
+    try {
+      const batch = writeBatch(db);
+      batch.set(doc(db, 'tenants', id), { ...patch, updatedAt: new Date().toISOString() }, { merge: true });
+      addHistory(batch, id, action, detail);
+      await batch.commit();
+      return { success: true };
+    } catch (err) {
+      console.error('Admin action failed:', err.code, err.message);
+      return { success: false, error: friendlyError(err, 'update the company') };
+    }
+  };
+
+  /** Admin: set a company's pilot (start, length in days/months, auto-suspend) */
+  const adminSetPilot = (t, { start, length, unit, autoSuspend, extended }) =>
+    adminTenantAction(t.id, { ...pilotFields({ start, length, unit, autoSuspend, extended }), status: 'active' },
+      extended ? 'Pilot extended' : 'Pilot set', `${length} ${unit} from ${start}${autoSuspend ? '' : ' · auto-suspend off'}`);
+
+  /**
+   * Admin: record a payment (confirming the owner's claim, or one received
+   * another way). Saves it, moves the paid-until date and switches editing
+   * back on. Returns { success, error? }.
+   */
+  const adminRecordPayment = async (t, { plan, cycle, amount, ref, paidOn, start, end, note = '' }, fromClaim = false) => {
+    if (!isPlatformAdmin) return { success: false, error: 'Admins only.' };
+    try {
+      const now = new Date().toISOString();
+      const batch = writeBatch(db);
+      batch.set(doc(collection(db, 'tenants', t.id, 'payments')), {
+        plan, cycle, amount: Number(amount) || 0, ref: ref || '', paidOn, start, end, note,
+        tenantId: t.id, status: 'confirmed', confirmedAt: now, confirmedBy: user.email || '',
+      });
+      if (fromClaim) batch.delete(doc(db, 'tenants', t.id, 'payments', 'pending'));
+      batch.set(doc(db, 'tenants', t.id), {
+        ...paidFields({ plan, cycle, until: end, autoSuspend: t.autoSuspend !== false }),
+        status: 'active', reactivatedAt: t.status === 'suspended' || accessInfo(t).readOnly ? now : (t.reactivatedAt || null), updatedAt: now,
+      }, { merge: true });
+      addHistory(batch, t.id, fromClaim ? 'Payment confirmed' : 'Payment recorded', `₹${Number(amount).toLocaleString('en-IN')} · ${plan} ${cycle} · until ${end}${ref ? ` · ref ${ref}` : ''}`);
+      await batch.commit();
+      return { success: true };
+    } catch (err) {
+      console.error('Record payment failed:', err.code, err.message);
+      return { success: false, error: friendlyError(err, 'save the payment') };
+    }
+  };
+
+  /** Admin: the owner's claim was wrong — remove it (the date rule applies again) */
+  const adminRejectClaim = async (t, reason = '') => {
+    if (!isPlatformAdmin) return { success: false, error: 'Admins only.' };
+    try {
+      const batch = writeBatch(db);
+      batch.delete(doc(db, 'tenants', t.id, 'payments', 'pending'));
+      addHistory(batch, t.id, 'Payment claim rejected', reason);
+      await batch.commit();
+      return { success: true };
+    } catch (err) {
+      console.error('Reject claim failed:', err.code, err.message);
+      return { success: false, error: friendlyError(err, 'reject the claim') };
+    }
+  };
+
+  /** Admin: every company's payments (incl. pending claims), live. Returns an unsubscribe function. */
+  const subscribeAllPayments = (onChange) => onSnapshot(collectionGroup(db, 'payments'),
+    (snap) => onChange(snap.docs.map(d => ({ id: d.id, tenantId: d.ref.parent.parent.id, ...d.data() }))),
+    (err) => { console.error('All payments listener error:', err.code, err.message); onChange([]); });
+
+  /** Admin: one company's history, newest first */
+  const getTenantHistory = async (id) => {
+    const snap = await getDocs(collection(db, 'tenants', id, 'history'));
+    return snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => String(b.at).localeCompare(String(a.at)));
+  };
+
+  /** Admin: EventScope's UPI ID / payee name / QR image */
+  const savePlatformBilling = async (data) => {
+    if (!isPlatformAdmin) return { success: false, error: 'Admins only.' };
+    try {
+      await setDoc(doc(db, 'platform', 'billing'), { ...data, updatedAt: new Date().toISOString() }, { merge: true });
+      return { success: true };
+    } catch (err) {
+      console.error('Save payment settings failed:', err.code, err.message);
+      return { success: false, error: friendlyError(err, 'save the payment settings') };
+    }
+  };
+
   /** Live list of every tenant. Returns an unsubscribe function. */
   const subscribeAllTenants = (onChange, onError) => onSnapshot(
     collection(db, 'tenants'),
@@ -1076,6 +1236,10 @@ export function AppProvider({ children }) {
       user, authLoading, logout,
       tenant, tenantId, tenantStatus, loadError, signingOut, role, isOwner, isPlatformAdmin,
       isSuspended, canEditEvents, canEditSettings,
+      // Plan & billing
+      access, pendingPayment, payments, platformBilling, submitPaymentClaim, lockAsked,
+      askUnlock: () => setLockAsked(n => n + 1),
+      canUse: (feature) => hasFeature(tenant?.plan, feature),
       createCompany, pendingInvite, acceptPendingInvite, declinePendingInvite, showPendingInvite,
       // Company data
       events, settings, categories, loaded,
@@ -1096,6 +1260,8 @@ export function AppProvider({ children }) {
       // Platform admin
       subscribeAllTenants, getTenantCounts, adminUpdateTenant, adminImportCompany,
       subscribeTenantTeam, adminTeamAction,
+      adminTenantAction, adminSetPilot, adminRecordPayment, adminRejectClaim, subscribeAllPayments,
+      getTenantHistory, savePlatformBilling,
       // UI
       toast, showToast,
     }}>

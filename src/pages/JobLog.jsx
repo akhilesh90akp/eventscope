@@ -25,6 +25,7 @@ import { getEventBill, computeEventFinancials, parseMoneyExpr, formatDateRange, 
 import { exportJobLogToExcel, readJobLogFromExcel } from '../utils/jobLogExcel';
 import { Download, Upload, Loader2 } from 'lucide-react';
 import { useConfirm } from '../components/ConfirmDialog';
+import UpgradeCard from '../components/UpgradeCard';
 
 // ============================================================
 // CONSTANTS
@@ -111,7 +112,7 @@ export default function JobLog() {
 function JobLogGrid() {
   const {
     events, loaded, financials, financialsLoaded, jobLogColumns, saveFinancials,
-    settings, tenant, isOwner, canEditEvents, showToast,
+    settings, tenant, isOwner, canEditEvents, showToast, canUse,
   } = useApp();
   const confirm = useConfirm();
 
@@ -366,6 +367,14 @@ function JobLogGrid() {
 
   if (!loaded || !financialsLoaded) {
     return <JobLogLoader detail={companyName} />;
+  }
+
+  if (!canUse('jobLog')) {
+    return (
+      <div className="min-h-[100dvh] bg-bb-bg flex items-center justify-center p-4">
+        <UpgradeCard feature="jobLog" text="Costs and income for every event, with profit worked out for you." />
+      </div>
+    );
   }
 
   if (!isOwner) {

@@ -21,7 +21,8 @@ src/
     Calendar (month/list view, daily limit, owner reminders),
     Reports (owner; All time / month / year / custom, purchases), JobLog (owner, own tab;
     cells take sums like 12000+3500), Purchases (owner; business purchases by financial year),
-    Settings, Admin (platform admins), CreateCompany (sign-up),
+    Billing (owner: Plan & billing — plans, UPI pay, "I've paid", receipts),
+    Settings, Admin (platform admins: companies, statuses, Actions ▾, collections, payment settings), CreateCompany (sign-up),
     JoinInvite (accept/decline an invite), Login,
     Legal (Terms / Privacy / Data protection — public)
   components/               Reusable UI pieces
@@ -40,6 +41,9 @@ src/
     DaysCell (the Days column of the printed quote/bill),
     ConfirmDialog (the app's own "Are you sure?" pop-up: <ConfirmProvider> in main.jsx +
       useConfirm() — use it instead of window.confirm; tone 'danger' for deletes),
+    NoticeBar + PlanNotice (the one banner style; shows pilot ending / payment due / read-only),
+    UpgradeCard + PlanTag (a feature the plan doesn't include → "on the Standard plan" + See plans),
+    AdminBillingDialog (Admin → Actions: pilot, confirm/record payment, plan, suspend, reactivate, history),
     PurchaseDialog (Add / Edit purchase: "Just the total" or "Item by item";
       wide table on laptops, fold-open rows on phones)
   constants/
@@ -59,6 +63,8 @@ src/
                             on demand); page breaks avoid cutting rows; [data-no-pdf] skipped
     contract.js             Agreement number + figures for the contract (no Firestore)
     calendar.js             Month grid, functions per day, daily limit, reminder dates
+    billing.js              Plans, prices, features/team limits, pilot & paid-until dates, grace days,
+                            read-only state, admin status labels, UPI link (no Firestore)
     purchases.js            Purchases: financial year (Apr–Mar), totals, form cleaning, Excel download
     push.js                 This device's push token (Firebase Cloud Messaging); saving is in AppContext
     startupTiming.js        Records how long opening the app took (shown at the bottom of Settings)
@@ -67,12 +73,13 @@ tools/
                             Drive folder (runs in the project owner's Google account,
                             free on Spark). Setup + restore steps in its README.md.
                             Reminders.gs (same script): 9 am push reminders to owners
+                            Billing.gs (same script): plan / pilot / payment notices to admins and owners
 firestore.rules             Server-side security rules (source of truth for access)
 tests/
   firestore.rules.test.mjs  Rules tests (emulator; also run on GitHub)
   helpers.test.mjs          Unit tests for money/bill math
   tenantImport.test.mjs     Unit tests for reading backup files (old export, Drive and owner backups)
-  pdfExport / contract / calendar / purchases .test.mjs   Unit tests for page breaks, contract
+  pdfExport / contract / calendar / purchases / billing .test.mjs   Unit tests for page breaks, contract
                             figures, calendar math, purchases
 public/                     Logos, icons, manifest, service worker, login-bg.* (video),
                             export-bluebell.html (one-time old-app export — delete after migration)

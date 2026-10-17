@@ -26,6 +26,7 @@ import {
   fyStart, fyLabel, fyRange, purchaseYears, purchasesBetween, summarizePurchases,
   sortPurchases, eventProfitBetween, exportPurchasesToExcel,
 } from '../utils/purchases';
+import UpgradeCard from '../components/UpgradeCard';
 
 // ============================================================
 // HELPERS
@@ -44,7 +45,7 @@ function CategoryTag({ p }) {
 // Purchases — MAIN COMPONENT
 // ============================================================
 export default function Purchases() {
-  const { purchases, purchasesLoaded, deletePurchase, events, financials, jobLogColumns, isOwner, settings, showToast } = useApp();
+  const { purchases, purchasesLoaded, deletePurchase, events, financials, jobLogColumns, isOwner, settings, showToast, canUse } = useApp();
   const confirm = useConfirm();
 
   // ------------------------------------------------------------
@@ -94,6 +95,9 @@ export default function Purchases() {
   // ------------------------------------------------------------
   // RENDER
   // ------------------------------------------------------------
+  if (isOwner && !canUse('purchases')) {
+    return <UpgradeCard feature="purchases" text="Keep track of chairs, lights and everything else you buy for the business, year by year." />;
+  }
   if (!isOwner) {
     return (
       <Card>
@@ -137,7 +141,9 @@ export default function Purchases() {
         {stat('Spent this year', formatCurrency(sum.total))}
         {stat('Entries', sum.count)}
         {stat('Biggest category', sum.biggestCategory ? sum.biggestCategory.name : '—', 'text-bb-text', sum.biggestCategory ? rupees(sum.biggestCategory.amount) : '')}
-        {stat('Profit after purchases', formatCurrency(afterPurchases), afterPurchases >= 0 ? 'text-emerald-500' : 'text-rose-600', `Event profit ${rupees(profit.profit)} − purchases`)}
+        {profit.completed > 0 && profit.profitEvents / profit.completed >= 0.8
+          ? stat('Profit after purchases', formatCurrency(afterPurchases), afterPurchases >= 0 ? 'text-emerald-500' : 'text-rose-600', `Event profit ${rupees(profit.profit)} − purchases`)
+          : stat('Profit after purchases', '—', 'text-bb-muted', `Shows once most events have costs (${profit.profitEvents} of ${profit.completed} now)`)}
       </div>
 
       {!purchasesLoaded ? (

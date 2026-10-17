@@ -28,6 +28,7 @@ import PdfButton from '../components/PdfButton';
 import { formatCurrency, formatDateReadable, formatDateRange, functionEnd, getActiveDate, getEventRevenue, computeEventFinancials, openJobLog } from '../utils/helpers';
 import { fyStart, fyLabel, purchasesBetween, purchaseTotal } from '../utils/purchases';
 import { Printer, Calendar, BarChart3, ExternalLink, Lock } from 'lucide-react';
+import UpgradeCard from '../components/UpgradeCard';
 
 // ============================================================
 // HELPERS
@@ -52,7 +53,7 @@ const periodRange = (filter, month, year, dateFrom, dateTo) => {
 
 /** Displays event reports with date-based filtering and summary stats */
 export default function Reports() {
-  const { events, settings, financials, jobLogColumns, isOwner, purchases } = useApp();
+  const { events, settings, financials, jobLogColumns, isOwner, purchases, canUse } = useApp();
 
   // ------------------------------------------------------------
   // STATE
@@ -130,7 +131,12 @@ export default function Reports() {
     });
     // Purchases dated in the same period (all of them for All time)
     const spent = purchaseTotal(purchasesBetween(purchases || [], ...periodRange(filter, month, year, dateFrom, dateTo)));
-    return { total, drafts, completed, revenue, profit, profitEvents, spent, afterPurchases: profit - spent };
+    // "Profit after purchases" only means something once most completed
+    // events have their costs in — until then it compares 2 events' profit
+    // with a whole period's purchases, so we hide it.
+    const missingCosts = Math.max(0, completed - profitEvents);
+    const enoughCosts = completed > 0 && profitEvents / completed >= 0.8;
+    return { total, drafts, completed, revenue, profit, profitEvents, missingCosts, enoughCosts, spent, afterPurchases: profit - spent };
   }, [filteredEvents, financials, jobLogColumns, purchases, filter, month, year, dateFrom, dateTo]);
 
   // All time: events by financial year, newest year first
@@ -184,6 +190,9 @@ export default function Reports() {
   // ------------------------------------------------------------
 
   // Owner only — staff reach this page only by typing the address
+  if (isOwner && !canUse('reports')) {
+    return <UpgradeCard feature="reports" text="Revenue, profit and purchases for any month or year — and a PDF for your accountant." />;
+  }
   if (!isOwner) {
     return (
       <Card>
@@ -281,14 +290,31 @@ export default function Reports() {
           <p className="text-lg font-bold text-bb-gold">{formatCurrency(stats.revenue)}</p>
         </Card>
         <Card>
-          <p className="text-xs text-bb-muted">Profit without purchases</p>
+          <p className="text-xs text-bb-muted" data-testid="profit-label">
+            Profit{stats.missingCosts ? ` · ${stats.profitEvents} event${stats.profitEvents === 1 ? '' : 's'} with costs` : ' without purchases'}
+          </p>
           <p className={`text-lg font-bold ${stats.profit >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>{formatCurrency(stats.profit)}</p>
-          <p className="text-[10px] text-bb-muted">{stats.profitEvents} of {stats.completed} completed with costs</p>
+          {stats.missingCosts > 0 ? (
+            <p className="text-[10px] text-amber-700" data-testid="missing-costs">
+              {stats.missingCosts} event{stats.missingCosts === 1 ? ' has' : 's have'} no costs yet.{' '}
+              <button onClick={openJobLog} className="font-semibold underline cursor-pointer hidden md:inline">Add them in the Job Log →</button>
+              <span className="md:hidden">Add them on each completed event.</span>
+            </p>
+          ) : <p className="text-[10px] text-bb-muted">All {stats.completed} completed events have costs</p>}
         </Card>
         <Card>
           <p className="text-xs text-bb-muted">Profit after purchases</p>
-          <p className={`text-lg font-bold ${stats.afterPurchases >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>{formatCurrency(stats.afterPurchases)}</p>
-          <p className="text-[10px] text-bb-muted">Without purchases − spent</p>
+          {stats.enoughCosts ? (
+            <>
+              <p className={`text-lg font-bold ${stats.afterPurchases >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>{formatCurrency(stats.afterPurchases)}</p>
+              <p className="text-[10px] text-bb-muted">Without purchases − spent</p>
+            </>
+          ) : (
+            <>
+              <p className="text-lg font-bold text-bb-muted" data-testid="after-hidden">—</p>
+              <p className="text-[10px] text-bb-muted">Shows once most events have costs ({stats.profitEvents} of {stats.completed} now)</p>
+            </>
+          )}
         </Card>
         <Card>
           <p className="text-xs text-bb-muted">Spent on purchases</p>
@@ -377,9 +403,9 @@ export default function Reports() {
                 <strong style={{fontSize: '11px'}}>Total Events: {stats.total}</strong> &nbsp;|&nbsp;
                 <span style={{fontSize: '11px'}}>Completed: {stats.completed}</span> &nbsp;|&nbsp;
                 <span style={{fontSize: '11px', fontWeight: 'bold', color: '#652D90'}}>Revenue: {formatCurrency(stats.revenue)}</span><br/>
-                <span style={{fontSize: '11px'}}>Profit without purchases: {formatCurrency(stats.profit)}</span> &nbsp;|&nbsp;
-                <span style={{fontSize: '11px'}}>Spent on purchases: {formatCurrency(stats.spent)}</span> &nbsp;|&nbsp;
-                <span style={{fontSize: '11px', fontWeight: 'bold'}}>Profit after purchases: {formatCurrency(stats.afterPurchases)}</span>
+                <span style={{fontSize: '11px'}}>Profit{stats.missingCosts ? ` (${stats.profitEvents} of ${stats.completed} events with costs)` : ' without purchases'}: {formatCurrency(stats.profit)}</span> &nbsp;|&nbsp;
+                <span style={{fontSize: '11px'}}>Spent on purchases: {formatCurrency(stats.spent)}</span>
+                {stats.enoughCosts && <> &nbsp;|&nbsp; <span style={{fontSize: '11px', fontWeight: 'bold'}}>Profit after purchases: {formatCurrency(stats.afterPurchases)}</span></>}
               </td>
             </tr>
             {/* Table Header */}

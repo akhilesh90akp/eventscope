@@ -8,14 +8,15 @@
  *
  * tone 'danger' (red button, bin icon) is for anything that deletes or removes;
  * 'warning' (amber icon, purple button) for "are you sure" checks; default is
- * a plain purple confirm. Esc / tapping outside / Cancel all answer "no".
+ * a plain purple confirm; 'lock' (padlock) for "your plan has ended".
+ * Pass cancelLabel: null for a single-button notice. Esc / tapping outside / Cancel all answer "no".
  */
 
 // ============================================================
 // IMPORTS
 // ============================================================
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { Trash2, AlertTriangle, HelpCircle, LogOut } from 'lucide-react';
+import { Trash2, AlertTriangle, HelpCircle, LogOut, Lock } from 'lucide-react';
 
 // ============================================================
 // CONSTANTS
@@ -24,6 +25,7 @@ const TONES = {
   danger: { icon: Trash2, iconBox: 'bg-red-100 text-red-600', button: 'bg-red-600 hover:bg-red-700 text-white', note: 'bg-red-50 border-red-200 text-red-800' },
   warning: { icon: AlertTriangle, iconBox: 'bg-amber-100 text-amber-600', button: 'bg-bb-accent hover:bg-bb-accent-hover text-white', note: 'bg-gray-50 border-bb-border text-bb-text' },
   logout: { icon: LogOut, iconBox: 'bg-violet-100 text-violet-700', button: 'bg-bb-accent hover:bg-bb-accent-hover text-white', note: 'bg-gray-50 border-bb-border text-bb-text' },
+  lock: { icon: Lock, iconBox: 'bg-amber-100 text-amber-600', button: 'bg-bb-accent hover:bg-bb-accent-hover text-white', note: 'bg-gray-50 border-bb-border text-bb-text' },
   primary: { icon: HelpCircle, iconBox: 'bg-violet-100 text-violet-700', button: 'bg-bb-accent hover:bg-bb-accent-hover text-white', note: 'bg-gray-50 border-bb-border text-bb-text' },
 };
 
@@ -81,9 +83,11 @@ export function ConfirmProvider({ children }) {
             {req.message && <div className="text-sm text-bb-muted leading-relaxed">{req.message}</div>}
             {req.note && <div className={`mt-3 text-[13px] border rounded-xl px-3 py-2 ${tone.note}`}>{req.note}</div>}
             <div className="flex gap-2.5 mt-5">
-              <button onClick={() => answer(false)} className="flex-1 py-2.5 rounded-xl border border-bb-border bg-white text-bb-text font-semibold text-sm cursor-pointer hover:bg-gray-50">
-                {req.cancelLabel || 'Cancel'}
-              </button>
+              {req.cancelLabel !== null && (
+                <button onClick={() => answer(false)} className="flex-1 py-2.5 rounded-xl border border-bb-border bg-white text-bb-text font-semibold text-sm cursor-pointer hover:bg-gray-50">
+                  {req.cancelLabel || 'Cancel'}
+                </button>
+              )}
               <button ref={confirmBtn} onClick={() => answer(true)} className={`flex-1 py-2.5 rounded-xl font-semibold text-sm cursor-pointer ${tone.button}`}>
                 {req.confirmLabel || 'OK'}
               </button>

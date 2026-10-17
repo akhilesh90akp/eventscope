@@ -57,7 +57,7 @@ const time12 = (t) => {
  *        advanceRef, stampSpace, signatory, quoteRef
  * @param {object} props.c         result of buildContract()
  */
-const ContractDocument = forwardRef(function ContractDocument({ settings, details, c }, ref) {
+const ContractDocument = forwardRef(function ContractDocument({ settings, details, c, showMark = false }, ref) {
   const t = c.terms;
   const court = t.courtCity || '__________';
   const place = details.place || t.place || t.courtCity || '__________';
@@ -256,6 +256,7 @@ const ContractDocument = forwardRef(function ContractDocument({ settings, detail
           <div style={S.sigLine}>Service Provider initials</div>
           <div style={S.sigLine}>Client initials</div>
         </div>
+        {showMark && <p style={{ textAlign: 'center', fontSize: '9.5px', color: '#9ca3af', margin: '28px 0 0' }}>Made with EventScope</p>}
       </div>
     </div>
   );

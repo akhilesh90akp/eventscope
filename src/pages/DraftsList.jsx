@@ -26,6 +26,7 @@ import {
   Search, Phone, MessageSquare, Edit, FileText, CheckCircle,
   Trash2, CalendarDays, MapPin, PackageOpen, ChevronDown, ChevronUp,
   Home, Navigation, IndianRupee,
+  Lock,
 } from 'lucide-react';
 import { useConfirm } from '../components/ConfirmDialog';
 
@@ -63,7 +64,10 @@ function getEventLocation(ev) {
 
 /** Lists all draft events with search, expand/collapse, and actions */
 export default function DraftsList() {
-  const { events, settings, deleteEvent, updateEvent, showToast } = useApp();
+  const { events, settings, deleteEvent, updateEvent, showToast, isSuspended, askUnlock } = useApp();
+  // Read-only (plan ended / paused): these buttons show a lock and explain why
+  const guard = (fn) => (...args) => (isSuspended ? askUnlock() : fn(...args));
+  const lk = (icon) => (isSuspended ? Lock : icon);
   const confirm = useConfirm();
   const navigate = useNavigate();
 
@@ -314,10 +318,10 @@ export default function DraftsList() {
                             <MessageSquare size={14} /> WhatsApp
                           </a>
                         )}
-                        <Button size="sm" variant="secondary" icon={Edit} onClick={() => navigate(`/edit/${ev.id}`)}>Edit</Button>
+                        <Button size="sm" variant="secondary" icon={lk(Edit)} onClick={guard(() => navigate(`/edit/${ev.id}`))}>Edit</Button>
                         <Button size="sm" variant="secondary" icon={FileText} onClick={() => navigate(`/quotation/${ev.id}`)}>Quote</Button>
-                        <Button size="sm" variant="success" icon={CheckCircle} onClick={() => confirmEvent(ev.id)}>Confirm</Button>
-                        <Button size="sm" variant="outline" icon={Trash2} className="border-red-500 text-red-500 hover:bg-red-50" onClick={() => handleDelete(ev)}>Delete</Button>
+                        <Button size="sm" variant="success" icon={lk(CheckCircle)} onClick={guard(() => confirmEvent(ev.id))}>Confirm</Button>
+                        <Button size="sm" variant="outline" icon={lk(Trash2)} className="border-red-500 text-red-500 hover:bg-red-50" onClick={guard(() => handleDelete(ev))}>Delete</Button>
                       </div>
                     </div>
                   )}
@@ -325,10 +329,10 @@ export default function DraftsList() {
                   {/* Action Buttons - Always visible in collapsed view */}
                   {!isExpanded && (
                     <div className="flex flex-wrap gap-2 pt-2 border-t border-bb-border">
-                      <Button size="sm" variant="secondary" icon={Edit} onClick={() => navigate(`/edit/${ev.id}`)}>Edit</Button>
+                      <Button size="sm" variant="secondary" icon={lk(Edit)} onClick={guard(() => navigate(`/edit/${ev.id}`))}>Edit</Button>
                       <Button size="sm" variant="secondary" icon={FileText} onClick={() => navigate(`/quotation/${ev.id}`)}>Quote</Button>
-                      <Button size="sm" variant="success" icon={CheckCircle} onClick={() => confirmEvent(ev.id)}>Confirm</Button>
-                      <Button size="sm" variant="outline" icon={Trash2} className="border-red-500 text-red-500 hover:bg-red-50" onClick={() => handleDelete(ev)}>Delete</Button>
+                      <Button size="sm" variant="success" icon={lk(CheckCircle)} onClick={guard(() => confirmEvent(ev.id))}>Confirm</Button>
+                      <Button size="sm" variant="outline" icon={lk(Trash2)} className="border-red-500 text-red-500 hover:bg-red-50" onClick={guard(() => handleDelete(ev))}>Delete</Button>
                     </div>
                   )}
                 </div>

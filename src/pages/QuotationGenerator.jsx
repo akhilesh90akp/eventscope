@@ -60,6 +60,7 @@ import {
   ChevronDown, ChevronRight, GripVertical, Layers, Ungroup,
 } from 'lucide-react';
 import { useConfirm } from '../components/ConfirmDialog';
+import { docBrandColor, showsEventScopeMark } from '../utils/billing';
 
 // ============================================================
 // HELPERS
@@ -173,7 +174,10 @@ function PriceHeader({ hidePrices }) {
 /** Builds and previews a printable quotation document for an event */
 export default function QuotationGenerator() {
   const { eventId } = useParams();
-  const { events, settings, categories, updateEvent, showToast } = useApp();
+  const { events, settings, categories, updateEvent, showToast, isSuspended, tenant } = useApp();
+  // Premium: the company's own colour on the document and no EventScope mark
+  const brand = docBrandColor(tenant?.plan, settings);
+  const showMark = showsEventScopeMark(tenant?.plan);
   const confirm = useConfirm();
   const navigate = useNavigate();
   const event = events.find(e => e.id === eventId);
@@ -444,6 +448,7 @@ export default function QuotationGenerator() {
     if (currentSnap === lastSavedRef.current) { setSaveState('saved'); return undefined; }
     setSaveState('unsaved');
     clearTimeout(autoSaveTimer.current);
+    if (isSuspended) return undefined;   // read-only: Save explains why instead
     autoSaveTimer.current = setTimeout(() => { saveQuote(false); }, 1500);
     return () => clearTimeout(autoSaveTimer.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1089,8 +1094,8 @@ export default function QuotationGenerator() {
             {/* Row 1: Title */}
             <tr>
               <td colSpan={COLS} style={{textAlign: 'center', padding: '24px 24px 12px'}}>
-                <span style={{fontSize: '20px', fontWeight: '800', letterSpacing: '0.2em', textTransform: 'uppercase', color: '#652D90'}}>QUOTATION</span>
-                <div style={{height: '3px', width: '80px', margin: '8px auto 0', backgroundColor: '#652D90', borderRadius: '2px'}} />
+                <span style={{fontSize: '20px', fontWeight: '800', letterSpacing: '0.2em', textTransform: 'uppercase', color: brand}}>QUOTATION</span>
+                <div style={{height: '3px', width: '80px', margin: '8px auto 0', backgroundColor: brand, borderRadius: '2px'}} />
               </td>
             </tr>
 
@@ -1120,16 +1125,16 @@ export default function QuotationGenerator() {
             {/* Row 4: Two boxes with purple top border */}
             <tr>
               <td colSpan={COLS - 2} style={{verticalAlign: 'top', padding: '16px 24px 12px', width: '60%'}}>
-                <div style={{borderTop: '3px solid #652D90', padding: '12px 0 0'}}>
-                  <span style={{fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#652D90'}}>BILL TO/ CLIENT</span><br/>
+                <div style={{borderTop: `3px solid ${brand}`, padding: '12px 0 0'}}>
+                  <span style={{fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: brand}}>BILL TO/ CLIENT</span><br/>
                   <span style={{fontSize: '14px', fontWeight: '700', color: '#1f2937', lineHeight: '2'}}>{event.clientName}</span><br/>
                   {event.clientPhone && <span style={{fontSize: '11px', color: '#6b7280'}}>Phone: {event.clientPhone}</span>}
                   {event.clientAddress && <><br/><span style={{fontSize: '11px', color: '#6b7280'}}>{event.clientAddress}</span></>}
                 </div>
               </td>
               <td colSpan="2" style={{verticalAlign: 'top', padding: '16px 24px 12px', width: '40%'}}>
-                <div style={{borderTop: '3px solid #652D90', padding: '12px 0 0', fontSize: '11px', color: '#4b5563', lineHeight: '1.9'}}>
-                  <span style={{fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#652D90'}}>EVENT DETAILS</span><br/>
+                <div style={{borderTop: `3px solid ${brand}`, padding: '12px 0 0', fontSize: '11px', color: '#4b5563', lineHeight: '1.9'}}>
+                  <span style={{fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: brand}}>EVENT DETAILS</span><br/>
                   {event.eventType && <>Event: {event.eventType}<br/></>}
                   {displayDate && <>Date: {event.mainEvent ? functionDateText(event.mainEvent) : formatDateReadable(displayDate)}<br/></>}
                   {(event.mainEvent?.location || event.eventLocation) && <>Venue: {event.mainEvent?.location || event.eventLocation}<br/></>}
@@ -1149,10 +1154,10 @@ export default function QuotationGenerator() {
                   {/* Row 5: Event section header */}
                   <tr>
                     <td colSpan={COLS} style={{padding: '16px 24px 6px'}}>
-                      <span style={{fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#652D90'}}>
+                      <span style={{fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', color: brand}}>
                         {group.name}{group.date ? ` — ${functionDateText(group)}` : ''}{group.location ? `, ${group.location}` : ''}
                       </span>
-                      <div style={{height: '2px', marginTop: '6px', backgroundColor: '#652D90', opacity: 0.3, borderRadius: '1px'}} />
+                      <div style={{height: '2px', marginTop: '6px', backgroundColor: brand, opacity: 0.3, borderRadius: '1px'}} />
                     </td>
                   </tr>
 
@@ -1303,7 +1308,7 @@ export default function QuotationGenerator() {
                     <table style={{width: '100%', borderCollapse: 'collapse', border: '1px solid #e5e7eb', borderRadius: '6px', overflow: 'hidden'}}>
                       <tbody>
                         <tr style={{backgroundColor: '#f5f0fa'}}>
-                          <td colSpan="2" style={{padding: '8px 16px', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#652D90'}}>SUMMARY</td>
+                          <td colSpan="2" style={{padding: '8px 16px', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em', color: brand}}>SUMMARY</td>
                         </tr>
                         {printGroups.filter(g => g.items.length > 0).map((group) => (
                           <tr key={group.id} style={{borderBottom: '1px solid #f3f4f6'}}>
@@ -1333,9 +1338,9 @@ export default function QuotationGenerator() {
                             </tr>
                           </>
                         )}
-                        <tr style={{borderTop: '2px solid #652D90'}}>
+                        <tr style={{borderTop: `2px solid ${brand}`}}>
                           <td style={{fontSize: '16px', fontWeight: '700', color: '#1f2937', padding: '12px 16px'}}>GRAND TOTAL</td>
-                          <td style={{fontSize: '16px', fontWeight: '700', color: '#652D90', textAlign: 'right', padding: '12px 16px'}}>{formatCurrency(gstData.total)}</td>
+                          <td style={{fontSize: '16px', fontWeight: '700', color: brand, textAlign: 'right', padding: '12px 16px'}}>{formatCurrency(gstData.total)}</td>
                         </tr>
                       </tbody>
                     </table>
@@ -1347,7 +1352,7 @@ export default function QuotationGenerator() {
             {/* Terms & Conditions */}
             <tr>
               <td colSpan={COLS} style={{padding: '20px 24px 8px'}}>
-                <span style={{fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#652D90'}}>TERMS & CONDITIONS</span>
+                <span style={{fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em', color: brand}}>TERMS & CONDITIONS</span>
                 <div style={{marginTop: '8px', fontSize: '11px', color: '#4b5563', lineHeight: '1.6'}}>
                   <div style={{padding: '2px 0'}}>1. This quotation is valid for {validityDays} days from the date of issue.</div>
                   <div style={{padding: '2px 0'}}>2. Prices are subject to change after the validity period.</div>
@@ -1375,6 +1380,7 @@ export default function QuotationGenerator() {
               <td colSpan={COLS} style={{textAlign: 'center', padding: '16px 24px 24px', borderTop: '1px solid #e5e7eb'}}>
                 <span style={{fontSize: '14px', fontWeight: '700', color: '#1f2937'}}>{settings.companyName}</span><br/>
                 <span style={{fontSize: '11px', color: '#6b7280', marginTop: '4px', display: 'inline-block'}}>{settings.phone}</span>
+                {showMark && <><br/><span style={{fontSize: '9.5px', color: '#9ca3af', marginTop: '8px', display: 'inline-block'}}>Made with EventScope</span></>}
               </td>
             </tr>
           </tbody>

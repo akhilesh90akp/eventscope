@@ -373,3 +373,60 @@ test('staff, other tenants and other people CANNOT add or read reminder devices'
   await assertFails(getDoc(doc(as('zara'), 'tenants/acme/pushTokens/a1')));
   await assertFails(deleteDoc(doc(as('sam'), 'tenants/acme/pushTokens/a1')));
 });
+
+// ============================================================
+// PILOT / PAID-UNTIL DATES AND PAYMENTS
+// ============================================================
+const past = () => Date.now() - 86400000;
+const future = () => Date.now() + 30 * 86400000;
+const setTenant = (id, data) => env.withSecurityRulesDisabled(ctx => updateDoc(doc(ctx.firestore(), `tenants/${id}`), data));
+
+test('access date: before blockAfterMs works, after it is read-only', async () => {
+  await setTenant('acme', { blockAfterMs: future() });
+  await assertSucceeds(setDoc(doc(as('sam'), 'tenants/acme/events/e2'), { clientName: 'x' }));
+  await setTenant('acme', { blockAfterMs: past() });
+  await assertFails(setDoc(doc(as('sam'), 'tenants/acme/events/e3'), { clientName: 'x' }));
+  await assertSucceeds(getDoc(doc(as('sam'), 'tenants/acme/events/e1')));            // still readable
+  await setTenant('acme', { blockAfterMs: null });                                   // auto-suspend off
+  await assertSucceeds(setDoc(doc(as('sam'), 'tenants/acme/events/e4'), { clientName: 'x' }));
+});
+
+const claim = { amount: 15990, plan: 'standard', cycle: 'yearly', ref: '627188901123', start: '2027-01-14', end: '2028-01-13', createdAt: '2026-10-17T10:00:00Z', createdBy: 'alice', createdByName: 'Alice' };
+
+test('payments: owner files one "I\'ve paid" claim even while read-only; it reopens editing', async () => {
+  await setTenant('acme', { blockAfterMs: past() });
+  await assertSucceeds(setDoc(doc(as('alice'), 'tenants/acme/payments/pending'), claim));
+  await assertSucceeds(setDoc(doc(as('sam'), 'tenants/acme/events/e5'), { clientName: 'x' }));   // working again
+  await assertSucceeds(getDoc(doc(as('alice'), 'tenants/acme/payments/pending')));
+  await assertFails(deleteDoc(doc(as('alice'), 'tenants/acme/payments/pending')));             // only EventScope clears it
+});
+
+test('payments: staff / other ids / bad data / other companies are refused', async () => {
+  await assertFails(setDoc(doc(as('sam'), 'tenants/acme/payments/pending'), { ...claim, createdBy: 'sam' }));
+  await assertFails(getDoc(doc(as('sam'), 'tenants/acme/payments/p1')));
+  await assertFails(setDoc(doc(as('alice'), 'tenants/acme/payments/p1'), claim));               // confirmed records: admin only
+  await assertFails(setDoc(doc(as('alice'), 'tenants/acme/payments/pending'), { ...claim, plan: 'gold' }));
+  await assertFails(setDoc(doc(as('alice'), 'tenants/acme/payments/pending'), { ...claim, ref: '12' }));
+  await assertFails(setDoc(doc(as('alice'), 'tenants/acme/payments/pending'), { ...claim, confirmed: true }));
+  await assertFails(setDoc(doc(as('zara'), 'tenants/acme/payments/pending'), { ...claim, createdBy: 'zara' }));
+  await assertSucceeds(setDoc(doc(as('admin'), 'tenants/acme/payments/p1'), { ...claim, status: 'confirmed' }));
+  await assertSucceeds(deleteDoc(doc(as('admin'), 'tenants/acme/payments/pending')));
+});
+
+test('history and platform settings: admins write; platform settings readable when signed in', async () => {
+  await assertFails(getDoc(doc(as('alice'), 'tenants/acme/history/h1')));
+  await assertSucceeds(setDoc(doc(as('admin'), 'tenants/acme/history/h1'), { action: 'pilot' }));
+  await assertSucceeds(setDoc(doc(as('admin'), 'platform/billing'), { upiId: 'x@upi' }));
+  await assertFails(setDoc(doc(as('alice'), 'platform/billing'), { upiId: 'me@upi' }));
+  await assertSucceeds(getDoc(doc(as('sam'), 'platform/billing')));
+  await assertFails(getDoc(doc(anon(), 'platform/billing')));
+});
+
+test('sign-up may set the standard 3-month pilot, not a longer one', async () => {
+  const until = new Date(Date.now() + 92 * 86400000).toISOString().slice(0, 10);
+  const ok = { pilotStart: '2026-10-17', pilotLength: 3, pilotUnit: 'months', pilotExtended: false, accessUntil: until, autoSuspend: true, blockAfterMs: Date.now() + 98 * 86400000 };
+  await assertSucceeds(signupBatch(as('p1', 'p1@gmail.com'), 'p1', 'p1co', ok));
+  await assertFails(signupBatch(as('p2', 'p2@gmail.com'), 'p2', 'p2co', { ...ok, pilotLength: 12 }));
+  await assertFails(signupBatch(as('p3', 'p3@gmail.com'), 'p3', 'p3co', { ...ok, blockAfterMs: Date.now() + 400 * 86400000 }));
+  await assertFails(signupBatch(as('p4', 'p4@gmail.com'), 'p4', 'p4co', { ...ok, autoSuspend: false }));
+});

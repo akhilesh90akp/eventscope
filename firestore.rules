@@ -16,6 +16,9 @@
 //   tenants/{tenantId}/events/{eventId}      events/drafts (members)
 //   tenants/{tenantId}/financials/{eventId}  Job Log costs/income/notes per event (members)
 //   tenants/{tenantId}/purchases/{id}       things bought for the business (owners only)
+//   tenants/{tenantId}/payments/{id}        plan payments; 'pending' = the owner's "I've paid" claim
+//   tenants/{tenantId}/history/{id}         what EventScope changed (plan, pilot, suspend…) — admins only
+//   platform/{docId}                        EventScope-wide settings, e.g. 'billing' (UPI ID) — admins write
 //
 // Guarantees (each covered by tests/firestore.rules.test.mjs):
 //   - A login only ever reaches the tenant named in its own users/{uid}.
@@ -62,8 +65,17 @@ service cloud.firestore {
     function isOwner(tenantId) {
       return isMember(tenantId) && me().role == 'owner';
     }
+    // Active = not suspended by EventScope, and its access date (pilot end or
+    // paid-until, plus grace days → blockAfterMs) hasn't passed — unless the
+    // owner has told us they've paid (payments/pending), which keeps it working
+    // until EventScope confirms or rejects it.
     function tenantActive(tenantId) {
-      return get(docPath('tenants/' + tenantId)).data.status == 'active';
+      let t = get(docPath('tenants/' + tenantId)).data;
+      return t.status == 'active'
+        && (!('blockAfterMs' in t)
+            || t.blockAfterMs == null
+            || request.time.toMillis() < t.blockAfterMs
+            || exists(docPath('tenants/' + tenantId + '/payments/pending')));
     }
     function isInvitee(email) {
       return verifiedEmail() && request.auth.token.email.lower() == email;
@@ -95,9 +107,20 @@ service cloud.firestore {
         && request.resource.data.ownerUid == request.auth.uid
         && request.resource.data.status == 'active'
         && request.resource.data.plan == 'trial'
-        && request.resource.data.keys().hasOnly(['name', 'ownerUid', 'ownerEmail', 'plan', 'status', 'createdAt', 'acceptedTermsAt'])
+        && request.resource.data.keys().hasOnly(['name', 'ownerUid', 'ownerEmail', 'plan', 'status', 'createdAt', 'acceptedTermsAt',
+             'pilotStart', 'pilotLength', 'pilotUnit', 'pilotExtended', 'accessUntil', 'autoSuspend', 'blockAfterMs'])
+        && newPilotOk(request.resource.data)
         && myLinkAfter.tenantId == tenantId
         && myLinkAfter.role == 'owner';
+    }
+
+    // A new company's free pilot: the standard 3 months, auto-suspend on, and
+    // the write-block date no further away than that (plus grace days).
+    function newPilotOk(d) {
+      return !('blockAfterMs' in d)
+        || (d.pilotLength == 3 && d.pilotUnit == 'months' && d.pilotExtended == false
+            && d.autoSuspend == true && d.blockAfterMs is int
+            && d.blockAfterMs <= request.time.toMillis() + 110 * 86400000);
     }
 
     // Public sign-up, part 2: the users/{uid} doc for the brand-new tenant.
@@ -146,6 +169,18 @@ service cloud.firestore {
     match /platformAdmins/{uid} {
       allow read: if signedIn() && request.auth.uid == uid;
       allow write: if false;
+    }
+
+    // EventScope-wide settings (e.g. platform/billing: UPI ID and QR shown on
+    // the Plan & billing page). Anyone signed in reads; only admins change.
+    match /platform/{docId} {
+      allow read: if signedIn();
+      allow write: if isPlatformAdmin();
+    }
+
+    // Admin's Collections view lists every company's payments at once
+    match /{path=**}/payments/{paymentId} {
+      allow read: if isPlatformAdmin();
     }
 
     // ============================================================
@@ -239,6 +274,32 @@ service cloud.firestore {
       match /purchases/{purchaseId} {
         allow read: if isOwner(tenantId) || isPlatformAdmin();
         allow write: if (isOwner(tenantId) && tenantActive(tenantId)) || isPlatformAdmin();
+      }
+
+      // Plan payments. The owner can file one "I've paid" claim (id 'pending')
+      // even while read-only — that's how they get back in. EventScope
+      // confirms it (moves it to its own id) or rejects it (deletes it).
+      match /payments/{paymentId} {
+        allow read: if isOwner(tenantId) || isPlatformAdmin()
+          || (paymentId == 'pending' && isMember(tenantId));   // staff see "payment sent", not amounts history
+        allow create, update: if isPlatformAdmin()
+          || (paymentId == 'pending'
+              && isOwner(tenantId)
+              && request.resource.data.keys().hasOnly(['amount', 'plan', 'cycle', 'ref', 'start', 'end', 'createdAt', 'createdBy', 'createdByName'])
+              && request.resource.data.createdBy == request.auth.uid
+              && request.resource.data.plan in ['basic', 'standard', 'premium']
+              && request.resource.data.cycle in ['monthly', 'yearly']
+              && request.resource.data.amount is number
+              && request.resource.data.ref is string
+              && request.resource.data.ref.size() >= 6
+              && request.resource.data.ref.size() <= 40);
+        allow delete: if isPlatformAdmin();
+      }
+
+      // What EventScope changed for this company (plan, pilot, payments,
+      // suspend/reactivate) — the Admin "History" list.
+      match /history/{entryId} {
+        allow read, write: if isPlatformAdmin();
       }
 
       // Owners' devices that get event reminders (push tokens). Each owner

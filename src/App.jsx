@@ -32,6 +32,7 @@ import ContractGenerator from './pages/ContractGenerator';
 import Calendar from './pages/Calendar';
 import Reports from './pages/Reports';
 import Purchases from './pages/Purchases';
+import Billing from './pages/Billing';
 import Settings from './pages/Settings';
 import JobLog, { JobLogLoader } from './pages/JobLog';
 import Admin from './pages/Admin';
@@ -178,6 +179,7 @@ function AppRoutes() {
           <Route path="/contract/:eventId" element={<PerEvent page={ContractGenerator} />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/purchases" element={<Purchases />} />
+          <Route path="/billing" element={<Billing />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/admin" element={<Admin />} />
           {/* Unknown address → Home, instead of a blank page */}

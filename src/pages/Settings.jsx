@@ -16,7 +16,7 @@
 // IMPORTS
 // ============================================================
 import React, { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import Card from '../components/Card';
 import StickyBar from '../components/StickyBar';
@@ -32,6 +32,8 @@ import ReminderSwitch from '../components/ReminderSwitch';
 import { DEFAULT_CONTRACT_TERMS } from '../constants/contract';
 import { DEFAULT_MAX_PER_DAY } from '../utils/calendar';
 import { useConfirm } from '../components/ConfirmDialog';
+import { PlanTag } from '../components/UpgradeCard';
+import { teamLimit, planName } from '../utils/billing';
 
 // ============================================================
 // CONSTANTS
@@ -56,8 +58,9 @@ const TAB_HELP = {
 
 /** Multi-tab settings page for company, bank, invoice, and service configuration */
 export default function Settings() {
-  const { settings, categories, updateSettings, addCategory, deleteCategory, addItemToCat, removeItemFromCat, logout, user, showToast, canEditSettings, isOwner, isSuspended, team, invites, inviteTeammate, cancelInvite, removeTeammate, promoteToOwner, downloadCompanyBackup } = useApp();
+  const { settings, categories, updateSettings, addCategory, deleteCategory, addItemToCat, removeItemFromCat, logout, user, showToast, canEditSettings, isOwner, isSuspended, team, invites, inviteTeammate, cancelInvite, removeTeammate, promoteToOwner, downloadCompanyBackup, tenant, canUse } = useApp();
   const confirm = useConfirm();
+  const navigate = useNavigate();
   const [backingUp, setBackingUp] = useState(false);
   const [startupText] = useState(lastStartupText);
 
@@ -174,6 +177,12 @@ export default function Settings() {
   /** Invites a teammate by email (owner only) */
   const handleInvite = async () => {
     if (inviting || !inviteEmail.trim()) return;
+    // plan's team size: owners + staff + open invites
+    const limit = teamLimit(tenant?.plan);
+    if ((team?.length || 0) + (invites?.length || 0) >= limit) {
+      if (await confirm({ title: `Your ${planName(tenant?.plan)} plan allows ${limit} people`, message: 'Upgrade to add more people to your team.', confirmLabel: 'See plans', tone: 'primary' })) navigate('/billing');
+      return;
+    }
     setInviting(true);
     try {
       if (inviteRole === 'owner' && !(await confirm({ title: 'Add as an owner?', message: <><b className="text-bb-text">{inviteEmail.trim()}</b> will get full access: settings, team, reports and profit.</>, note: 'Owners can’t be removed by other owners.', confirmLabel: 'Add owner', tone: 'warning' }))) return;
@@ -293,6 +302,18 @@ export default function Settings() {
               />
               <p className="text-xs text-bb-muted mt-1">Shown on your quotations and bills. Resized automatically.</p>
               {form.logo && <img src={form.logo} alt="Logo" className="mt-2 h-16 rounded" />}
+            </div>
+            {/* Brand colour on quotes & bills — Premium */}
+            <div>
+              <label htmlFor="brand-color" className="flex items-center gap-2 text-sm font-medium text-bb-text mb-1.5">
+                Brand colour on quotes & bills {!canUse('branding') && <PlanTag feature="branding" />}
+              </label>
+              <div className="flex items-center gap-3">
+                <input id="brand-color" type="color" disabled={!canUse('branding')} value={/^#[0-9a-fA-F]{6}$/.test(form.brandColor || '') ? form.brandColor : '#652D90'}
+                  onChange={e => set('brandColor', e.target.value)} className="w-12 h-10 rounded-lg border border-bb-border bg-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed" />
+                <span className="text-xs text-bb-muted">{canUse('branding') ? 'Headings and lines on your PDFs use this colour.' : 'Premium: use your own colour, and the “Made with EventScope” line goes away.'}</span>
+                {canUse('branding') && form.brandColor && <button type="button" onClick={() => set('brandColor', '')} className="text-xs text-bb-muted hover:text-bb-accent cursor-pointer">Reset</button>}
+              </div>
             </div>
           </div>
         </Card>

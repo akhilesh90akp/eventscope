@@ -30,7 +30,9 @@ import {
   MapPin, PackageOpen, Plus, Receipt, Edit3,
   ChevronDown, ChevronUp, Home, Navigation, Trash2, MoreVertical,
   ArrowLeftRight, ExternalLink, FileSignature,
+  Lock,
 } from 'lucide-react';
+import { PlanTag } from '../components/UpgradeCard';
 
 // ============================================================
 // CONSTANTS
@@ -72,7 +74,10 @@ function getAllItems(ev) {
  * Handles pricing, item addition, and marking events completed.
  */
 export default function ConfirmedEvents({ status = 'confirmed' }) {
-  const { events, categories, updateEvent, deleteEvent, showToast, isOwner } = useApp();
+  const { events, categories, updateEvent, deleteEvent, showToast, isOwner, isSuspended, askUnlock, canUse } = useApp();
+  // Read-only (plan ended / paused): these buttons show a lock and explain why
+  const guard = (fn) => (...args) => (isSuspended ? askUnlock() : fn(...args));
+  const lk = (icon) => (isSuspended ? Lock : icon);
   const confirm = useConfirm();
   const navigate = useNavigate();
   const location = useLocation();
@@ -404,7 +409,7 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
                       </div>
 
                       {/* Costs & income — completed events only (same data as the Job Log) */}
-                      {ev.status === 'completed' && <CostsPanel event={ev} />}
+                      {ev.status === 'completed' && canUse('jobLog') && <CostsPanel event={ev} />}
 
                       {/* Action Buttons */}
                       <div className="flex flex-wrap gap-2 pt-2 border-t border-bb-border">
@@ -420,16 +425,16 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
                             <MessageSquare size={14} /> WhatsApp
                           </a>
                         )}
-                        <Button size="sm" variant="secondary" icon={Edit3} onClick={() => navigate(`/edit/${ev.id}`)}>Edit</Button>
-                        <Button size="sm" variant="secondary" icon={Plus} onClick={() => { setAddItemModal(ev.id); setAddItemTarget('main'); }}>Add Item</Button>
-                        <Button size="sm" variant="secondary" onClick={() => openPriceModal(ev)}>Set Prices</Button>
+                        <Button size="sm" variant="secondary" icon={lk(Edit3)} onClick={guard(() => navigate(`/edit/${ev.id}`))}>Edit</Button>
+                        <Button size="sm" variant="secondary" icon={lk(Plus)} onClick={guard(() => { setAddItemModal(ev.id); setAddItemTarget('main'); })}>Add Item</Button>
+                        <Button icon={isSuspended ? Lock : undefined} size="sm" variant="secondary" onClick={guard(() => openPriceModal(ev))}>Set Prices</Button>
                         <Button size="sm" variant="secondary" icon={FileText} onClick={() => navigate(`/quotation/${ev.id}`)}>Quote</Button>
                         <Button size="sm" variant="secondary" icon={Receipt} onClick={() => navigate(`/bill/${ev.id}`)}>Bill</Button>
-                        <Button size="sm" variant="secondary" icon={FileSignature} onClick={() => navigate(`/contract/${ev.id}`)}>Contract</Button>
+                        <Button size="sm" variant="secondary" icon={FileSignature} onClick={() => navigate(`/contract/${ev.id}`)} >Contract{!canUse('contracts') && <PlanTag feature="contracts" />}</Button>
                         {ev.status === 'confirmed' && (
-                          <Button size="sm" variant="success" icon={CheckCircle2} onClick={() => markDone(ev.id)}>Mark Done</Button>
+                          <Button size="sm" variant="success" icon={lk(CheckCircle2)} onClick={guard(() => markDone(ev.id))}>Mark Done</Button>
                         )}
-                        <Button size="sm" variant="outline" icon={Trash2} className="border-red-500 text-red-500 hover:bg-red-50" onClick={() => handleDelete(ev)}>Delete</Button>
+                        <Button size="sm" variant="outline" icon={lk(Trash2)} className="border-red-500 text-red-500 hover:bg-red-50" onClick={guard(() => handleDelete(ev))}>Delete</Button>
                         {getMoveOptions(ev.status).length > 0 && (
                           <Button size="sm" variant="ghost" icon={MoreVertical} onClick={() => setMoveId(ev.id)} title="Move to..." />
                         )}
@@ -457,17 +462,17 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
                         </div>
                       )}
                       <div className={ACTION_GROUP}>
-                        <Button size="sm" variant="secondary" icon={Edit3} onClick={() => navigate(`/edit/${ev.id}`)}>Edit</Button>
-                        <Button size="sm" variant="outline" icon={Trash2} className="border-red-500 text-red-500 hover:bg-red-50" onClick={() => handleDelete(ev)}>Delete</Button>
+                        <Button size="sm" variant="secondary" icon={lk(Edit3)} onClick={guard(() => navigate(`/edit/${ev.id}`))}>Edit</Button>
+                        <Button size="sm" variant="outline" icon={lk(Trash2)} className="border-red-500 text-red-500 hover:bg-red-50" onClick={guard(() => handleDelete(ev))}>Delete</Button>
                       </div>
                       <div className={ACTION_GROUP}>
-                        <Button size="sm" variant="secondary" icon={Plus} onClick={() => { setAddItemModal(ev.id); setAddItemTarget('main'); }}>Add Item</Button>
-                        <Button size="sm" variant="secondary" onClick={() => openPriceModal(ev)}>Set Prices</Button>
+                        <Button size="sm" variant="secondary" icon={lk(Plus)} onClick={guard(() => { setAddItemModal(ev.id); setAddItemTarget('main'); })}>Add Item</Button>
+                        <Button icon={isSuspended ? Lock : undefined} size="sm" variant="secondary" onClick={guard(() => openPriceModal(ev))}>Set Prices</Button>
                       </div>
                       <div className={ACTION_GROUP}>
                         <Button size="sm" variant="secondary" icon={FileText} onClick={() => navigate(`/quotation/${ev.id}`)}>Quote</Button>
                         <Button size="sm" variant="secondary" icon={Receipt} onClick={() => navigate(`/bill/${ev.id}`)}>Bill</Button>
-                        <Button size="sm" variant="secondary" icon={FileSignature} onClick={() => navigate(`/contract/${ev.id}`)}>Contract</Button>
+                        <Button size="sm" variant="secondary" icon={FileSignature} onClick={() => navigate(`/contract/${ev.id}`)} >Contract{!canUse('contracts') && <PlanTag feature="contracts" />}</Button>
                         {/* Completed has no "Mark Done", so "Move to…" sits with the documents */}
                         {ev.status !== 'confirmed' && getMoveOptions(ev.status).length > 0 && (
                           <Button size="sm" variant="ghost" icon={MoreVertical} onClick={() => setMoveId(ev.id)} title="Move to..." aria-label="Move to" />
@@ -475,7 +480,7 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
                       </div>
                       {ev.status === 'confirmed' && (
                         <div className={ACTION_GROUP}>
-                          <Button size="sm" variant="success" icon={CheckCircle2} onClick={() => markDone(ev.id)}>Mark Done</Button>
+                          <Button size="sm" variant="success" icon={lk(CheckCircle2)} onClick={guard(() => markDone(ev.id))}>Mark Done</Button>
                           {getMoveOptions(ev.status).length > 0 && (
                             <Button size="sm" variant="ghost" icon={MoreVertical} onClick={() => setMoveId(ev.id)} title="Move to..." aria-label="Move to" />
                           )}

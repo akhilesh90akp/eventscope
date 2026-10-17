@@ -29,6 +29,7 @@ import { genId } from '../utils/helpers';
 import {
   User, Phone, MessageSquare, MapPin, Clock,
   IndianRupee, ChevronDown, ChevronUp, X, Plus, Save, StickyNote, Layers,
+  Lock,
 } from 'lucide-react';
 
 // ============================================================
@@ -130,7 +131,7 @@ function ItemsSelector({ selectedItems, onToggle, onRemove, onAddCustom, categor
 
 /** Form page for creating a new event draft */
 export default function NewDraft() {
-  const { categories, addEvent, showToast } = useApp();
+  const { categories, addEvent, showToast, isSuspended, isOwner } = useApp();
   const navigate = useNavigate();
 
   // ------------------------------------------------------------
@@ -308,6 +309,20 @@ export default function NewDraft() {
   // ------------------------------------------------------------
   // RENDER
   // ------------------------------------------------------------
+
+  // Read-only (plan ended / paused): explain instead of showing the form
+  if (isSuspended) {
+    return (
+      <Card>
+        <div className="text-center py-10 px-4" data-testid="new-event-locked">
+          <Lock size={36} className="mx-auto text-amber-500 mb-3" />
+          <p className="font-semibold text-bb-text">New events are paused</p>
+          <p className="text-sm text-bb-muted mt-1 max-w-sm mx-auto">{isOwner ? 'Your plan has ended. Renew to create events again — everything you saved is safe.' : 'Your company’s plan has ended. Ask your owner to renew — everything you saved is safe.'}</p>
+          {isOwner && <Button className="mt-4" onClick={() => navigate('/billing')}>See plans & pay</Button>}
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-4 pb-8">

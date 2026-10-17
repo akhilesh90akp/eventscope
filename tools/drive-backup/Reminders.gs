@@ -10,6 +10,8 @@
  *   "Today: Joseph Family — Home Function"  (on the day)
  *   "Day 2 today: Infopark Expo — Expo"     (each extra day of a multi-day function)
  *
+ * Plan / pilot / payment notices come from Billing.gs (same morning run).
+ *
  * Sent through Firebase Cloud Messaging (free). Devices that are no longer
  * registered are removed. Owners turn reminders on per device in the app
  * (Calendar → Reminders). Setup: README.md → "Reminders".
@@ -28,12 +30,16 @@ var FCM_API = 'https://fcm.googleapis.com/v1/projects/' + PROJECT_ID + '/message
 // ENTRY POINTS
 // ============================================================
 
-/** Run once by hand after pasting this file: schedules the 9 am reminders (and keeps the backup schedule). */
+/**
+ * Run once by hand after pasting this file: schedules the 9 am reminders and
+ * the hourly "I've paid" check (Billing.gs), and keeps the backup schedule.
+ */
 function setupReminders() {
   ScriptApp.getProjectTriggers().forEach(function (t) {
-    if (t.getHandlerFunction() === 'dailyReminders') ScriptApp.deleteTrigger(t);
+    if (['dailyReminders', 'checkPaymentClaims'].indexOf(t.getHandlerFunction()) !== -1) ScriptApp.deleteTrigger(t);
   });
   ScriptApp.newTrigger('dailyReminders').timeBased().everyDays(1).atHour(REMIND_AT_HOUR).create();
+  ScriptApp.newTrigger('checkPaymentClaims').timeBased().everyHours(1).create();
   var r = sendRemindersNow();
   Logger.log('Reminders scheduled (~' + REMIND_AT_HOUR + ':00). Today: ' + r.summary);
 }
@@ -92,7 +98,11 @@ function sendRemindersNow(todayOverride) {
     });
   });
 
-  var summary = sent + ' notifications to ' + companies + ' companies' + (removed ? ', ' + removed + ' old devices removed' : '');
+  // plan / pilot / payment notices (Billing.gs)
+  var billing = '';
+  try { billing = ' · ' + sendBillingNotices(today); } catch (err) { billing = ' · plan notices failed: ' + err; }
+
+  var summary = sent + ' notifications to ' + companies + ' companies' + (removed ? ', ' + removed + ' old devices removed' : '') + billing;
   Logger.log(summary);
   return { sent: sent, removed: removed, summary: summary };
 }

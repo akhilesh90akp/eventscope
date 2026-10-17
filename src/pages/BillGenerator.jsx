@@ -29,6 +29,7 @@ import DaysCell from '../components/DaysCell';
 import { formatCurrency, formatDateReadable, calcGST, roundOff, nextInvoiceNo, waLink, buildLineEntries, computeSectionTotal, getEventSections, functionDateText, itemDays, lineAmount, usesDays, getEventBill } from '../utils/helpers';
 import { DEFAULT_SAC_CODE } from '../constants/data';
 import { Printer, MessageSquare, Save } from 'lucide-react';
+import { docBrandColor, showsEventScopeMark } from '../utils/billing';
 
 // ============================================================
 // BillGenerator — MAIN COMPONENT
@@ -37,7 +38,10 @@ import { Printer, MessageSquare, Save } from 'lucide-react';
 /** Builds and previews a printable invoice document for an event */
 export default function BillGenerator() {
   const { eventId } = useParams();
-  const { events, settings, updateEvent, showToast } = useApp();
+  const { events, settings, updateEvent, showToast, tenant } = useApp();
+  // Premium: the company's own colour on the document and no EventScope mark
+  const brand = docBrandColor(tenant?.plan, settings);
+  const showMark = showsEventScopeMark(tenant?.plan);
   const navigate = useNavigate();
   const event = events.find(e => e.id === eventId);
 
@@ -331,8 +335,8 @@ export default function BillGenerator() {
             {/* Row 1: Title */}
             <tr>
               <td colSpan={COLS} style={{textAlign: 'center', padding: '24px 24px 12px'}}>
-                <span style={{fontSize: '20px', fontWeight: '800', letterSpacing: '0.2em', textTransform: 'uppercase', color: '#652D90'}}>INVOICE</span>
-                <div style={{height: '3px', width: '80px', margin: '8px auto 0', backgroundColor: '#652D90', borderRadius: '2px'}} />
+                <span style={{fontSize: '20px', fontWeight: '800', letterSpacing: '0.2em', textTransform: 'uppercase', color: brand}}>INVOICE</span>
+                <div style={{height: '3px', width: '80px', margin: '8px auto 0', backgroundColor: brand, borderRadius: '2px'}} />
               </td>
             </tr>
 
@@ -364,16 +368,16 @@ export default function BillGenerator() {
             {/* Row 4: Two boxes with purple top border */}
             <tr>
               <td style={{verticalAlign: 'top', padding: '16px 24px 12px', width: '60%'}} colSpan={COLS - 3}>
-                <div style={{borderTop: '3px solid #652D90', padding: '12px 0 0'}}>
-                  <span style={{fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#652D90'}}>BILL TO/ CLIENT</span><br/>
+                <div style={{borderTop: `3px solid ${brand}`, padding: '12px 0 0'}}>
+                  <span style={{fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: brand}}>BILL TO/ CLIENT</span><br/>
                   <span style={{fontSize: '14px', fontWeight: '700', color: '#1f2937', lineHeight: '2'}}>{billToName}</span><br/>
                   {event.clientPhone && <span style={{fontSize: '11px', color: '#6b7280'}}>Phone: {event.clientPhone}</span>}
                   {billToAddress && <><br/><span style={{fontSize: '11px', color: '#6b7280'}}>{billToAddress}</span></>}
                 </div>
               </td>
               <td style={{verticalAlign: 'top', padding: '16px 24px 12px', width: '40%'}} colSpan="3">
-                <div style={{borderTop: '3px solid #652D90', padding: '12px 0 0', fontSize: '11px', color: '#4b5563', lineHeight: '1.9'}}>
-                  <span style={{fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#652D90'}}>EVENT DETAILS</span><br/>
+                <div style={{borderTop: `3px solid ${brand}`, padding: '12px 0 0', fontSize: '11px', color: '#4b5563', lineHeight: '1.9'}}>
+                  <span style={{fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: brand}}>EVENT DETAILS</span><br/>
                   {event.eventType && <>Event: {event.eventType}<br/></>}
                   {(event.mainEvent?.date || event.date) && <>Date: {event.mainEvent ? functionDateText(event.mainEvent) : formatDateReadable(event.date)}<br/></>}
                   {(event.mainEvent?.location || event.eventLocation) && <>Venue: {event.mainEvent?.location || event.eventLocation}</>}
@@ -393,10 +397,10 @@ export default function BillGenerator() {
                   {/* Event group header — always shown, not just when there are multiple groups, so each event date is clearly labeled */}
                   <tr>
                     <td colSpan={COLS} style={{padding: '12px 24px 6px'}}>
-                      <span style={{fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#652D90'}}>
+                      <span style={{fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', color: brand}}>
                         {group.name}{group.date ? ` — ${functionDateText(group)}` : ''}{group.location ? `, ${group.location}` : ''}
                       </span>
-                      <div style={{height: '2px', marginTop: '6px', backgroundColor: '#652D90', opacity: 0.3, borderRadius: '1px'}} />
+                      <div style={{height: '2px', marginTop: '6px', backgroundColor: brand, opacity: 0.3, borderRadius: '1px'}} />
                     </td>
                   </tr>
 
@@ -545,7 +549,7 @@ export default function BillGenerator() {
                 <table style={{width: '100%', borderCollapse: 'collapse', border: '1px solid #e5e7eb', borderRadius: '6px', overflow: 'hidden'}}>
                   <tbody>
                     <tr style={{backgroundColor: '#f5f0fa'}}>
-                      <td colSpan="2" style={{padding: '8px 16px', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#652D90'}}>SUMMARY</td>
+                      <td colSpan="2" style={{padding: '8px 16px', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em', color: brand}}>SUMMARY</td>
                     </tr>
                     {eventGroups.filter(g => g.items.length > 0).map((group) => (
                       <tr key={group.id} style={{borderBottom: '1px solid #f3f4f6'}}>
@@ -581,9 +585,9 @@ export default function BillGenerator() {
                         <td style={{fontSize: '12px', color: '#1f2937', textAlign: 'right', padding: '6px 16px'}}>{formatCurrency(gstData.igst)}</td>
                       </tr>
                     )}
-                    <tr style={{borderTop: '2px solid #652D90'}}>
+                    <tr style={{borderTop: `2px solid ${brand}`}}>
                       <td style={{fontSize: '16px', fontWeight: '700', color: '#1f2937', padding: '12px 16px'}}>GRAND TOTAL</td>
-                      <td style={{fontSize: '16px', fontWeight: '700', color: '#652D90', textAlign: 'right', padding: '12px 16px'}}>{formatCurrency(rounded.rounded)}</td>
+                      <td style={{fontSize: '16px', fontWeight: '700', color: brand, textAlign: 'right', padding: '12px 16px'}}>{formatCurrency(rounded.rounded)}</td>
                     </tr>
                     {Number(advance) > 0 && (
                       <>
@@ -593,7 +597,7 @@ export default function BillGenerator() {
                         </tr>
                         <tr style={{borderTop: '1px solid #e5e7eb', backgroundColor: '#f5f0fa'}}>
                           <td style={{fontSize: '14px', fontWeight: '700', color: '#1f2937', padding: '10px 16px'}}>BALANCE DUE</td>
-                          <td style={{fontSize: '14px', fontWeight: '700', color: '#652D90', textAlign: 'right', padding: '10px 16px'}}>{formatCurrency(rounded.rounded - Number(advance))}</td>
+                          <td style={{fontSize: '14px', fontWeight: '700', color: brand, textAlign: 'right', padding: '10px 16px'}}>{formatCurrency(rounded.rounded - Number(advance))}</td>
                         </tr>
                       </>
                     )}
@@ -662,6 +666,7 @@ export default function BillGenerator() {
                 <span style={{fontSize: '14px', fontWeight: '700', color: '#1f2937', letterSpacing: '0.05em'}}>
                   {settings.thankYouMessage || 'Thank You For Your Business!'}
                 </span>
+                {showMark && <><br/><span style={{fontSize: '9.5px', color: '#9ca3af', marginTop: '8px', display: 'inline-block'}}>Made with EventScope</span></>}
               </td>
             </tr>
           </tbody>

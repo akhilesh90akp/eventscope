@@ -29,6 +29,8 @@ import { buildContract, nextAgreementNo } from '../utils/contract';
 import { formatCurrency } from '../utils/helpers';
 import { PAYMENT_MODES } from '../constants/contract';
 import { Printer, Save } from 'lucide-react';
+import { showsEventScopeMark } from '../utils/billing';
+import UpgradeCard from '../components/UpgradeCard';
 
 // ============================================================
 // HELPERS
@@ -69,7 +71,7 @@ function initialForm(event, settings, events, user) {
 export default function ContractGenerator() {
   const { eventId } = useParams();
   const navigate = useNavigate();
-  const { events, settings, updateEvent, showToast, user, canEditEvents } = useApp();
+  const { events, settings, updateEvent, showToast, user, canEditEvents, tenant, canUse } = useApp();
   const event = events.find(e => e.id === eventId);
 
   // ------------------------------------------------------------
@@ -96,6 +98,10 @@ export default function ContractGenerator() {
   // ------------------------------------------------------------
   const c = useMemo(() => (event ? buildContract(event, settings, form) : null), [event, settings, form]);
   const unsaved = JSON.stringify(form) !== savedStr;
+
+  if (!canUse('contracts')) {
+    return <UpgradeCard feature="contracts" text="A ready event services agreement for every booking — dates, items, advance and terms filled in." />;
+  }
 
   if (!event) {
     return (
@@ -221,7 +227,7 @@ export default function ContractGenerator() {
 
       {/* The agreement — scrolls sideways on phones, prints as A4 */}
       <div className="doc-scroll">
-        <ContractDocument ref={docRef} settings={settings} details={form} c={c} />
+        <ContractDocument ref={docRef} settings={settings} details={form} c={c} showMark={showsEventScopeMark(tenant?.plan)} />
       </div>
     </div>
   );

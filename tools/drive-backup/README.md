@@ -77,7 +77,22 @@ minute and run **setupReminders** again.
 To send today's reminders again by hand: choose **sendRemindersNow** → **Run**.
 If a morning run fails, the account gets an email "EventScope reminders FAILED".
 
+### Plan & payment notices (Billing.gs)
+
+`Billing.gs` (same script) adds, in the same 9 am run:
+
+- To **you** (EventScope admins): a pilot ends in 3 days; a paid plan ends in
+  7 days and on its last day; payment due (the day after it ends); a company
+  turned read-only. Plus, **every hour**, "X says they paid ₹… (ref …)".
+- To each company's **owners**: their pilot / plan ends in 3 days, and "your
+  plan has ended — 5 days to pay".
+
+You get them on every phone where you turned on reminders in the app (as an
+owner of your own company). Setup: **+** next to Files → **Script** → name it
+`Billing` → paste `Billing.gs`, save → run **setupReminders** once more (it adds
+the hourly payment check).
+
 ## Updating the script
 
-When `Code.gs` or `Reminders.gs` changes in this repo, paste the new version over the old one in
+When `Code.gs`, `Reminders.gs` or `Billing.gs` changes in this repo, paste the new version over the old one in
 the script editor and save. The daily schedule stays as it is.
