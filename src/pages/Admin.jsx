@@ -16,6 +16,7 @@
 // IMPORTS
 // ============================================================
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useApp } from '../context/AppContext';
 import Card from '../components/Card';
 import ImportCompanyDialog from '../components/ImportCompanyDialog';
@@ -41,15 +42,14 @@ const TONE = {
 };
 const FILTERS = [['all', 'All'], ['pilot', 'Pilot'], ['paid', 'Paid'], ['action', 'Needs action'], ['readonly', 'Read-only']];
 
-/** Actions ▾ — a small menu; picking an item opens its pop-up */
+/**
+ * Actions ▾ — a small menu; picking an item opens its pop-up. Drawn in a
+ * portal with fixed position (the table box clips anything inside it), and
+ * opens upward when there isn't room below.
+ */
 function ActionsMenu({ row, onPick }) {
-  const [open, setOpen] = useState(false);
-  useEffect(() => {
-    if (!open) return undefined;
-    const close = () => setOpen(false);
-    const t = setTimeout(() => document.addEventListener('click', close), 0);
-    return () => { clearTimeout(t); document.removeEventListener('click', close); };
-  }, [open]);
+  const [pos, setPos] = useState(null);   // { left, top|bottom } while open
+  const btnRef = useRef(null);
   const items = [
     row.pending && ['payment', '✓ Confirm payment', `${rupees(row.pending.amount)} · ref ${row.pending.ref}`, 'text-emerald-700'],
     !row.pending && ['payment', 'Record payment', 'Paid you some other way', ''],
@@ -60,26 +60,57 @@ function ActionsMenu({ row, onPick }) {
     row.info.phase !== 'suspended' ? ['suspend', 'Suspend', 'Make read-only now', 'text-amber-700'] : null,
     ['history', 'History', 'Everything that happened', ''],
   ].filter(Boolean);
+
+  const toggle = () => {
+    if (pos) { setPos(null); return; }
+    const r = btnRef.current.getBoundingClientRect();
+    const MENU_W = 240;
+    const estH = items.length * 50 + 16;
+    const left = Math.max(8, Math.min(r.right - MENU_W, window.innerWidth - MENU_W - 8));
+    setPos(window.innerHeight - r.bottom < estH + 12 && r.top > estH + 12
+      ? { left, bottom: window.innerHeight - r.top + 6 }
+      : { left, top: r.bottom + 6 });
+  };
+
+  // close on outside click, scroll or resize
+  useEffect(() => {
+    if (!pos) return undefined;
+    const close = () => setPos(null);
+    const onDown = (e) => { if (!btnRef.current?.contains(e.target) && !e.target.closest?.('[data-actions-menu]')) close(); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('touchstart', onDown);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('touchstart', onDown);
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+    };
+  }, [pos]);
+
   return (
-    <div className="relative inline-block text-left">
-      <button onClick={() => setOpen(o => !o)} aria-haspopup="menu" aria-expanded={open}
+    <>
+      <button ref={btnRef} onClick={toggle} aria-haspopup="menu" aria-expanded={!!pos}
         className="inline-flex items-center gap-1 text-sm font-semibold border border-bb-border rounded-lg px-2.5 py-1.5 bg-white hover:border-bb-accent cursor-pointer">
         Actions <ChevronDown size={14} />
       </button>
-      {open && (
-        <div role="menu" className="absolute right-0 z-40 mt-1.5 w-60 bg-white border border-bb-border rounded-xl shadow-xl py-1 text-left">
+      {pos && createPortal(
+        <div role="menu" data-actions-menu style={{ position: 'fixed', zIndex: 120, width: 240, ...pos }}
+          className="bg-white border border-bb-border rounded-xl shadow-xl py-1 text-left max-h-[80vh] overflow-y-auto">
           {items.map((it, i) => (it === '-'
             ? <div key={i} className="border-t border-bb-border my-1" />
             : (
-              <button key={it[0] + i} role="menuitem" onClick={() => { setOpen(false); onPick(it[0]); }}
+              <button key={it[0] + i} role="menuitem" onClick={() => { setPos(null); onPick(it[0]); }}
                 className="block w-full text-left px-3 py-2 hover:bg-gray-50 cursor-pointer">
                 <span className={`block text-sm font-semibold ${it[3] || 'text-bb-text'}`}>{it[1]}</span>
                 <span className="block text-[11px] text-bb-muted">{it[2]}</span>
               </button>
             )))}
-        </div>
+        </div>,
+        document.body,
       )}
-    </div>
+    </>
   );
 }
 
@@ -353,7 +384,7 @@ export default function Admin() {
       </div>
 
       <Card className="hidden md:block">
-        <div className="overflow-x-auto pb-24 -mb-24">
+        <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-bb-border text-left text-xs text-bb-muted uppercase tracking-wide">
