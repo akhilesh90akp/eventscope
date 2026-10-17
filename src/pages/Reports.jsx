@@ -290,17 +290,13 @@ export default function Reports() {
           <p className="text-lg font-bold text-bb-gold">{formatCurrency(stats.revenue)}</p>
         </Card>
         <Card>
-          <p className="text-xs text-bb-muted" data-testid="profit-label">
-            Profit{stats.missingCosts ? ` · ${stats.profitEvents} event${stats.profitEvents === 1 ? '' : 's'} with costs` : ' without purchases'}
-          </p>
+          <p className="text-xs text-bb-muted" data-testid="profit-label">Profit without purchases</p>
           <p className={`text-lg font-bold ${stats.profit >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>{formatCurrency(stats.profit)}</p>
           {stats.missingCosts > 0 ? (
-            <p className="text-[10px] text-amber-700" data-testid="missing-costs">
-              {stats.missingCosts} event{stats.missingCosts === 1 ? ' has' : 's have'} no costs yet.{' '}
-              <button onClick={openJobLog} className="font-semibold underline cursor-pointer hidden md:inline">Add them in the Job Log →</button>
-              <span className="md:hidden">Add them on each completed event.</span>
+            <p className="text-[11px] leading-snug text-amber-800" data-testid="missing-costs">
+              Expenses added for {stats.profitEvents} event{stats.profitEvents === 1 ? '' : 's'} only — {stats.missingCosts} event{stats.missingCosts === 1 ? '’s' : 's’'} expenses still to add.
             </p>
-          ) : <p className="text-[10px] text-bb-muted">All {stats.completed} completed events have costs</p>}
+          ) : <p className="text-[10px] text-bb-muted">Expenses added for all {stats.completed} completed events</p>}
         </Card>
         <Card>
           <p className="text-xs text-bb-muted">Profit after purchases</p>
@@ -312,7 +308,7 @@ export default function Reports() {
           ) : (
             <>
               <p className="text-lg font-bold text-bb-muted" data-testid="after-hidden">—</p>
-              <p className="text-[10px] text-bb-muted">Shows once most events have costs ({stats.profitEvents} of {stats.completed} now)</p>
+              <p className="text-[10px] text-bb-muted">Shows once most events have expenses added ({stats.profitEvents} of {stats.completed} now)</p>
             </>
           )}
         </Card>
@@ -403,7 +399,7 @@ export default function Reports() {
                 <strong style={{fontSize: '11px'}}>Total Events: {stats.total}</strong> &nbsp;|&nbsp;
                 <span style={{fontSize: '11px'}}>Completed: {stats.completed}</span> &nbsp;|&nbsp;
                 <span style={{fontSize: '11px', fontWeight: 'bold', color: '#652D90'}}>Revenue: {formatCurrency(stats.revenue)}</span><br/>
-                <span style={{fontSize: '11px'}}>Profit{stats.missingCosts ? ` (${stats.profitEvents} of ${stats.completed} events with costs)` : ' without purchases'}: {formatCurrency(stats.profit)}</span> &nbsp;|&nbsp;
+                <span style={{fontSize: '11px'}}>Profit without purchases: {formatCurrency(stats.profit)}{stats.missingCosts ? ` (expenses added for ${stats.profitEvents} of ${stats.completed} events)` : ''}</span> &nbsp;|&nbsp;
                 <span style={{fontSize: '11px'}}>Spent on purchases: {formatCurrency(stats.spent)}</span>
                 {stats.enoughCosts && <> &nbsp;|&nbsp; <span style={{fontSize: '11px', fontWeight: 'bold'}}>Profit after purchases: {formatCurrency(stats.afterPurchases)}</span></>}
               </td>

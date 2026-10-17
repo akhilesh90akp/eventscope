@@ -143,7 +143,7 @@ export default function Purchases() {
         {stat('Biggest category', sum.biggestCategory ? sum.biggestCategory.name : '—', 'text-bb-text', sum.biggestCategory ? rupees(sum.biggestCategory.amount) : '')}
         {profit.completed > 0 && profit.profitEvents / profit.completed >= 0.8
           ? stat('Profit after purchases', formatCurrency(afterPurchases), afterPurchases >= 0 ? 'text-emerald-500' : 'text-rose-600', `Event profit ${rupees(profit.profit)} − purchases`)
-          : stat('Profit after purchases', '—', 'text-bb-muted', `Shows once most events have costs (${profit.profitEvents} of ${profit.completed} now)`)}
+          : stat('Profit after purchases', '—', 'text-bb-muted', `Shows once most events have expenses added (${profit.profitEvents} of ${profit.completed} now)`)}
       </div>
 
       {!purchasesLoaded ? (

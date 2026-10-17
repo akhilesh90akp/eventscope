@@ -7,7 +7,7 @@
  * Actions ▾ per company: confirm/record a payment, set/extend the pilot,
  * change plan, suspend, reactivate, history (components/AdminBillingDialog).
  * Also: collections cards, EventScope's UPI payment settings, setting pilot
- * dates for older companies, managing a company's team (support), and
+ * dates for older companies (automatic: from sign-up), managing a company's team (support), and
  * importing a company from a backup. firestore.rules enforce all of this server-side; hiding the
  * menu item is just for a clean UI.
  */
@@ -15,7 +15,7 @@
 // ============================================================
 // IMPORTS
 // ============================================================
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import Card from '../components/Card';
 import ImportCompanyDialog from '../components/ImportCompanyDialog';
@@ -25,8 +25,7 @@ import Input from '../components/Input';
 import Button from '../components/Button';
 import { formatDateReadable, resizeImageFile } from '../utils/helpers';
 import { Shield, Search, Lock, Upload, ChevronDown, Wallet } from 'lucide-react';
-import { useConfirm } from '../components/ConfirmDialog';
-import { accessInfo, adminStatus, planName, todayIST, isDate, DEFAULT_PILOT, periodEnd, GRACE_DAYS, addDays } from '../utils/billing';
+import { accessInfo, adminStatus, planName, todayIST, isDate, DEFAULT_PILOT } from '../utils/billing';
 import { fyStart } from '../utils/purchases';
 
 // ============================================================
@@ -139,7 +138,6 @@ function PaymentSettings() {
 
 export default function Admin() {
   const { isPlatformAdmin, subscribeAllTenants, getTenantCounts, subscribeAllPayments, adminSetPilot, showToast } = useApp();
-  const confirm = useConfirm();
 
   // ------------------------------------------------------------
   // STATE
@@ -152,7 +150,6 @@ export default function Admin() {
   const [importOpen, setImportOpen] = useState(false);
   const [teamFor, setTeamFor] = useState(null);       // tenant whose team dialog is open
   const [dialog, setDialog] = useState(null);         // { mode, tenant } for AdminBillingDialog
-  const [backfilling, setBackfilling] = useState(false);
 
   // ------------------------------------------------------------
   // DATA LOADING / EFFECTS
@@ -234,30 +231,23 @@ export default function Admin() {
   // ------------------------------------------------------------
   const open = (mode, row) => setDialog({ mode, tenant: { ...row.t, pending: row.pending } });
 
-  /** Give older pilot companies dates: from their sign-up date, default length */
-  const backfillPilots = async () => {
-    const plan = undated.map(r => {
-      const start = String(r.t.createdAt || '').slice(0, 10) || today;
-      const end = periodEnd(isDate(start) ? start : today, DEFAULT_PILOT.length, DEFAULT_PILOT.unit);
-      return { r, start: isDate(start) ? start : today, end, blocked: addDays(end, GRACE_DAYS) < today };
-    });
-    const blocked = plan.filter(p => p.blocked);
-    const ok = await confirm({
-      title: `Set pilot dates for ${plan.length} compan${plan.length === 1 ? 'y' : 'ies'}?`,
-      message: `${DEFAULT_PILOT.length} ${DEFAULT_PILOT.unit} from each sign-up date, auto-suspend on.`,
-      note: blocked.length ? `${blocked.map(p => p.r.t.name || p.r.t.id).join(', ')} signed up long ago — they’d turn read-only straight away. You can extend them after.` : undefined,
-      confirmLabel: 'Set dates', tone: blocked.length ? 'warning' : 'primary',
-    });
-    if (!ok) return;
-    setBackfilling(true);
-    let fails = 0;
-    for (const p of plan) {
-      const res = await adminSetPilot(p.r.t, { start: p.start, length: DEFAULT_PILOT.length, unit: DEFAULT_PILOT.unit, autoSuspend: true, extended: false });
-      if (!res.success) fails++;
-    }
-    setBackfilling(false);
-    showToast(fails ? `${fails} couldn’t be saved — try again` : 'Pilot dates set', fails ? 'error' : 'success');
-  };
+  // Older pilot companies (made before pilot dates existed) get their pilot
+  // automatically: from their sign-up date, the default length, auto-suspend on.
+  const backfilled = useRef(new Set());
+  useEffect(() => {
+    const todo = undated.filter(r => !backfilled.current.has(r.t.id));
+    if (!todo.length) return;
+    todo.forEach(r => backfilled.current.add(r.t.id));
+    (async () => {
+      let done = 0;
+      for (const r of todo) {
+        const created = String(r.t.createdAt || '').slice(0, 10);
+        const res = await adminSetPilot(r.t, { start: isDate(created) ? created : today, length: DEFAULT_PILOT.length, unit: DEFAULT_PILOT.unit, autoSuspend: true, extended: false });
+        if (res.success) done++;
+      }
+      if (done) showToast(`Pilot dates set from sign-up for ${done} compan${done === 1 ? 'y' : 'ies'}`);
+    })();
+  }, [undated.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ------------------------------------------------------------
   // RENDER
@@ -309,13 +299,6 @@ export default function Admin() {
         {stat('Collected this year (FY)', rupees(summary.fy), 'text-bb-text', `${summary.fyCount} payment${summary.fyCount === 1 ? '' : 's'}`)}
         {stat('Waiting to confirm', summary.waiting.length, 'text-violet-700', summary.waiting.map(r => `${r.t.name || r.t.id} · ${rupees(r.pending.amount)}`).join(', '))}
       </div>
-
-      {undated.length > 0 && (
-        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900" data-testid="undated-pilots">
-          <span className="flex-1 min-w-[200px]"><b>{undated.length} pilot compan{undated.length === 1 ? 'y has' : 'ies have'} no dates yet</b> — they won’t auto-suspend until you set them ({DEFAULT_PILOT.length} {DEFAULT_PILOT.unit} from sign-up).</span>
-          <Button size="sm" onClick={backfillPilots} disabled={backfilling}>{backfilling ? 'Setting…' : 'Set dates from sign-up'}</Button>
-        </div>
-      )}
 
       {/* Filters */}
       <div className="flex flex-wrap gap-2 items-center">
