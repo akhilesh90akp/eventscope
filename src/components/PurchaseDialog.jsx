@@ -313,7 +313,7 @@ export default function PurchaseDialog({ isOpen, onClose, editing = null }) {
   const saveLabel = saving ? 'Saving…' : editing ? 'Save changes' : mode === 'item' ? (filled.length ? `Save ${filled.length} item${filled.length === 1 ? '' : 's'}` : 'Save items') : 'Save purchase';
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={editing ? 'Edit purchase' : 'Add purchase'} size={mode === 'item' || !editing ? 'xl' : 'md'}>
+    <Modal isOpen={isOpen} onClose={onClose} title={editing ? 'Edit purchase' : 'Add purchase'} size="xl">
       <div className="space-y-4" data-testid="purchase-dialog">
         {!editing && <ModeTabs mode={mode} setMode={(m) => { setMode(m); setError(''); }} />}
 
