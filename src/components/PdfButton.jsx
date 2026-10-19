@@ -46,7 +46,11 @@ export default function PdfButton({ docRef, fileName, label = 'PDF', variant = '
       setPdf(await makePdf(docRef.current, fileName));
     } catch (err) {
       console.error('PDF failed:', err);
-      showToast('Couldn’t make the PDF — please try again.', 'error');
+      // a part of the app from before the latest update — the stale-version
+      // guard in main.jsx reloads; say so instead of a vague error
+      const stale = /dynamically imported module|Importing a module script failed|error loading dynamically|Failed to fetch/i.test(String(err?.message || err));
+      showToast(stale ? 'A new version of the app is ready — refreshing…' : 'Couldn’t make the PDF — please try again.', stale ? 'success' : 'error');
+      if (stale) setTimeout(() => window.location.reload(), 1200);
     } finally {
       setBusy(false);
     }

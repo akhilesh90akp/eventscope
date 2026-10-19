@@ -18,6 +18,21 @@ import ErrorBoundary from './components/ErrorBoundary'
 import { ConfirmProvider } from './components/ConfirmDialog'
 
 // ============================================================
+// STALE VERSION GUARD
+// Parts of the app (PDF maker, Excel, QR code) download only when first
+// used. After a new version is published, a page opened earlier asks for
+// files that no longer exist — reload once to pick up the new version
+// instead of failing ("Couldn't make the PDF").
+// ============================================================
+window.addEventListener('vite:preloadError', (event) => {
+  const last = Number(sessionStorage.getItem('es-reloaded-at') || 0);
+  if (Date.now() - last < 60000) return;          // reloaded a moment ago — don't loop
+  event.preventDefault();
+  sessionStorage.setItem('es-reloaded-at', String(Date.now()));
+  window.location.reload();
+});
+
+// ============================================================
 // MOUNT — the #root element in index.html
 // ============================================================
 createRoot(document.getElementById('root')).render(
