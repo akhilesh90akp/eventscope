@@ -43,7 +43,7 @@ import { genId, inviteKey } from '../utils/helpers';
 import { buildCompanyBackup, backupFileName } from '../utils/companyBackup';
 import { markStartup } from '../utils/startupTiming';
 import { requestPushToken, dropPushToken, rememberTokenId, savedTokenId, deviceLabel } from '../utils/push';
-import { useConfirm } from '../components/ConfirmDialog';
+import { useConfirm } from '../components/useConfirm';
 import { accessInfo, todayIST, pilotFields, paidFields, DEFAULT_PILOT, hasFeature } from '../utils/billing';
 
 // ============================================================

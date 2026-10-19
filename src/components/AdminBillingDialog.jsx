@@ -17,7 +17,7 @@ import Button from './Button';
 import Input from './Input';
 import Toggle from './Toggle';
 import { useApp } from '../context/AppContext';
-import { useConfirm } from './ConfirmDialog';
+import { useConfirm } from './useConfirm';
 import {
   PAID_PLANS, planPrice, planName, periodEnd, renewalRange, todayIST, addDays, daysBetween,
   accessInfo, isDate, GRACE_DAYS, DEFAULT_PILOT,

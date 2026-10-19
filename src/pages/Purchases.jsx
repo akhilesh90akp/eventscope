@@ -20,7 +20,7 @@ import { useApp } from '../context/AppContext';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import PurchaseDialog from '../components/PurchaseDialog';
-import { useConfirm } from '../components/ConfirmDialog';
+import { useConfirm } from '../components/useConfirm';
 import { formatCurrency, formatDateReadable } from '../utils/helpers';
 import {
   fyStart, fyLabel, fyRange, purchaseYears, purchasesBetween, summarizePurchases,

@@ -182,7 +182,7 @@ export function capacityQuestion(event, events, max = DEFAULT_MAX_PER_DAY) {
 // REMINDERS (owners get a push notification 2 days before, at 9 am)
 // ============================================================
 
-export const REMINDER_DAYS_BEFORE = 2;
+const REMINDER_DAYS_BEFORE = 2;
 
 /**
  * Upcoming confirmed functions starting in the next `days` days, each with

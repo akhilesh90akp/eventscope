@@ -28,7 +28,7 @@ import {
   Home, Navigation, IndianRupee,
   Lock,
 } from 'lucide-react';
-import { useConfirm } from '../components/ConfirmDialog';
+import { useConfirm } from '../components/useConfirm';
 
 // ============================================================
 // HELPERS

@@ -16,7 +16,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, FilePlus, FileText, CheckCircle2, PartyPopper, Settings, Plus, BarChart3, LogOut, Shield, Menu, X, CalendarDays, ShoppingBag, CreditCard } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { useConfirm } from './ConfirmDialog';
+import { useConfirm } from './useConfirm';
 import { PlanNotice } from './NoticeBar';
 import { PlanTag } from './UpgradeCard';
 import { countByStatus } from '../utils/helpers';
@@ -50,6 +50,33 @@ const mobileNav = [
   { to: '/confirmed', icon: CheckCircle2, label: 'Confirmed' },
   { to: '/completed', icon: PartyPopper, label: 'Completed' },
 ];
+
+// ============================================================
+// HOOKS
+// ============================================================
+
+/** Fields that bring up the on-screen keyboard (not checkboxes, buttons, pickers) */
+const NO_KEYBOARD = new Set(['checkbox', 'radio', 'button', 'submit', 'reset', 'range', 'color', 'file', 'image']);
+const opensKeyboard = (el) => !!el && (
+  el.isContentEditable
+  || el.tagName === 'TEXTAREA'
+  || (el.tagName === 'INPUT' && !NO_KEYBOARD.has((el.type || 'text').toLowerCase()) && !el.readOnly && !el.disabled)
+);
+
+/** true while a text field has focus on a touch screen (i.e. the keyboard is up) */
+function useTyping() {
+  const [typing, setTyping] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia('(pointer: coarse)').matches) return undefined;
+    const update = () => setTyping(opensKeyboard(document.activeElement));
+    // focusout fires before the next field gets focus — check after it settles
+    const onOut = () => setTimeout(update, 50);
+    document.addEventListener('focusin', update);
+    document.addEventListener('focusout', onOut);
+    return () => { document.removeEventListener('focusin', update); document.removeEventListener('focusout', onOut); };
+  }, []);
+  return typing;
+}
 
 // ============================================================
 // SUB-COMPONENTS
@@ -175,6 +202,11 @@ export default function Layout() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lockAsked]);
 
+  // Phones: hide the bottom bar while the keyboard is open. iPhone shrinks
+  // the visible area for the keyboard, which lifts a bottom-fixed bar up into
+  // the form. Typing in a text box = keyboard open; leaving it = closed.
+  const typing = useTyping();
+
   // Close the mobile menu whenever the page changes
   useEffect(() => { setMenuOpen(false); }, [location.pathname]);
 
@@ -259,7 +291,7 @@ export default function Layout() {
 
       {/* === MOBILE BOTTOM NAV (below 1024px) — not shown in admin-only mode.
            Extra bottom padding keeps it clear of the iPhone home bar. === */}
-      <nav className={`${adminOnly ? 'hidden' : 'lg:hidden'} fixed bottom-0 left-0 right-0 h-[calc(4rem+env(safe-area-inset-bottom))] pb-[env(safe-area-inset-bottom)] bg-bb-sidebar/95 backdrop-blur-md border-t border-bb-sidebar-border z-50`}>
+      <nav data-testid="bottom-nav" className={`${adminOnly || typing ? 'hidden' : 'lg:hidden'} fixed bottom-0 left-0 right-0 h-[calc(4rem+env(safe-area-inset-bottom))] pb-[env(safe-area-inset-bottom)] bg-bb-sidebar/95 backdrop-blur-md border-t border-bb-sidebar-border z-50`}>
         <div className="grid grid-cols-5 items-center h-full w-full">
           {/* Left 2 items */}
           {mobileNav.slice(0, 2).map(item => <BottomTab key={item.to} item={item} />)}

@@ -24,7 +24,7 @@ import { useApp } from '../context/AppContext';
 import { getEventBill, computeEventFinancials, parseMoneyExpr, formatDateRange, functionEnd } from '../utils/helpers';
 import { exportJobLogToExcel, readJobLogFromExcel } from '../utils/jobLogExcel';
 import { Download, Upload, Loader2 } from 'lucide-react';
-import { useConfirm } from '../components/ConfirmDialog';
+import { useConfirm } from '../components/useConfirm';
 import UpgradeCard from '../components/UpgradeCard';
 
 // ============================================================

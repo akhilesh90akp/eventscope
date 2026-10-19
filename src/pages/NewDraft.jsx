@@ -23,9 +23,9 @@ import Button from '../components/Button';
 import Input from '../components/Input';
 import Select from '../components/Select';
 import LocationInput from '../components/LocationInput';
-import FunctionDates, { functionDatesProblem, functionDatesToSave } from '../components/FunctionDates';
+import FunctionDates from '../components/FunctionDates';
 import { EVENT_TYPES } from '../constants/data';
-import { genId } from '../utils/helpers';
+import { functionDatesProblem, functionDatesToSave, genId } from '../utils/helpers';
 import {
   User, Phone, MessageSquare, MapPin, Clock,
   IndianRupee, ChevronDown, ChevronUp, X, Plus, Save, StickyNote, Layers,

@@ -15,30 +15,7 @@ import React from 'react';
 import { Calendar } from 'lucide-react';
 import Input from './Input';
 import Toggle from './Toggle';
-import { functionDays, MAX_FUNCTION_DAYS } from '../utils/helpers';
-
-// ============================================================
-// HELPERS
-// ============================================================
-
-/** What's wrong with a function's dates ('' when fine) — used by the forms' validation */
-export function functionDatesProblem(fn, required = false) {
-  if (!fn.date) return required ? 'Required' : '';
-  if (!fn.multiDay) return '';
-  if (!fn.endDate) return 'Choose the end date';
-  if (fn.endDate <= fn.date) return 'End date must be after the start date';
-  const [y1, m1, d1] = fn.date.split('-').map(Number);
-  const [y2, m2, d2] = fn.endDate.split('-').map(Number);
-  if ((Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1)) / 86400000 + 1 > MAX_FUNCTION_DAYS) return `At most ${MAX_FUNCTION_DAYS} days`;
-  return '';
-}
-
-/**
- * The dates to save on the function. endDate is always written ('' for one
- * day): saves merge into the stored event, so leaving it out would keep an
- * old end date after switching back to a single day.
- */
-export const functionDatesToSave = (fn) => ({ date: fn.date, endDate: fn.multiDay && functionDays(fn) > 1 ? fn.endDate : '' });
+import { functionDays, functionDatesProblem } from '../utils/helpers';
 
 // ============================================================
 // FunctionDates — MAIN COMPONENT

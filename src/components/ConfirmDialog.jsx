@@ -2,7 +2,7 @@
  * ConfirmDialog — the app's own "Are you sure?" pop-up, used instead of the
  * browser's plain OK/Cancel box everywhere.
  *
- * Wrap the app in <ConfirmProvider>, then in any component:
+ * Wrap the app in <ConfirmProvider>, then in any component (hook in useConfirm.js):
  *   const confirm = useConfirm();
  *   if (!(await confirm({ title: 'Delete this event?', message: …, confirmLabel: 'Delete', tone: 'danger' }))) return;
  *
@@ -15,8 +15,9 @@
 // ============================================================
 // IMPORTS
 // ============================================================
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Trash2, AlertTriangle, HelpCircle, LogOut, Lock } from 'lucide-react';
+import { ConfirmContext } from './useConfirm';
 
 // ============================================================
 // CONSTANTS
@@ -28,18 +29,6 @@ const TONES = {
   lock: { icon: Lock, iconBox: 'bg-amber-100 text-amber-600', button: 'bg-bb-accent hover:bg-bb-accent-hover text-white', note: 'bg-gray-50 border-bb-border text-bb-text' },
   primary: { icon: HelpCircle, iconBox: 'bg-violet-100 text-violet-700', button: 'bg-bb-accent hover:bg-bb-accent-hover text-white', note: 'bg-gray-50 border-bb-border text-bb-text' },
 };
-
-const ConfirmContext = createContext(null);
-
-// ============================================================
-// HOOK
-// ============================================================
-
-/** confirm(options) → Promise<boolean>. Falls back to the browser box if no provider is mounted. */
-export function useConfirm() {
-  const ctx = useContext(ConfirmContext);
-  return ctx || (async ({ title, message }) => window.confirm([title, typeof message === 'string' ? message : ''].filter(Boolean).join('\n\n')));
-}
 
 // ============================================================
 // ConfirmProvider — MAIN COMPONENT

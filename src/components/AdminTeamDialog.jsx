@@ -13,7 +13,7 @@
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import Modal from './Modal';
-import { useConfirm } from './ConfirmDialog';
+import { useConfirm } from './useConfirm';
 
 // ============================================================
 // AdminTeamDialog — MAIN COMPONENT

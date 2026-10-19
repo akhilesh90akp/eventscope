@@ -9,12 +9,20 @@
  * (downloadCompanyBackup). Covered by tests/tenantImport.test.mjs.
  */
 
+// ============================================================
+// FILE NAME
+// ============================================================
+
 /** "Kochi Celebrations" + date → "eventscope-backup-kochi-celebrations-2026-10-09.json" */
 export function backupFileName(companyName, now = new Date()) {
   const slug = String(companyName || 'company').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'company';
   const d = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
   return `eventscope-backup-${slug}-${d}.json`;
 }
+
+// ============================================================
+// BACKUP CONTENTS
+// ============================================================
 
 /**
  * @param {object} p

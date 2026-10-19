@@ -59,7 +59,7 @@ import {
   Printer, MessageSquare, X, Plus, Save, Package,
   ChevronDown, ChevronRight, GripVertical, Layers, Ungroup,
 } from 'lucide-react';
-import { useConfirm } from '../components/ConfirmDialog';
+import { useConfirm } from '../components/useConfirm';
 import { docBrandColor, showsEventScopeMark } from '../utils/billing';
 
 // ============================================================

@@ -243,3 +243,14 @@ test('parseMoneyExpr: sums in Job Log cells', () => {
   assert.equal(parseMoneyExpr('12k'), null);
   assert.equal(parseMoneyExpr('1++2'), null);
 });
+
+test('functionDatesProblem / functionDatesToSave', async () => {
+  const { functionDatesProblem, functionDatesToSave } = await import('../src/utils/helpers.js');
+  assert.equal(functionDatesProblem({ date: '' }, true), 'Required');
+  assert.equal(functionDatesProblem({ date: '2026-11-18', multiDay: true }), 'Choose the end date');
+  assert.equal(functionDatesProblem({ date: '2026-11-18', multiDay: true, endDate: '2026-11-18' }), 'End date must be after the start date');
+  assert.equal(functionDatesProblem({ date: '2026-11-01', multiDay: true, endDate: '2026-12-15' }), 'At most 31 days');
+  assert.equal(functionDatesProblem({ date: '2026-11-18', multiDay: true, endDate: '2026-11-20' }), '');
+  assert.deepEqual(functionDatesToSave({ date: '2026-11-18', multiDay: false, endDate: '2026-11-20' }), { date: '2026-11-18', endDate: '' });
+  assert.deepEqual(functionDatesToSave({ date: '2026-11-18', multiDay: true, endDate: '2026-11-20' }), { date: '2026-11-18', endDate: '2026-11-20' });
+});

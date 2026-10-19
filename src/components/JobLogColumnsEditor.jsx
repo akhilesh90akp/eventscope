@@ -15,7 +15,7 @@ import { useApp } from '../context/AppContext';
 import Button from './Button';
 import { genId } from '../utils/helpers';
 import { ArrowUp, ArrowDown, Save, Plus, RotateCcw, Trash2 } from 'lucide-react';
-import { useConfirm } from './ConfirmDialog';
+import { useConfirm } from './useConfirm';
 
 // ============================================================
 // JobLogColumnsEditor — MAIN COMPONENT

@@ -31,7 +31,7 @@ import Toggle from '../components/Toggle';
 import ReminderSwitch from '../components/ReminderSwitch';
 import { DEFAULT_CONTRACT_TERMS } from '../constants/contract';
 import { DEFAULT_MAX_PER_DAY } from '../utils/calendar';
-import { useConfirm } from '../components/ConfirmDialog';
+import { useConfirm } from '../components/useConfirm';
 import { PlanTag } from '../components/UpgradeCard';
 import { teamLimit, planName } from '../utils/billing';
 

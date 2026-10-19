@@ -37,10 +37,11 @@ src/
     StickyBar (keeps search boxes / Settings tabs pinned while scrolling),
     PdfButton (makes a PDF of a document, previews it, then Share / Download / Open),
     ContractDocument (the printable agreement), ReminderSwitch (push reminders on/off per device),
-    FunctionDates (a function's date, or start–end for multi-day — New/Edit event),
+    FunctionDates (a function's date, or start–end for multi-day — New/Edit event;
+      its checks functionDatesProblem / functionDatesToSave live in utils/helpers.js),
     DaysCell (the Days column of the printed quote/bill),
-    ConfirmDialog (the app's own "Are you sure?" pop-up: <ConfirmProvider> in main.jsx +
-      useConfirm() — use it instead of window.confirm; tone 'danger' for deletes),
+    ConfirmDialog (the app's own "Are you sure?" pop-up: <ConfirmProvider> in main.jsx) +
+      useConfirm.js (the hook — use it instead of window.confirm; tone 'danger' for deletes),
     NoticeBar + PlanNotice (the one banner style; shows pilot ending / payment due / read-only),
     UpgradeCard + PlanTag (a feature the plan doesn't include → "on the Standard plan" + See plans),
     AdminBillingDialog (Admin → Actions: pilot, confirm/record payment, plan, suspend, reactivate, history),

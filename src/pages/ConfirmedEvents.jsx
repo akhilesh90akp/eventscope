@@ -21,7 +21,7 @@ import StickyBar from '../components/StickyBar';
 import Button from '../components/Button';
 import Input from '../components/Input';
 import Modal from '../components/Modal';
-import { useConfirm } from '../components/ConfirmDialog';
+import { useConfirm } from '../components/useConfirm';
 import CostsPanel from '../components/CostsPanel';
 import EventSummary from '../components/EventSummary';
 import { telLink, waLink, sortByActiveDate, openJobLog, functionDays, itemDays, lineAmount } from '../utils/helpers';
