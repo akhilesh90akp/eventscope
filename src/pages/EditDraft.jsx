@@ -23,6 +23,8 @@ import Input from '../components/Input';
 import Select from '../components/Select';
 import LocationInput from '../components/LocationInput';
 import FunctionDates from '../components/FunctionDates';
+import EventFormPhone from '../components/EventFormPhone';
+import { useIsPhone } from '../components/useIsPhone';
 import { EVENT_TYPES } from '../constants/data';
 import { functionDatesProblem, functionDatesToSave, genId, functionDays } from '../utils/helpers';
 import {
@@ -132,6 +134,7 @@ export default function EditDraft() {
   const { eventId } = useParams();
   const { events, categories, updateEvent, showToast } = useApp();
   const navigate = useNavigate();
+  const isPhone = useIsPhone();
 
   const event = events.find(e => e.id === eventId);
 
@@ -411,6 +414,23 @@ export default function EditDraft() {
   // ------------------------------------------------------------
   // RENDER
   // ------------------------------------------------------------
+
+  // Phones: the same form in 3 steps (components/EventFormPhone.jsx)
+  if (isPhone) {
+    const onItems = (id, fn) => (id === 'main' ? fn.main : fn.sub);
+    return (
+      <EventFormPhone f={{
+        mode: 'edit', form, set, errors, setErrors, saving, events, categories,
+        eventTypeSelectValue, isCustomEventType, handleEventTypeSelect,
+        mainEvent, setMainField, subEvents, addSubEvent, removeSubEvent, setSubField,
+        toggleItem: (id, item) => onItems(id, { main: () => toggleMainItem(item), sub: () => toggleSubItem(id, item) })(),
+        removeItem: (id, item) => onItems(id, { main: () => removeMainItem(item), sub: () => removeSubItem(id, item) })(),
+        addCustomItem: (id, item) => onItems(id, { main: () => addCustomMainItem(item), sub: () => addCustomSubItem(id, item) })(),
+        onSave: handleSubmit,
+        onCancel: () => navigate(-1),
+      }} />
+    );
+  }
 
   return (
     <div className="space-y-4 pb-8">

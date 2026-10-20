@@ -24,6 +24,8 @@ import Input from '../components/Input';
 import Select from '../components/Select';
 import LocationInput from '../components/LocationInput';
 import FunctionDates from '../components/FunctionDates';
+import EventFormPhone from '../components/EventFormPhone';
+import { useIsPhone } from '../components/useIsPhone';
 import { EVENT_TYPES } from '../constants/data';
 import { functionDatesProblem, functionDatesToSave, genId } from '../utils/helpers';
 import {
@@ -131,8 +133,9 @@ function ItemsSelector({ selectedItems, onToggle, onRemove, onAddCustom, categor
 
 /** Form page for creating a new event draft */
 export default function NewDraft() {
-  const { categories, addEvent, showToast, isSuspended, isOwner } = useApp();
+  const { categories, addEvent, showToast, isSuspended, isOwner, events } = useApp();
   const navigate = useNavigate();
+  const isPhone = useIsPhone();
 
   // ------------------------------------------------------------
   // STATE
@@ -321,6 +324,23 @@ export default function NewDraft() {
           {isOwner && <Button className="mt-4" onClick={() => navigate('/billing')}>See plans & pay</Button>}
         </div>
       </Card>
+    );
+  }
+
+  // Phones: the same form in 3 steps (components/EventFormPhone.jsx)
+  if (isPhone) {
+    const onItems = (id, fn) => (id === 'main' ? fn.main : fn.sub);
+    return (
+      <EventFormPhone f={{
+        mode: 'new', form, set, errors, setErrors, saving, events, categories,
+        eventTypeSelectValue, isCustomEventType, handleEventTypeSelect,
+        mainEvent, setMainField, subEvents, addSubEvent, removeSubEvent, setSubField,
+        toggleItem: (id, item) => onItems(id, { main: () => toggleMainItem(item), sub: () => toggleSubItem(id, item) })(),
+        removeItem: (id, item) => onItems(id, { main: () => removeMainItem(item), sub: () => removeSubItem(id, item) })(),
+        addCustomItem: (id, item) => onItems(id, { main: () => addCustomMainItem(item), sub: () => addCustomSubItem(id, item) })(),
+        onSave: handleSubmit,
+        onCancel: () => navigate(((window.history.state?.idx ?? 0) > 0) ? -1 : '/'),
+      }} />
     );
   }
 

@@ -232,7 +232,7 @@ function LayoutShell() {
       </aside>
 
       {/* === MOBILE TITLE BAR (below 1024px) — page title or ← back, stays on top === */}
-      <header className="lg:hidden sticky top-0 z-40 bg-bb-sidebar border-b border-bb-sidebar-border pt-[env(safe-area-inset-top)]">
+      <header className={`lg:hidden sticky top-0 z-40 bg-bb-sidebar border-b ${isTask ? "border-transparent" : "border-bb-sidebar-border"} pt-[env(safe-area-inset-top)]`}>
         <PhoneHeader screen={phoneScreen} extra={headerExtra} logo={LOGO}
           onMenu={() => setMenuOpen(true)} onBack={goBack} onLogo={() => navigate(adminOnly ? '/admin' : '/')} />
       </header>

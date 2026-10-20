@@ -349,6 +349,23 @@ export function eventFunctions(ev) {
   return [main, ...subs].sort((a, b) => (a.fn.date || '9999').localeCompare(b.fn.date || '9999'));
 }
 
+/** Every venue used on these events, most used first: [{ name, count }] */
+export function savedVenues(events = []) {
+  const counts = new Map();
+  const add = (v) => {
+    const name = (v || '').trim();
+    if (!name) return;
+    const key = name.toLowerCase();
+    const cur = counts.get(key);
+    counts.set(key, { name: cur?.name || name, count: (cur?.count || 0) + 1 });
+  };
+  events.forEach(e => {
+    add(e.mainEvent?.location || e.eventLocation);
+    (e.subEvents || []).forEach(s => add(s.location));
+  });
+  return [...counts.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+}
+
 /** { draft, confirmed, completed } — how many events each list holds (menu badges, page titles) */
 export const countByStatus = (events = []) => events.reduce((acc, e) => {
   if (e && acc[e.status] !== undefined) acc[e.status]++;

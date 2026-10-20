@@ -115,10 +115,10 @@ export function DateField({ label, value, onChange, required, id, placeholder = 
   return (
     <label className="block" htmlFor={id}>
       {label && <span className="block text-[13.5px] font-semibold text-gray-700 mb-2">{label}{required && <span className="text-red-500"> *</span>}</span>}
-      <span className="relative flex items-center gap-2.5 min-h-[48px] rounded-xl border border-bb-border bg-bb-input px-3.5 focus-within:ring-2 focus-within:ring-bb-accent/40">
+      <span className="@container relative flex items-center gap-2.5 min-h-[48px] rounded-xl border border-bb-border bg-bb-input px-3.5 focus-within:ring-2 focus-within:ring-bb-accent/40">
         <CalendarDays size={18} className="text-gray-500 shrink-0" />
-        <span className={`flex-1 text-[16px] ${text ? 'font-bold text-bb-text' : 'text-gray-400'}`} data-testid={testId ? `${testId}-text` : undefined}>{text || placeholder}</span>
-        <span className="text-[13px] text-gray-500">{text ? 'Change' : ''}</span>
+        <span className={`flex-1 min-w-0 whitespace-nowrap overflow-hidden text-ellipsis text-[16px] ${text ? 'font-bold text-bb-text' : 'text-gray-400'}`} data-testid={testId ? `${testId}-text` : undefined}>{text || placeholder}</span>
+        {text && <span className="hidden @[250px]:inline text-[13px] text-gray-500">Change</span>}
         <input id={id} type="date" value={value || ''} min={min} max={max} onChange={e => onChange(e.target.value)} data-testid={testId}
           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" aria-label={label || 'Date'} />
       </span>
