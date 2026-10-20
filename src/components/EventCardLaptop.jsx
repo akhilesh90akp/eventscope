@@ -151,7 +151,7 @@ export default function EventCardLaptop({ ev, variant = ev?.status, on = {}, loc
       <div className="mt-3 space-y-2.5" data-testid="card-functions">
         {rows.map((r, n) => (
           <div key={n} className={`grid gap-2.5 items-stretch ${single ? 'grid-cols-[minmax(0,1fr)_160px]' : 'grid-cols-[minmax(0,1fr)_minmax(0,1fr)_160px]'}`}>
-            {r.map((f, k) => <EventTile key={k} fn={f.fn} main={f.main && !single} past={f.past} />)}
+            {r.map((f, k) => <EventTile key={k} fn={f.fn} main={f.main && !single} past={f.past && variant !== 'completed'} />)}
             {!single && r.length === 1 && <span />}
             {n === 0 ? (itemsTile || <span />) : <span />}
           </div>
