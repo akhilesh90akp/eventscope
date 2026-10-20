@@ -18,14 +18,15 @@
 // IMPORTS
 // ============================================================
 import React, { useMemo, useState } from 'react';
-import { Plus, Download, Edit2, Edit3, Trash2, ChevronDown, ChevronUp, Lock, ShoppingBag } from 'lucide-react';
+import { Plus, Download, Edit3, Trash2, ChevronDown, ChevronUp, Lock, ShoppingBag } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import Card from '../components/Card';
 import StickyBar from '../components/StickyBar';
+import PageHeader from '../components/PageHeader';
 import Button from '../components/Button';
 import PurchaseDialog from '../components/PurchaseDialog';
 import { useConfirm } from '../components/useConfirm';
-import { formatCurrency, formatDateReadable } from '../utils/helpers';
+import { formatRupees, formatDateReadable } from '../utils/helpers';
 import {
   fyStart, fyLabel, fyRange, purchaseYears, purchasesBetween, summarizePurchases,
   sortPurchases, eventProfitBetween, exportPurchasesToExcel,
@@ -129,8 +130,8 @@ export default function Purchases() {
   const stat = (label, value, cls = 'text-bb-text', sub = '') => (
     <Card>
       <p className="text-xs text-bb-muted">{label}</p>
-      <p className={`text-lg sm:text-xl font-bold truncate ${cls}`}>{value}</p>
-      {sub && <p className="text-[10px] text-bb-muted max-lg:text-[12.5px] max-lg:text-gray-600">{sub}</p>}
+      <p className={`text-lg sm:text-xl font-bold truncate tabular-nums mt-0.5 ${cls}`}>{value}</p>
+      {sub && <p className="text-[12px] text-bb-muted mt-1 max-lg:text-[12.5px] max-lg:text-gray-600">{sub}</p>}
     </Card>
   );
 
@@ -149,29 +150,30 @@ export default function Purchases() {
       )}
 
       {/* === HEADER (laptop) === */}
-      {!isPhone && <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-        <h1 className="text-xl font-bold text-bb-text">Purchases</h1>
-        <select value={year} onChange={e => setYear(Number(e.target.value))} aria-label="Financial year"
-          className="bg-white border border-bb-border rounded-lg px-3 py-1.5 text-sm text-bb-text cursor-pointer">
-          {years.map(y => <option key={y} value={y}>{fyLabel(y).replace('FY ', '')} (Apr–Mar)</option>)}
-        </select>
-        <span className="flex-1" />
-        <Button variant="secondary" icon={Download} onClick={handleDownload} disabled={busy || !list.length}>
-          {busy ? 'Preparing…' : 'Download Excel'}
-        </Button>
-        <Button icon={Plus} onClick={() => setDialog({ editing: null })}>Add purchase</Button>
-      </div>}
+      {!isPhone && (
+        <PageHeader title="Purchases"
+          actions={<>
+            <select value={year} onChange={e => setYear(Number(e.target.value))} aria-label="Financial year"
+              className="min-h-[40px] bg-white border border-bb-border rounded-lg px-3 text-sm font-semibold text-bb-text cursor-pointer">
+              {years.map(y => <option key={y} value={y}>{fyLabel(y).replace('FY ', '')} (Apr–Mar)</option>)}
+            </select>
+            <Button variant="secondary" icon={Download} onClick={handleDownload} disabled={busy || !list.length}>
+              {busy ? 'Preparing…' : 'Download Excel'}
+            </Button>
+            <Button icon={Plus} onClick={() => setDialog({ editing: null })}>Add purchase</Button>
+          </>} />
+      )}
       <p className="text-sm text-bb-muted -mt-1 max-lg:text-[13.5px] max-lg:text-gray-600 max-lg:mt-0">
         Things you buy for the business and use across many events — chairs, lights, a generator. Not part of any one event’s costs in the Job Log.
       </p>
 
       {/* === SUMMARY CARDS === */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {stat('Spent this year', formatCurrency(sum.total))}
+        {stat('Spent this year', formatRupees(sum.total))}
         {stat('Entries', sum.count)}
         {stat('Biggest category', sum.biggestCategory ? sum.biggestCategory.name : '—', 'text-bb-text', sum.biggestCategory ? rupees(sum.biggestCategory.amount) : '')}
         {profit.completed > 0 && profit.profitEvents / profit.completed >= 0.8
-          ? stat('Profit after purchases', formatCurrency(afterPurchases), afterPurchases >= 0 ? 'text-emerald-500' : 'text-rose-600', `Event profit ${rupees(profit.profit)} − purchases`)
+          ? stat('Profit after purchases', formatRupees(afterPurchases), afterPurchases >= 0 ? 'text-emerald-500' : 'text-rose-600', `Event profit ${rupees(profit.profit)} − purchases`)
           : stat('Profit after purchases', '—', 'text-bb-muted', `Shows once most events have expenses added (${profit.profitEvents} of ${profit.completed} now)`)}
       </div>
 
@@ -227,32 +229,30 @@ export default function Purchases() {
               <thead>
                 <tr className="border-b border-bb-border">
                   {['Date', 'Item', 'Category', 'Qty', 'Note', 'Amount', ''].map((h, i) => (
-                    <th key={i} className={`py-2 px-2 ${i === 5 ? 'text-right' : 'text-left'} text-bb-muted font-medium`}>{h}</th>
+                    <th key={i} className={`py-3 px-3 ${i === 5 ? 'text-right' : 'text-left'} text-[11.5px] uppercase tracking-wider text-bb-muted font-semibold`}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {list.map(p => (
                   <tr key={p.id} className="border-b border-bb-border/50">
-                    <td className="py-2.5 px-2 whitespace-nowrap">{formatDateReadable(p.date)}</td>
-                    <td className="py-2.5 px-2 font-medium text-bb-text">{p.mode === 'total' ? 'Purchases (total)' : p.name}</td>
-                    <td className="py-2.5 px-2"><CategoryTag p={p} /></td>
-                    <td className="py-2.5 px-2">{p.mode === 'total' ? '—' : p.qty || 1}</td>
-                    <td className="py-2.5 px-2 text-bb-muted">{p.note}</td>
-                    <td className="py-2.5 px-2 text-right font-semibold whitespace-nowrap">{rupees(p.amount)}</td>
-                    <td className="py-2.5 px-2 text-right whitespace-nowrap">
-                      <button onClick={() => setDialog({ editing: p })} className="p-1.5 rounded text-bb-muted hover:text-bb-accent cursor-pointer" title="Edit" aria-label="Edit purchase">
-                        <Edit2 size={16} />
-                      </button>
-                      <button onClick={() => askDelete(p)} className="p-1.5 rounded text-bb-muted hover:text-red-500 cursor-pointer" title="Delete" aria-label="Delete purchase">
-                        <Trash2 size={16} />
-                      </button>
+                    <td className="py-3 px-3 whitespace-nowrap">{formatDateReadable(p.date)}</td>
+                    <td className="py-3 px-3 font-medium text-bb-text">{p.mode === 'total' ? 'Purchases (total)' : p.name}</td>
+                    <td className="py-3 px-3"><CategoryTag p={p} /></td>
+                    <td className="py-3 px-3">{p.mode === 'total' ? '—' : p.qty || 1}</td>
+                    <td className="py-3 px-3 text-bb-muted">{p.note}</td>
+                    <td className="py-3 px-3 text-right font-semibold whitespace-nowrap">{rupees(p.amount)}</td>
+                    <td className="py-3 px-3 text-right whitespace-nowrap">
+                      <span className="inline-flex gap-1.5">
+                        <IconButton icon={Edit3} label="Edit purchase" tone="quiet" size={34} iconSize={16} onClick={() => setDialog({ editing: p })} />
+                        <IconButton icon={Trash2} label="Delete purchase" tone="quiet" size={34} iconSize={16} onClick={() => askDelete(p)} />
+                      </span>
                     </td>
                   </tr>
                 ))}
                 <tr>
-                  <td colSpan="5" className="py-2.5 px-2 font-semibold">Total · {list.length} {list.length === 1 ? 'entry' : 'entries'}</td>
-                  <td className="py-2.5 px-2 text-right font-bold">{rupees(sum.total)}</td>
+                  <td colSpan="5" className="py-3 px-3 font-semibold">Total · {list.length} {list.length === 1 ? 'entry' : 'entries'}</td>
+                  <td className="py-3 px-3 text-right font-bold">{rupees(sum.total)}</td>
                   <td />
                 </tr>
               </tbody>

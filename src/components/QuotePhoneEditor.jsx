@@ -150,9 +150,9 @@ function GroupBlock({ q, sectionId, bundle, handle }) {
 // ============================================================
 
 /** Save · Group · Ungroup · Hide prices · WhatsApp · Fit to budget · Versions; Group / Ungroup light up once items are ticked */
-export function QuoteTools({ q }) {
+export function QuoteTools({ q, skip = [], className = '-mx-4 px-4' }) {
   return (
-    <div className="-mx-4 px-4 flex gap-2 overflow-x-auto no-scrollbar pb-0.5" data-testid="quote-tools">
+    <div className={`${className} flex gap-2 overflow-x-auto no-scrollbar pb-0.5`} data-testid="quote-tools">
       {[
         { id: 'save', icon: Save, label: q.saveState === 'saved' ? 'Saved' : q.saveState === 'saving' ? 'Saving…' : 'Save', onClick: q.onSave, tone: q.saveState === 'saved' ? 'done' : 'main' },
         { id: 'group', icon: Layers, label: 'Group', onClick: q.onGroup, disabled: !q.canGroup },
@@ -161,7 +161,7 @@ export function QuoteTools({ q }) {
         q.hasPhone && { id: 'whatsapp', icon: MessageSquare, label: 'WhatsApp', onClick: q.onWhatsApp, tone: 'green' },
         { id: 'fit', icon: Wand2, label: 'Fit to budget', onClick: q.onFitBudget },
         { id: 'versions', icon: History, label: q.revisionsCount ? `Versions (${q.revisionsCount})` : 'Versions', onClick: q.onVersions },
-      ].filter(Boolean).map(t => (
+      ].filter(t => t && !skip.includes(t.id)).map(t => (
         <button key={t.id} onClick={t.onClick} disabled={t.disabled} data-testid={`tool-${t.id}`} aria-pressed={t.on}
           className={`shrink-0 min-h-[42px] px-3.5 rounded-xl border font-semibold text-[14px] inline-flex items-center gap-2 cursor-pointer whitespace-nowrap
             disabled:text-gray-400 disabled:border-gray-200 disabled:bg-gray-50 disabled:cursor-default
@@ -170,6 +170,55 @@ export function QuoteTools({ q }) {
           <t.icon size={17} />{t.label}
         </button>
       ))}
+    </div>
+  );
+}
+
+// ============================================================
+// QuoteTerms — Price & terms card (phone Details tab; the laptop's right-hand panel)
+// ============================================================
+
+/** Subtotal · Discount · Valid for · Fit to budget · GST · Hide prices · totals */
+export function QuoteTerms({ q, discountId = 'quote-discount-m', className = '' }) {
+  return (
+    <div className={`bg-white border border-bb-border rounded-2xl px-[18px] py-3 ${className}`} data-testid="price-terms">
+      <div className="flex justify-between py-2 text-[15px]"><span>Subtotal</span><b className="tabular-nums">{formatRupees(q.subtotal)}</b></div>
+      <div className="grid grid-cols-2 gap-3 mt-2">
+        <label className="block">
+          <span className="block text-[13.5px] font-semibold mb-1.5">Discount</span>
+          <input id={discountId} value={q.discountText} onChange={e => q.setDiscountText(e.target.value)} placeholder="5000 or 10%"
+            className="w-full min-h-[46px] rounded-xl border border-bb-border bg-bb-input px-3 text-[16px] focus:outline-none focus:ring-2 focus:ring-bb-accent/40" />
+          <span className="block text-[12px] text-gray-600 mt-1">{q.discount.amount > 0 ? <b className="text-emerald-700" data-testid="discount-amount">− {formatRupees(q.discount.amount)}</b> : 'Amount (5000) or % (10%)'}</span>
+        </label>
+        <label className="block">
+          <span className="block text-[13.5px] font-semibold mb-1.5">Valid for (days)</span>
+          <input type="number" inputMode="numeric" value={q.validityDays} onChange={e => q.setValidityDays(Number(e.target.value))}
+            className="w-full min-h-[46px] rounded-xl border border-bb-border bg-bb-input px-3 text-[16px] focus:outline-none focus:ring-2 focus:ring-bb-accent/40" />
+        </label>
+      </div>
+      <button onClick={q.onFitBudget} data-testid="fit-open"
+        className="w-full mt-4 min-h-[48px] rounded-xl bg-violet-50 border border-violet-200 text-bb-accent-hover font-semibold inline-flex items-center justify-center gap-2 cursor-pointer">
+        <Wand2 size={18} />Client has a budget? Fit to budget
+      </button>
+      <div className="mt-3 border-t border-bb-border">
+        <SwitchRow title="Add GST" checked={q.gstEnabled} onChange={q.setGstEnabled} testId="gst-switch" />
+        {q.gstEnabled && (
+          <div className="flex gap-2 pb-3" role="radiogroup" aria-label="GST rate">
+            {['5', '12', '18', '28'].map(r => (
+              <button key={r} role="radio" aria-checked={String(q.gstRate) === r} onClick={() => q.setGstRate(r)}
+                className={`min-h-[38px] px-3.5 rounded-full border text-[14px] font-semibold cursor-pointer ${String(q.gstRate) === r ? 'bg-bb-accent border-bb-accent text-white' : 'bg-white border-gray-300'}`}>{r}%</button>
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="border-t border-bb-border">
+        <SwitchRow title="Hide item prices" sub="Client sees one final amount per event" checked={q.hidePrices} onChange={q.setHidePrices} testId="hide-switch" />
+      </div>
+      <div className="border-t border-bb-border pt-2 space-y-1 text-[15px]">
+        {q.discount.amount > 0 && <div className="flex justify-between py-1"><span>Discount{q.discount.pct ? ` (${q.discount.pct}%)` : ''}</span><b className="tabular-nums text-emerald-700">− {formatRupees(q.discount.amount)}</b></div>}
+        {q.gstEnabled && <div className="flex justify-between py-1"><span>GST ({q.gstRate}%)</span><b className="tabular-nums">{formatRupees(q.gstData.tax)}</b></div>}
+        <div className="flex justify-between py-1.5 font-extrabold text-[16px]"><span>Total</span><span className="tabular-nums" data-testid="phone-total">{formatRupees(q.gstData.total)}</span></div>
+      </div>
     </div>
   );
 }
@@ -256,45 +305,7 @@ export default function QuotePhoneEditor({ q }) {
 
       {/* Price & terms */}
       <SectionLabel>Price &amp; terms</SectionLabel>
-      <div className="bg-white border border-bb-border rounded-2xl px-[18px] py-3" data-testid="price-terms">
-        <div className="flex justify-between py-2 text-[15px]"><span>Subtotal</span><b className="tabular-nums">{formatRupees(q.subtotal)}</b></div>
-        <div className="grid grid-cols-2 gap-3 mt-2">
-          <label className="block">
-            <span className="block text-[13.5px] font-semibold mb-1.5">Discount</span>
-            <input id="quote-discount-m" value={q.discountText} onChange={e => q.setDiscountText(e.target.value)} placeholder="5000 or 10%"
-              className="w-full min-h-[46px] rounded-xl border border-bb-border bg-bb-input px-3 text-[16px] focus:outline-none focus:ring-2 focus:ring-bb-accent/40" />
-            <span className="block text-[12px] text-gray-600 mt-1">{q.discount.amount > 0 ? <b className="text-emerald-700">− {formatRupees(q.discount.amount)}</b> : 'Amount (5000) or % (10%)'}</span>
-          </label>
-          <label className="block">
-            <span className="block text-[13.5px] font-semibold mb-1.5">Valid for (days)</span>
-            <input type="number" inputMode="numeric" value={q.validityDays} onChange={e => q.setValidityDays(Number(e.target.value))}
-              className="w-full min-h-[46px] rounded-xl border border-bb-border bg-bb-input px-3 text-[16px] focus:outline-none focus:ring-2 focus:ring-bb-accent/40" />
-          </label>
-        </div>
-        <button onClick={q.onFitBudget} data-testid="fit-open"
-          className="w-full mt-4 min-h-[48px] rounded-xl bg-violet-50 border border-violet-200 text-bb-accent-hover font-semibold inline-flex items-center justify-center gap-2 cursor-pointer">
-          <Wand2 size={18} />Client has a budget? Fit to budget
-        </button>
-        <div className="mt-3 border-t border-bb-border">
-          <SwitchRow title="Add GST" checked={q.gstEnabled} onChange={q.setGstEnabled} testId="gst-switch" />
-          {q.gstEnabled && (
-            <div className="flex gap-2 pb-3" role="radiogroup" aria-label="GST rate">
-              {['5', '12', '18', '28'].map(r => (
-                <button key={r} role="radio" aria-checked={String(q.gstRate) === r} onClick={() => q.setGstRate(r)}
-                  className={`min-h-[38px] px-3.5 rounded-full border text-[14px] font-semibold cursor-pointer ${String(q.gstRate) === r ? 'bg-bb-accent border-bb-accent text-white' : 'bg-white border-gray-300'}`}>{r}%</button>
-              ))}
-            </div>
-          )}
-        </div>
-        <div className="border-t border-bb-border">
-          <SwitchRow title="Hide item prices" sub="Client sees one final amount per event" checked={q.hidePrices} onChange={q.setHidePrices} testId="hide-switch" />
-        </div>
-        <div className="border-t border-bb-border pt-2 space-y-1 text-[15px]">
-          {q.discount.amount > 0 && <div className="flex justify-between py-1"><span>Discount{q.discount.pct ? ` (${q.discount.pct}%)` : ''}</span><b className="tabular-nums text-emerald-700">− {formatRupees(q.discount.amount)}</b></div>}
-          {q.gstEnabled && <div className="flex justify-between py-1"><span>GST ({q.gstRate}%)</span><b className="tabular-nums">{formatRupees(q.gstData.tax)}</b></div>}
-          <div className="flex justify-between py-1.5 font-extrabold text-[16px]"><span>Total</span><span className="tabular-nums" data-testid="phone-total">{formatRupees(q.gstData.total)}</span></div>
-        </div>
-      </div>
+      <QuoteTerms q={q} discountId="quote-discount-m" />
     </div>
   );
 }

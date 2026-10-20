@@ -17,7 +17,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import BackButton from '../components/BackButton';
+import PageHeader from '../components/PageHeader';
+import { SectionLabel, IconButton } from '../components/PhoneUI';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import Input from '../components/Input';
@@ -30,7 +31,7 @@ import { EVENT_TYPES } from '../constants/data';
 import { functionDatesProblem, functionDatesToSave, genId } from '../utils/helpers';
 import {
   User, Phone, MessageSquare, MapPin, Clock,
-  IndianRupee, ChevronDown, ChevronUp, X, Plus, Save, StickyNote, Layers,
+  IndianRupee, ChevronDown, ChevronUp, X, Plus, Save, StickyNote, Trash2,
   Lock,
 } from 'lucide-react';
 
@@ -345,15 +346,17 @@ export default function NewDraft() {
   }
 
   return (
-    <div className="space-y-4 pb-8">
-      <div className="flex items-center gap-2">
-        <BackButton />
-        <h1 className="text-xl font-bold text-bb-text">New Draft</h1>
-      </div>
+    <div className="space-y-5 pb-8 max-w-[1080px]">
+      {/* Title row with Cancel / Save, pinned while you fill the form */}
+      <PageHeader sticky title="New event" onBack={() => navigate(((window.history.state?.idx ?? 0) > 0) ? -1 : '/')}
+        actions={<>
+          <Button variant="secondary" onClick={() => navigate(((window.history.state?.idx ?? 0) > 0) ? -1 : '/')}>Cancel</Button>
+          <Button icon={Save} onClick={handleSubmit} disabled={saving} data-testid="header-save">{saving ? 'Saving…' : 'Save'}</Button>
+        </>} />
 
       {/* Client Info */}
       <Card>
-        <h3 className="text-sm font-semibold text-bb-muted uppercase mb-3">Client Info</h3>
+        <SectionLabel className="mb-4">Client</SectionLabel>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <Input label="Client Name" placeholder="Full name" icon={User} required
             value={form.clientName} onChange={e => set('clientName', e.target.value)} error={errors.clientName} />
@@ -368,7 +371,7 @@ export default function NewDraft() {
 
       {/* Event Type & Budget */}
       <Card>
-        <h3 className="text-sm font-semibold text-bb-muted uppercase mb-3">Event Details</h3>
+        <SectionLabel className="mb-4">Event details</SectionLabel>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <Select label="Event Type" required options={EVENT_TYPES}
             value={eventTypeSelectValue} onChange={e => handleEventTypeSelect(e.target.value)} error={errors.eventType} />
@@ -387,7 +390,7 @@ export default function NewDraft() {
 
       {/* Main Event */}
       <Card>
-        <h3 className="text-sm font-semibold text-bb-muted uppercase mb-3">🎯 Main Event</h3>
+        <SectionLabel className="mb-4">Main event</SectionLabel>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
           <Input label="Event Name" placeholder={form.eventType || 'e.g., Wedding Ceremony'}
             value={mainEvent.name} onChange={e => setMainField('name', e.target.value)} />
@@ -412,18 +415,9 @@ export default function NewDraft() {
       {/* Sub-Events */}
       {subEvents.map((sub, idx) => (
         <Card key={sub.id}>
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-bb-muted uppercase">
-              <Layers size={14} className="inline mr-1" />
-              Sub-Event {idx + 1}
-            </h3>
-            <button
-              onClick={() => removeSubEvent(sub.id)}
-              className="p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
-              title="Remove sub-event"
-            >
-              <X size={18} />
-            </button>
+          <div className="flex items-center justify-between mb-4">
+            <SectionLabel>{`Sub event ${idx + 1}${sub.name ? ` · ${sub.name}` : ''}`}</SectionLabel>
+            <IconButton icon={Trash2} label="Remove sub-event" tone="red" size={36} iconSize={17} onClick={() => removeSubEvent(sub.id)} />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
@@ -449,9 +443,10 @@ export default function NewDraft() {
       ))}
 
       {/* Add Sub-Event Button */}
-      <Button icon={Plus} variant="secondary" fullWidth onClick={addSubEvent}>
-        Add Sub-Event
-      </Button>
+      <button onClick={addSubEvent} data-testid="add-sub-event"
+        className="w-full min-h-[52px] rounded-xl border-2 border-dashed border-violet-300 bg-violet-50 text-bb-accent-hover font-semibold inline-flex items-center justify-center gap-2 hover:bg-violet-100 cursor-pointer">
+        <Plus size={18} />Add Sub-Event
+      </button>
 
       {/* Notes */}
       <Card>

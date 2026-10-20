@@ -27,8 +27,13 @@ src/
     JoinInvite (accept/decline an invite), Login,
     Legal (Terms / Privacy / Data protection — public)
   components/               Reusable UI pieces
-    Layout (desktop sidebar; mobile title bar + hamburger menu + bottom nav; task screens hide the bottom nav), Button, Card, Input, Select, Modal, Toast,
-    PHONE DESIGN (below 1024px — laptops keep their own layouts; pages pick one with useIsPhone):
+    Layout (desktop sidebar; mobile title bar + hamburger menu + bottom nav; task screens hide the bottom nav;
+      laptops: content centred, max ~1320px), Button, Card, Input, Select, Modal, Toast,
+    PageHeader (every laptop page's title row: ← back, title + count, sub-line, actions on the right
+      with one purple main action; `sticky` pins it — Quote, Bill, Contract, New/Edit, Settings —
+      and publishes its height as --lap-head for side panels),
+    PHONE DESIGN (below 1024px; pages pick a layout with useIsPhone — laptops share the cards, quote tools
+      and Price & terms panel below, laid out wider):
       PhoneHeader + phoneScreens.js (the purple bar: main screens = title + ☰, task screens =
         ← back + title + sub-line; route table PHONE_SCREENS; pages add a sub-line / buttons
         with usePhoneHeader), useIsPhone.js, useTyping.js (keyboard open → bars step aside),
@@ -36,8 +41,11 @@ src/
       BottomSheet (slides up on phones, a dialog on laptops), DocFit (A4 document fitted to the
         phone width, "Actual size" switch), PhoneUI (IconButton, SectionLabel, SegmentedTabs,
         MenuRow, SwitchRow, NumberBox, DateField "Sat, 12 Sep 2026", TextField, DateBlock, FunctionRow),
-      EventCardPhone (+ EventItemsSheet, EventMoreSheet — Home/Drafts/Confirmed/Completed cards),
-      QuotePhoneEditor (quote Details tab), FitBudgetSheet + QuoteRevisionsSheet (Fit to budget,
+      EventCard (+ EventItemsSheet, EventMoreSheet, EventDetails — Home/Drafts/Confirmed/Completed
+        cards on phones AND laptops; laptops show two per row with a "Details" fold: notes,
+        addresses, costs),
+      QuotePhoneEditor (quote Details tab) + QuoteTools (Save · Group · Ungroup · Hide prices · WhatsApp ·
+        Fit to budget · Versions row) + QuoteTerms (Price & terms card — phone tab and the laptop's right panel), FitBudgetSheet + QuoteRevisionsSheet (Fit to budget,
         versions — also on laptops), EventFormPhone (New/Edit event in 3 steps) + VenueInput
         (saved venues first, then OpenStreetMap, then "use as typed"),
     Badge, Toggle, LocationInput, ErrorBoundary,
@@ -46,8 +54,8 @@ src/
     AdminTeamDialog (Admin: a company's members/invites — change role, remove),
     AuthBackground (video behind sign-in / sign-up / invite screens),
     AnimatedLogo (logo that builds itself once on those screens and while loading),
-    EventSummary (event card face shared by Home and Confirmed/Completed),
-    StickyBar (keeps search boxes / Settings tabs pinned while scrolling),
+    StickyBar (keeps search boxes and phone tab/tool rows pinned under the title bar — its top comes
+      from --phone-head, measured by Layout),
     PdfButton (makes a PDF of a document, previews it, then Share / Download / Open),
     ContractDocument (the printable agreement), ReminderSwitch (push reminders on/off per device),
     FunctionDates (a function's date, or start–end for multi-day — New/Edit event;

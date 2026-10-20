@@ -1,11 +1,13 @@
 /**
- * EventCardPhone — an event card on phones (below 1024px), plus its two sheets
+ * EventCard — an event card (phones and laptops), plus its two sheets
  *
- * Used by Home, Drafts, Confirmed and Completed. Laptops keep the older,
- * fold-open cards on those pages.
- *   - EventCardPhone   name, chips, amount, every function (main + sub events)
+ * Used by Home, Drafts, Confirmed and Completed on every screen size
+ * (laptops show two per row). Laptops can add a fold-open "Details" area
+ * underneath through `footer` (notes, addresses, costs).
+ *   - EventCard   name, chips, amount, every function (main + sub events)
  *                      or date + venue, "N items added · View", one action row
  *   - EventItemsSheet  the items on this event, by function, with groups
+ *   - EventDetails     laptops: "Details" fold under a card (notes, addresses, costs)
  *   - EventMoreSheet   everything else (Edit, Add items, Set prices, Contract,
  *                      Move to…, Mark done) with Delete last, in red
  * Pure UI: the page passes the handlers (and does the saving).
@@ -18,7 +20,9 @@ import React from 'react';
 import {
   FileText, Receipt, Phone, MessageSquare, MoreHorizontal, ClipboardList, ChevronRight,
   CheckCircle2, Edit3, Plus, Tag, FileSignature, ArrowLeftRight, Trash2, Lock, CalendarDays, MapPin, Table2,
+  ChevronDown, ChevronUp, Home, Navigation,
 } from 'lucide-react';
+import CostsPanel from './CostsPanel';
 import Badge from './Badge';
 import BottomSheet from './BottomSheet';
 import { IconButton, FunctionRow, MenuRow } from './PhoneUI';
@@ -59,7 +63,7 @@ function RowButton({ icon: Icon, children, onClick, kind = 'secondary', testId, 
 }
 
 // ============================================================
-// EventCardPhone — MAIN COMPONENT
+// EventCard — MAIN COMPONENT
 // ============================================================
 
 /**
@@ -67,8 +71,10 @@ function RowButton({ icon: Icon, children, onClick, kind = 'secondary', testId, 
  * @param variant   'draft' | 'confirmed' | 'completed' | 'home'
  * @param on        { quote, bill, confirm, markDone, jobLog, items, more } handlers (missing = hidden)
  * @param locked    read-only company: write buttons show a lock
+ * @param footer    optional extra content under the action row (laptops: Details)
+ * @param highlight ring the card (opened from the calendar / home)
  */
-export default function EventCardPhone({ ev, variant = ev?.status, on = {}, locked = false }) {
+export default function EventCard({ ev, variant = ev?.status, on = {}, locked = false, footer = null, highlight = false }) {
   const fns = eventFunctions(ev);
   const many = fns.length > 1;
   const countdown = eventCountdown(ev);
@@ -81,7 +87,7 @@ export default function EventCardPhone({ ev, variant = ev?.status, on = {}, lock
   const dayOver = (variant === 'confirmed' || variant === 'home') && allOver && !!on.markDone;
 
   return (
-    <article className="bg-white border border-bb-border rounded-2xl p-[18px]" data-testid="event-card-phone" data-event={ev.id}>
+    <article className={`bg-white border rounded-2xl p-[18px] lg:p-5 ${highlight ? 'border-bb-accent ring-2 ring-bb-accent/25' : 'border-bb-border'}`} data-testid="event-card" data-event={ev.id}>
       {/* Name · chips · amount */}
       <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0">
@@ -162,7 +168,41 @@ export default function EventCardPhone({ ev, variant = ev?.status, on = {}, lock
         </>}
         {on.more && <IconButton icon={MoreHorizontal} label="More actions" onClick={on.more} data-testid="btn-more" />}
       </div>
+      {footer}
     </article>
+  );
+}
+
+// ============================================================
+// EventDetails — laptops: the fold-open area under a card
+// ============================================================
+
+/** Laptops: "Details" under a card — notes, addresses and (Completed) the event's costs */
+export function EventDetails({ ev, open, onToggle, showCosts }) {
+  const venue = ev.mainEvent?.location || ev.eventLocation;
+  const Line = ({ icon: Icon, label, value }) => value ? (
+    <p className="flex items-start gap-2 text-[13.5px] text-bb-muted"><Icon size={15} className="shrink-0 mt-0.5" /><span>{label}: <span className="text-bb-text">{value}</span></span></p>
+  ) : null;
+  return (
+    <div className="mt-4 pt-3 border-t border-bb-border">
+      <button onClick={onToggle} aria-expanded={open} data-testid="card-details-toggle"
+        className="w-full flex items-center justify-between text-[13.5px] font-semibold text-bb-muted hover:text-bb-text cursor-pointer">
+        {showCosts ? 'Details & costs' : 'Details'}
+        {open ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+      </button>
+      {open && (
+        <div className="mt-3 space-y-3" data-testid="card-details">
+          {ev.notes && <p className="text-[13.5px] text-bb-text bg-bb-input rounded-lg px-3 py-2 whitespace-pre-line">{ev.notes}</p>}
+          <div className="space-y-1.5">
+            <Line icon={Home} label="Client address" value={ev.clientAddress} />
+            <Line icon={MapPin} label="Venue" value={venue} />
+            <Line icon={Navigation} label="House location" value={ev.houseLocation} />
+          </div>
+          {!ev.notes && !ev.clientAddress && !venue && !ev.houseLocation && !showCosts && <p className="text-[13.5px] text-bb-muted">No notes or addresses yet.</p>}
+          {showCosts && <CostsPanel event={ev} />}
+        </div>
+      )}
+    </div>
   );
 }
 

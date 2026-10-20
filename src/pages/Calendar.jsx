@@ -26,16 +26,18 @@
 // ============================================================
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, AlertTriangle, Bell, CalendarDays, Users, SlidersHorizontal, Info } from 'lucide-react';
+import { ChevronLeft, ChevronRight, AlertTriangle, Bell, CalendarDays, Users, SlidersHorizontal, Info, Plus } from 'lucide-react';
 import { useIsPhone } from '../components/useIsPhone';
 import BottomSheet from '../components/BottomSheet';
 import { SegmentedTabs, IconButton } from '../components/PhoneUI';
 import StickyBar from '../components/StickyBar';
+import PageHeader from '../components/PageHeader';
+import Button from '../components/Button';
 import { useApp } from '../context/AppContext';
 import Card from '../components/Card';
 import ReminderSwitch from '../components/ReminderSwitch';
 import { EVENT_TYPES } from '../constants/data';
-import { formatCurrency, formatDateRange, formatRupees } from '../utils/helpers';
+import { formatRupees } from '../utils/helpers';
 import {
   DEFAULT_MAX_PER_DAY, monthGrid, isoDate, eventFunctions, filterFunctions, groupByDate,
   expandDays, assignLanes, dayCount, dayLoad, upcomingReminders,
@@ -66,11 +68,6 @@ const DOT = {
   confirmed: 'bg-bb-accent',
   draft: 'bg-white border border-dashed border-violet-400',
   completed: 'bg-gray-400',
-};
-const STATUS_TAG = {
-  confirmed: 'bg-violet-100 text-violet-700',
-  draft: 'bg-white text-violet-700 border border-dashed border-violet-400',
-  completed: 'bg-gray-200 text-gray-600',
 };
 const STATUS_NAME = { confirmed: 'Confirmed', draft: 'Draft', completed: 'Completed' };
 
@@ -115,31 +112,6 @@ const time12 = (t) => {
 // ============================================================
 // SUB-COMPONENTS
 // ============================================================
-
-/** One function in the day list */
-function FunctionCard({ f, showAmount, onOpen }) {
-  return (
-    <button onClick={onOpen} className="w-full text-left bg-white border border-bb-border rounded-xl px-3 py-2.5 hover:border-bb-accent/50 cursor-pointer">
-      <div className="flex justify-between gap-2">
-        <span className="font-semibold text-bb-text truncate">{f.client}</span>
-        <span className={`shrink-0 text-[11px] font-semibold px-2 py-0.5 rounded-full ${STATUS_TAG[f.status] || STATUS_TAG.draft}`}>{STATUS_NAME[f.status] || f.status}</span>
-      </div>
-      {f.days > 1 && (
-        <span className="inline-block mt-1 text-[11px] font-semibold bg-violet-100 text-violet-700 rounded-md px-1.5" data-testid="day-of">
-          Day {f.dayIndex} of {f.days}
-        </span>
-      )}
-      <p className="text-xs text-bb-muted mt-0.5">
-        {[f.name, f.days > 1 ? formatDateRange(f.startDate || f.date, f.endDate) : '', time12(f.time), f.location].filter(Boolean).join(' · ')}
-      </p>
-      {showAmount && f.amount != null && (
-        <p className={`text-sm font-semibold mt-1 ${f.status === 'draft' ? 'text-bb-muted' : 'text-emerald-600'}`}>
-          {f.status === 'draft' ? 'Quote ' : ''}{formatCurrency(f.amount)}
-        </p>
-      )}
-    </button>
-  );
-}
 
 /** Phones: one event as a flat line inside a day's card (no card-in-card) */
 const EDGE = { confirmed: 'bg-bb-accent', draft: 'bg-violet-300', completed: 'bg-gray-300' };
@@ -332,9 +304,7 @@ export default function Calendar() {
       )}
       {selFns.length === 0
         ? <p className="text-sm text-bb-muted py-3">{selCount || selDrafts ? 'Nothing matches the filters.' : 'Free day.'}</p>
-        : isPhone
-          ? <div className="bg-white border border-bb-border rounded-2xl px-4">{selFns.map(f => <FunctionLine key={f.key} f={f} showAmount={isOwner} onOpen={() => openEvent(f)} />)}</div>
-          : selFns.map(f => <FunctionCard key={f.key} f={f} showAmount={isOwner} onOpen={() => openEvent(f)} />)}
+        : <div className={isPhone ? 'bg-white border border-bb-border rounded-2xl px-4' : '-mx-1'}>{selFns.map(f => <FunctionLine key={f.key} f={f} showAmount={isOwner} onOpen={() => openEvent(f)} />)}</div>}
     </div>
   );
 
@@ -358,7 +328,7 @@ export default function Calendar() {
   // ------------------------------------------------------------
   return (
     <div className="space-y-4 pb-8">
-      {!isPhone && <h1 className="text-xl font-bold text-bb-text">Calendar</h1>}
+      {!isPhone && <PageHeader title="Calendar" actions={<Button icon={Plus} onClick={() => navigate('/new')}>New event</Button>} />}
 
       {/* === PHONE: Month | List · filters · month switcher === */}
       {isPhone && (
@@ -410,10 +380,15 @@ export default function Calendar() {
         </div>
       </div>}
 
-      {/* Colour key (laptop) */}
-      <div className="hidden md:flex flex-wrap gap-2 items-stretch">
-        <Legend />
-      </div>
+      {/* Colour key (laptop): one short line; ⓘ explains the day colours */}
+      {!isPhone && (
+        <div className="flex items-center gap-4 text-[13px] text-bb-muted" data-testid="cal-key">
+          <span className="inline-flex items-center gap-1.5"><i className={`w-2.5 h-2.5 rounded-full ${DOT.confirmed}`} />Confirmed</span>
+          <span className="inline-flex items-center gap-1.5"><i className={`w-2.5 h-2.5 rounded-full ${DOT.draft}`} />Draft (tentative)</span>
+          <span className="inline-flex items-center gap-1.5"><i className={`w-2.5 h-2.5 rounded-full ${DOT.completed}`} />Completed</span>
+          <button onClick={() => setSheet('key')} className="inline-flex items-center gap-1.5 font-semibold text-bb-accent-hover hover:underline cursor-pointer"><Info size={15} />What the day colours mean</button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start">
         {/* ---------- Month grid ---------- */}
@@ -442,8 +417,8 @@ export default function Calendar() {
               })}
             </div>
           </div>
-        ) : isPhone ? (
-          /* ---------- List view (phone): date label, then one card of flat lines per day ---------- */
+        ) : (
+          /* ---------- List view: date label, then one card of flat lines per day ---------- */
           <div className="space-y-5" data-testid="cal-list">
             {listDates.length === 0
               ? <p className="text-[14px] text-gray-600 text-center py-10"><CalendarDays className="mx-auto mb-2" />Nothing this month.</p>
@@ -462,18 +437,6 @@ export default function Calendar() {
                 );
               })}
           </div>
-        ) : (
-          /* ---------- List view (laptop) ---------- */
-          <Card>
-            {listDates.length === 0
-              ? <p className="text-sm text-bb-muted text-center py-8"><CalendarDays className="mx-auto mb-2" />Nothing this month.</p>
-              : listDates.map(d => (
-                <div key={d} className="py-2 border-b border-bb-border last:border-0">
-                  <p className="text-sm font-semibold text-bb-text mb-1.5">{longDay(d)} <span className="text-xs font-normal text-bb-muted">· {dayCount(allByDate[d])}/{max}</span></p>
-                  <div className="grid gap-2 md:grid-cols-2">{shownByDate[d].map(f => <FunctionCard key={f.key} f={f} showAmount={isOwner} onOpen={() => openEvent(f)} />)}</div>
-                </div>
-              ))}
-          </Card>
         )}
 
         {/* ---------- Selected day + reminders ---------- */}

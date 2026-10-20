@@ -47,12 +47,9 @@ import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from 
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useApp } from '../context/AppContext';
-import BackButton from '../components/BackButton';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import Input from '../components/Input';
-import Select from '../components/Select';
-import Toggle from '../components/Toggle';
 import Modal from '../components/Modal';
 import PdfButton from '../components/PdfButton';
 import DaysCell from '../components/DaysCell';
@@ -63,7 +60,7 @@ import {
   stableJson,
 } from '../utils/helpers';
 import {
-  Printer, MessageSquare, X, Plus, Save, Package,
+  Printer, MessageSquare, Plus, Save, Package,
   ChevronDown, ChevronRight, GripVertical, Layers, Ungroup,
 } from 'lucide-react';
 import { useConfirm } from '../components/useConfirm';
@@ -74,8 +71,9 @@ import { HeaderIconButton } from '../components/PhoneHeader';
 import ActionBar from '../components/ActionBar';
 import BottomSheet from '../components/BottomSheet';
 import DocFit from '../components/DocFit';
-import { SegmentedTabs, IconButton, MenuRow, SwitchRow } from '../components/PhoneUI';
-import QuotePhoneEditor, { QuoteTools } from '../components/QuotePhoneEditor';
+import { SegmentedTabs, IconButton, MenuRow, SwitchRow, SectionLabel, DateBlock } from '../components/PhoneUI';
+import QuotePhoneEditor, { QuoteTools, QuoteTerms } from '../components/QuotePhoneEditor';
+import PageHeader from '../components/PageHeader';
 import StickyBar from '../components/StickyBar';
 import FitBudgetSheet from '../components/FitBudgetSheet';
 import QuoteRevisionsSheet from '../components/QuoteRevisionsSheet';
@@ -132,7 +130,7 @@ function SortableEntry({ id, children }) {
  * line. FIELDS_ROW / the widths are shared with PriceHeader so headings line up.
  */
 const FIELDS_ROW = 'order-last sm:order-none basis-full sm:basis-auto grid grid-cols-4 sm:flex items-center gap-2 pl-6 sm:pl-0';
-const W = { qty: 'sm:w-16', rate: 'sm:w-24', days: 'sm:w-14', amount: 'sm:w-24' };
+const W = { qty: 'sm:w-16', rate: 'sm:w-28', days: 'sm:w-14', amount: 'sm:w-28' };
 const BOX = 'w-full bg-bb-bg border border-bb-border rounded px-2 py-1.5 text-sm text-bb-text';
 
 function PriceFields({ p, hidePrices, onChange, label }) {
@@ -997,14 +995,14 @@ export default function QuotationGenerator() {
   const showDays = usesDays(itemPrices);
   const COLS = showDays ? 6 : 5;
 
-  /** Hide item prices; turning it on scrolls to the first Final amount box (phones) */
+  /** Hide item prices; turning it on scrolls to the first Final amount box */
   const setHidePricesAndShow = (on) => {
     setHidePrices(on);
-    if (!on || !isPhone) return;
+    if (!on) return;
     setSheet(null);
-    setTab('details');
+    if (isPhone) setTab('details');
     setTimeout(() => {
-      const box = document.querySelector('[data-testid="final-amount-box"]');
+      const box = document.querySelector(isPhone ? '[data-testid="final-amount-box"]' : '[data-testid="final-amount-lap"]');
       if (!box) return;
       const top = box.getBoundingClientRect().top + window.scrollY - window.innerHeight / 3;
       window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
@@ -1039,41 +1037,31 @@ export default function QuotationGenerator() {
   return (
     <div className="space-y-4 pb-8">
       {/* === LAPTOP: controls (hidden in print) === */}
-      {!isPhone && <div data-no-print className="space-y-4">
-        <div className="flex items-center gap-3">
-          <BackButton />
-          <h1 className="text-xl font-bold text-bb-text">Quotation</h1>
-        </div>
-
-        {/* Items & Pricing Card */}
-        <Card>
-          {/* Toolbar — a divider line separates it from the item list */}
-          <div className="flex items-center justify-between mb-4 pb-3 border-b border-bb-border flex-wrap gap-2">
-            <h3 className="text-sm font-semibold text-bb-muted uppercase">Items & Pricing</h3>
-            <div className="flex items-center gap-3 flex-wrap">
-              <Button
-                size="sm" variant="outline" icon={Layers}
-                disabled={!canGroup}
-                onClick={handleGroupClick}
-              >
-                Group
-              </Button>
-              <Button
-                size="sm" variant="outline" icon={Ungroup}
-                disabled={!canUngroup}
-                onClick={handleUngroupSelected}
-              >
-                Ungroup
-              </Button>
-              <Toggle
-                label="Hide Prices"
-                checked={hidePrices}
-                onChange={e => setHidePrices(e.target.checked)}
-              />
-            </div>
+      {!isPhone && <div data-no-print className="space-y-5">
+        {/* Title row + tools, pinned while the items scroll */}
+        <PageHeader sticky title="Quotation" sub={headerSub} onBack={() => (((window.history.state?.idx ?? 0) > 0) ? navigate(-1) : navigate('/confirmed'))}
+          actions={<>
+            {(event.clientWhatsapp || event.clientPhone) && <Button variant="secondary" icon={MessageSquare} onClick={handleWhatsApp} className="!text-emerald-700">WhatsApp</Button>}
+            <Button icon={Printer} variant="secondary" onClick={handlePrint}>Print</Button>
+            <PdfButton docRef={pdfRef} fileName={`${docTitle()}.pdf`} variant="secondary" />
+            <Button icon={Save} onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save quotation'}</Button>
+          </>}>
+          <div className="flex items-center gap-3">
+            <QuoteTools q={phoneQ} skip={['save', 'whatsapp']} className="flex-1 min-w-0" />
+            {anyTicked && (
+              <div className="flex items-center gap-2 shrink-0 pl-3 border-l border-bb-border" data-testid="select-bar">
+                <span className="text-[13.5px] font-semibold text-bb-text">{tickedItems().length} selected</span>
+                <Button size="sm" variant="ghost" onClick={endSelect}>Clear</Button>
+                <IconButton icon={Trash2} label="Remove ticked items" tone="red" size={36} iconSize={17} onClick={askRemoveTicked} disabled={!tickedItems().length} data-testid="remove-ticked" />
+              </div>
+            )}
           </div>
+        </PageHeader>
 
-          <div className="space-y-5">
+        <div className="grid grid-cols-[minmax(0,1fr)_340px] gap-6 items-start">
+        {/* Items — one block per event */}
+        <Card className="!p-6">
+          <div className="space-y-8">
             {printGroups.map(group => {
               const entries = buildLineEntries(group.id, group.items, bundles);
               const entryIds = entries.map(en => en.type === 'bundle' ? `bundle:${en.bundle.id}` : en.key);
@@ -1081,10 +1069,15 @@ export default function QuotationGenerator() {
 
               return (
                 <div key={group.id}>
-                  {/* Section headline — separates Main Event from each Sub Event */}
-                  <p className="text-xs font-bold uppercase tracking-wide text-bb-accent mb-2">
-                    {group.name}{group.date ? ` — ${functionDateText(group)}` : ''}
-                  </p>
+                  {/* Event header — date block, name, when, and the event's total */}
+                  <div className="flex items-center gap-3 mb-4" data-testid="section-head">
+                    <DateBlock date={group.date} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[16px] font-bold text-bb-text truncate">{group.name}</p>
+                      <p className="text-[13px] text-bb-muted">{[group.date ? functionDateText(group) : 'No date yet', `${group.items.length} item${group.items.length === 1 ? '' : 's'}`].join(' · ')}</p>
+                    </div>
+                    {!hidePrices && <b className="text-[16px] tabular-nums text-bb-text" data-testid="section-total">{formatRupees(sectionTotals[group.id] || 0)}</b>}
+                  </div>
                   {group.items.length > 0 && <PriceHeader hidePrices={hidePrices} />}
 
                   {/* Unified rendering for both modes — bundles stay visually
@@ -1099,26 +1092,43 @@ export default function QuotationGenerator() {
                             const b = entry.bundle;
                             return (
                               <SortableEntry key={`bundle:${b.id}`} id={`bundle:${b.id}`}>
-                                <div className="p-2 bg-bb-accent/5 border border-bb-accent/30 rounded-lg space-y-2">
-                                  {/* Header: checkbox selects the whole bundle for Ungroup */}
-                                  <div className="flex items-center gap-2">
+                                <div className="border-[1.5px] border-violet-300 rounded-xl overflow-hidden bg-white" data-testid="quote-group" data-group={b.name}>
+                                  {/* Header band — checkbox selects the whole group; GROUP label, name, group price, ⋮ */}
+                                  <div className="flex items-center gap-3 bg-violet-100 px-3 py-2.5" data-testid="group-header">
                                     <input
                                       type="checkbox"
                                       checked={selectedBundles.has(b.id)}
                                       onChange={() => toggleSelectBundle(b.id)}
                                       className="w-4 h-4 accent-bb-accent shrink-0"
                                       title="Select this group to ungroup"
+                                      aria-label={`Select ${b.name}`}
                                     />
-                                    <span className="text-sm font-semibold text-bb-text">{b.name}</span>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-bb-accent-hover"><Layers size={13} />Group · {b.itemKeys.length} items</p>
+                                      <p className="text-[15px] font-bold text-bb-text truncate">{b.name}</p>
+                                    </div>
+                                    {!hidePrices && (
+                                      <label className="flex items-center gap-2 shrink-0">
+                                        <span className="text-[12.5px] font-semibold text-gray-700">Group price ₹</span>
+                                        <input
+                                          type="number" min="0"
+                                          value={b.amount || ''}
+                                          aria-label={`${b.name} group price`} data-testid="group-price"
+                                          onChange={e => setBundles(bs => bs.map(x => x.id === b.id ? { ...x, amount: Number(e.target.value) || 0 } : x))}
+                                          className="w-32 bg-white border border-violet-300 rounded-lg px-2.5 py-1.5 text-[15px] font-bold text-bb-text text-right focus:outline-none focus:ring-2 focus:ring-bb-accent/40"
+                                        />
+                                      </label>
+                                    )}
+                                    <IconButton icon={MoreVertical} label={`Options for group ${b.name}`} tone="quiet" size={34} iconSize={17} onClick={() => setGroupMenu(b)} />
                                   </div>
                                   {/* Member rows — same layout as standalone items below, one per line. Qty and Days always shown; rate/amount only when prices aren't hidden. */}
-                                  <div className="space-y-1.5 pl-6">
+                                  <div className="space-y-1.5 px-3 py-2.5">
                                     {b.itemKeys.map(k => {
                                       const memberName = k.split('::').slice(1).join('::');
                                       const p = itemPrices[k] || { qty: 1, rate: 0 };
                                       return (
                                         // Phone: name on its own line, the number boxes below; one line on wider screens
-                                        <div key={k} className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                                        <div key={k} className="flex flex-wrap sm:flex-nowrap items-center gap-2" data-testid="quote-item" data-item={memberName} data-member="1">
                                           <input
                                             type="checkbox"
                                             checked={selectedBundleMembers.has(k)}
@@ -1126,33 +1136,15 @@ export default function QuotationGenerator() {
                                             className="w-4 h-4 accent-bb-accent shrink-0"
                                             title="Select to pull this item out of the group"
                                           />
-                                          <p className="flex-1 min-w-0 text-sm text-bb-text break-words sm:truncate">{memberName}</p>
+                                          <p className="flex-1 min-w-0 text-sm text-bb-text break-words">{memberName}</p>
                                           <PriceFields p={p} hidePrices={hidePrices} label={memberName}
                                             onChange={(field, value) => updateBundleMemberPrice(b, k, field, value)} />
-                                          <button
-                                            onClick={() => askRemoveItem(k.split('::')[0], memberName)}
-                                            className="p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
-                                            title="Remove item" aria-label={`Remove ${memberName}`}
-                                          >
-                                            <X size={16} />
-                                          </button>
+                                          <IconButton icon={MoreVertical} label={`Options for ${memberName}`} tone="quiet" size={32} iconSize={16}
+                                            onClick={() => setItemMenu({ sectionId: k.split('::')[0], name: memberName, key: k, bundleId: b.id })} />
                                         </div>
                                       );
                                     })}
                                   </div>
-                                  {/* Total Group Price — hidden entirely while Hide Prices is on, since the section's Final Amount below takes over as the actual charged total */}
-                                  {!hidePrices && (
-                                    <div className="flex items-center gap-2 pt-1.5 border-t border-bb-accent/20">
-                                      <span className="text-xs font-semibold text-bb-muted uppercase flex-1">Total Group Price</span>
-                                      <span className="text-bb-muted text-sm">₹</span>
-                                      <input
-                                        type="number" min="0"
-                                        value={b.amount || ''}
-                                        onChange={e => setBundles(bs => bs.map(x => x.id === b.id ? { ...x, amount: Number(e.target.value) || 0 } : x))}
-                                        className="w-28 bg-bb-bg border border-bb-border rounded px-2 py-1 text-sm font-semibold text-bb-text text-right"
-                                      />
-                                    </div>
-                                  )}
                                 </div>
                               </SortableEntry>
                             );
@@ -1163,7 +1155,7 @@ export default function QuotationGenerator() {
                             <SortableEntry key={key} id={key}>
                               {/* Phone: name gets its own line (with the ✕), Qty · Rate · Days · Amount below.
                                   Wider screens: everything on one line, under the PriceHeader headings. */}
-                              <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 p-2 bg-bb-input rounded-lg">
+                              <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 px-2.5 py-2 bg-bb-input rounded-lg" data-testid="quote-item" data-item={name}>
                                 <input
                                   type="checkbox"
                                   checked={selected.has(name)}
@@ -1171,16 +1163,11 @@ export default function QuotationGenerator() {
                                   className="w-4 h-4 accent-bb-accent shrink-0"
                                   title="Select for grouping"
                                 />
-                                <p className="flex-1 min-w-0 text-sm text-bb-text break-words sm:truncate">{name}</p>
+                                <p className="flex-1 min-w-0 text-sm text-bb-text break-words">{name}</p>
                                 <PriceFields p={itemPrices[key] || newPrice(1)} hidePrices={hidePrices} label={name}
                                   onChange={(field, value) => setItemPrices(p => ({ ...p, [key]: { ...(p[key] || newPrice(1)), [field]: value } }))} />
-                                <button
-                                  onClick={() => askRemoveItem(group.id, name)}
-                                  className="p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
-                                  title="Remove item"
-                                >
-                                  <X size={16} />
-                                </button>
+                                <IconButton icon={MoreVertical} label={`Options for ${name}`} tone="quiet" size={32} iconSize={16}
+                                  onClick={() => setItemMenu({ sectionId: group.id, name, key, bundleId: null })} />
                               </div>
                             </SortableEntry>
                           );
@@ -1202,7 +1189,7 @@ export default function QuotationGenerator() {
                     );
                   })()}
                   {hidePrices && (
-                    <div className="mt-2 space-y-1.5">
+                    <div className="mt-2 space-y-1.5" data-testid="final-amount-lap">
                       <label htmlFor={`final-${group.id}`} className="block text-sm font-semibold text-bb-accent">{group.name} — Final Amount (₹)</label>
                       <input
                         id={`final-${group.id}`}
@@ -1226,11 +1213,6 @@ export default function QuotationGenerator() {
                     </button>
                   )}
 
-                  {!hidePrices && (
-                    <p className="text-right text-sm font-semibold text-bb-text mt-2">
-                      Section Total: {formatCurrency(sectionTotals[group.id] || 0)}
-                    </p>
-                  )}
 
                   {/* Add Item — scoped to this section, so items land on the
                       main event or the specific sub-event being edited. */}
@@ -1247,7 +1229,7 @@ export default function QuotationGenerator() {
                       <Button size="sm" icon={Plus} onClick={() => handleAddItem(group.id)}>Add</Button>
                     </div>
                     <Button size="sm" variant="outline" icon={Package} onClick={() => setCategoryModalSection(group.id)}>
-                      Add from Categories
+                      Add from services
                     </Button>
                   </div>
                 </div>
@@ -1255,52 +1237,14 @@ export default function QuotationGenerator() {
             })}
           </div>
 
-          {/* GST & Validity */}
-          <div className="flex flex-wrap items-center gap-4 mt-4 pt-3 border-t border-bb-border">
-            <Toggle label="Include GST" checked={gstEnabled} onChange={e => setGstEnabled(e.target.checked)} />
-            {gstEnabled && (
-              <Select
-                label="GST Rate"
-                options={['5', '12', '18', '28']}
-                value={gstRate}
-                onChange={e => setGstRate(e.target.value)}
-                className="w-28"
-              />
-            )}
-            <Input
-              label="Validity (days)"
-              type="number"
-              value={validityDays}
-              onChange={e => setValidityDays(Number(e.target.value))}
-              className="w-32"
-            />
-            <div className="space-y-1.5">
-              <label htmlFor="quote-discount" className="block text-sm font-medium text-bb-text">Discount <span className="text-xs font-normal text-bb-muted">· Amount (5000) or % (10%)</span></label>
-              <div className="flex items-center gap-2">
-                <input
-                  id="quote-discount"
-                  value={discountText}
-                  onChange={e => setDiscountText(e.target.value)}
-                  placeholder="5000 or 10%"
-                  className="w-32 bg-bb-input border border-bb-border rounded-lg px-3 py-2.5 text-bb-text placeholder:text-bb-muted/60 focus:outline-none focus:ring-2 focus:ring-bb-accent"
-                />
-                {discount.amount > 0 && <span className="text-sm font-semibold text-emerald-600" data-testid="discount-amount">− {formatCurrency(discount.amount)}</span>}
-              </div>
-            </div>
-            <div className="flex items-end gap-2 self-end">
-              <Button size="sm" variant="outline" icon={Wand2} onClick={() => setSheet('fit')}>Fit to budget</Button>
-              {revisions.length > 0 && <Button size="sm" variant="ghost" icon={History} onClick={() => setSheet('revisions')}>Versions ({revisions.length})</Button>}
-            </div>
-          </div>
         </Card>
 
-        {/* Action Buttons */}
-        <div data-no-print className="flex gap-2 flex-wrap">
-          <Button icon={Save} onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save Quotation'}</Button>
-          <PdfButton docRef={pdfRef} fileName={`${docTitle()}.pdf`} variant="secondary" />
-          <span className="hidden md:contents"><Button icon={Printer} variant="secondary" onClick={handlePrint}>Print</Button></span>
-          <Button icon={MessageSquare} variant="success" onClick={handleWhatsApp}>Share via WhatsApp</Button>
-          <Button variant="secondary" onClick={() => navigate(-1)}>Back</Button>
+        {/* Price & terms — stays in view while the items scroll */}
+        <aside className="sticky top-[var(--lap-head,9.5rem)] space-y-3" data-testid="quote-summary">
+          <SectionLabel>Price &amp; terms</SectionLabel>
+          <QuoteTerms q={phoneQ} discountId="quote-discount" />
+          {revisions.length > 0 && <p className="text-[12.5px] text-bb-muted px-1">{revisions.length} earlier version{revisions.length > 1 ? 's' : ''} in Versions.</p>}
+        </aside>
         </div>
       </div>}
 

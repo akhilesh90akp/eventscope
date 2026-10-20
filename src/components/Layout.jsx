@@ -279,7 +279,8 @@ function LayoutShell() {
       <main className={`lg:ml-[240px] ${isTask ? 'pb-[calc(7rem+env(safe-area-inset-bottom))]' : 'pb-[calc(5.5rem+env(safe-area-inset-bottom))]'} lg:pb-6`} data-screen={isTask ? 'task' : 'main'}>
         {/* Plan notice: pilot ending, payment due, read-only… (one at a time) */}
         {!adminOnly && <div className="px-4 pt-4 md:px-6 lg:px-8 lg:pt-5 empty:hidden"><PlanNotice /></div>}
-        <div className="p-4 md:p-6 lg:p-8 w-full">
+        {/* Laptops: content is centred and stops growing past ~1320px, so lines stay readable on big screens */}
+        <div className="p-4 md:p-6 lg:p-8 w-full lg:max-w-[1320px] lg:mx-auto">
           <Outlet />
         </div>
       </main>

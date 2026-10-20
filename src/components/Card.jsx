@@ -16,7 +16,7 @@ export default function Card({ children, hover = false, onClick, className = '' 
     <div
       onClick={onClick}
       className={`
-        bg-bb-card border border-bb-border rounded-xl p-3 sm:p-4
+        bg-bb-card border border-bb-border rounded-xl p-3 sm:p-4 lg:p-5
         ${hover ? 'hover:border-bb-accent/50 transition-colors' : ''}
         ${onClick ? 'cursor-pointer' : ''}
         ${className}

@@ -2,12 +2,12 @@
  * Dashboard — Home page with overview statistics
  *
  * Displays key metrics (drafts, confirmed, completed, revenue) and the
- * upcoming confirmed events (nearest first), drawn with the same card face
- * as the Confirmed page. Each stat card opens its page (Revenue → Reports,
- * owners only).
+ * upcoming confirmed events (nearest first). Each tile opens its page
+ * (Revenue → Reports, owners only).
  *
- * Phones: roomier tiles and EventCardPhone cards (Quote · Call · WhatsApp,
- * every function listed); laptops keep the compact cards.
+ * Phones and laptops share the event card (EventCard: Quote · Call ·
+ * WhatsApp · ⋯, every function listed); laptops show two per row under a
+ * PageHeader with "New event".
  *
  * Read-only vs. Firestore: only reads `events` from AppContext.
  */
@@ -19,13 +19,14 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import Card from '../components/Card';
-import EventSummary from '../components/EventSummary';
-import EventCardPhone, { EventItemsSheet, EventMoreSheet } from '../components/EventCardPhone';
+import PageHeader from '../components/PageHeader';
+import Button from '../components/Button';
+import EventCard, { EventItemsSheet, EventMoreSheet } from '../components/EventCard';
 import { PlanTag } from '../components/UpgradeCard';
 import { SectionLabel } from '../components/PhoneUI';
 import { useIsPhone } from '../components/useIsPhone';
-import { formatCurrency, telLink, sortByActiveDate } from '../utils/helpers';
-import { FileText, CheckCircle, PartyPopper, IndianRupee, Phone, CalendarDays } from 'lucide-react';
+import { formatRupees, sortByActiveDate } from '../utils/helpers';
+import { FileText, CheckCircle, PartyPopper, IndianRupee, CalendarDays, Plus } from 'lucide-react';
 
 // ============================================================
 // Dashboard — MAIN COMPONENT
@@ -57,7 +58,7 @@ export default function Dashboard() {
     { label: 'Drafts', value: drafts.length, icon: FileText, color: 'text-amber-400', to: '/drafts' },
     { label: 'Confirmed', value: confirmed.length, icon: CheckCircle, color: 'text-emerald-400', to: '/confirmed' },
     { label: 'Completed', value: completed.length, icon: PartyPopper, color: 'text-blue-400', to: '/completed' },
-    { label: 'Revenue', value: formatCurrency(revenue), icon: IndianRupee, color: 'text-bb-gold', to: isOwner ? '/reports' : null },
+    { label: 'Revenue', value: formatRupees(revenue), icon: IndianRupee, color: 'text-bb-gold', to: isOwner ? '/reports' : null },
   ];
 
   // ------------------------------------------------------------
@@ -77,30 +78,35 @@ export default function Dashboard() {
   // ------------------------------------------------------------
 
   return (
-    <div className="space-y-5 lg:space-y-6">
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+    <div className="space-y-5 lg:space-y-7">
+      {/* Laptop: page title with the main action */}
+      {!isPhone && (
+        <PageHeader title="Home" sub="Your business at a glance and the confirmed events coming up"
+          actions={<Button icon={Plus} onClick={() => navigate('/new')}>New event</Button>} />
+      )}
+
+      {/* Number tiles — each opens its list */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 lg:gap-4">
         {stats.map(s => (
-          <Card key={s.label} hover={!!s.to} onClick={s.to ? () => navigate(s.to) : undefined} className="max-lg:!p-4 max-lg:rounded-2xl">
-            <div className="flex items-center gap-3" role={s.to ? 'link' : undefined} aria-label={s.to ? `Open ${s.label}` : undefined}>
-              <div className={`${s.color}`}>
+          <Card key={s.label} hover={!!s.to} onClick={s.to ? () => navigate(s.to) : undefined} className="max-lg:!p-4 max-lg:rounded-2xl lg:rounded-2xl">
+            <div className="flex items-center gap-3 lg:gap-4" role={s.to ? 'link' : undefined} aria-label={s.to ? `Open ${s.label}` : undefined}>
+              <div className={`${s.color} lg:w-11 lg:h-11 lg:rounded-xl lg:bg-bb-bg lg:flex lg:items-center lg:justify-center`}>
                 <s.icon size={22} />
               </div>
               <div>
-                <p className="text-xs text-bb-muted">{s.label}</p>
-                <p className="text-lg font-bold text-bb-text">{s.value}</p>
+                <p className="text-xs lg:text-[13px] text-bb-muted">{s.label}</p>
+                <p className="text-lg lg:text-[22px] font-bold text-bb-text tabular-nums">{s.value}</p>
               </div>
             </div>
           </Card>
         ))}
       </div>
 
-      {/* Confirmed Events */}
+      {/* Confirmed events — the same card on phones and laptops (two per row on laptops) */}
       <div>
-        {!isPhone && <h2 className="text-lg font-semibold text-bb-text mb-3">Confirmed Events</h2>}
-        {isPhone && <SectionLabel className="mb-3" right={displayEvents.length > 0 && (
+        <SectionLabel className="mb-3" right={displayEvents.length > 0 && (
           <button onClick={() => navigate('/confirmed')} className="text-[14px] font-semibold text-bb-accent-hover min-h-[40px] px-1 cursor-pointer">See all</button>
-        )}>Confirmed events</SectionLabel>}
+        )}>Confirmed events</SectionLabel>
 
         {displayEvents.length === 0 ? (
           <Card>
@@ -111,11 +117,9 @@ export default function Dashboard() {
             </div>
           </Card>
         ) : (
-          isPhone ? (
-          /* Phone: the same card as the Confirmed page, with Quote · Call · WhatsApp */
-          <div className="space-y-4" data-testid="phone-list">
+          <div className="grid gap-4 lg:grid-cols-2 lg:gap-5 items-start" data-testid="phone-list">
             {displayEvents.map(ev => (
-              <EventCardPhone key={ev.id} ev={ev} variant="home"
+              <EventCard key={ev.id} ev={ev} variant="home"
                 on={{
                   quote: () => navigate(`/quotation/${ev.id}`),
                   markDone: guard(() => markDone(ev.id)),
@@ -124,28 +128,6 @@ export default function Dashboard() {
                 }} locked={isSuspended} />
             ))}
           </div>
-          ) : (
-          <div className="space-y-3">
-            {displayEvents.map(ev => (
-              // Same card face as the Confirmed page; tapping opens that event there
-              <Card key={ev.id} hover onClick={() => navigate('/confirmed', { state: { expandId: ev.id } })}>
-                <EventSummary
-                  ev={ev}
-                  right={ev.clientPhone && (
-                    <a
-                      href={telLink(ev.clientPhone)}
-                      onClick={e => e.stopPropagation()}
-                      aria-label={`Call ${ev.clientName}`}
-                      className="p-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition-colors"
-                    >
-                      <Phone size={14} />
-                    </a>
-                  )}
-                />
-              </Card>
-            ))}
-          </div>
-          )
         )}
       </div>
       {moreId && (() => {
