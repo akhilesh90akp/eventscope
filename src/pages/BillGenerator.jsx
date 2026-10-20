@@ -9,7 +9,9 @@
  *
  * Phones (below 1024px): Details | Preview tabs — the inputs grouped into
  * Invoice / Bill to / Money cards with a live summary, and a bar pinned to the
- * bottom with the balance due, WhatsApp and PDF. Laptops keep the form below.
+ * bottom with the balance due, WhatsApp and PDF. Laptops: a title row with
+ * WhatsApp · Print · PDF · Save and one form card (Invoice · Bill to ·
+ * Payment & GST); the document below.
  *
  * Bill details (invoice no/date, bill-to, discount, advance, GST settings)
  * auto-save to the event 1s after the user stops editing, and a manual
@@ -22,13 +24,8 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import BackButton from '../components/BackButton';
 import Button from '../components/Button';
 import PdfButton from '../components/PdfButton';
-import Input from '../components/Input';
-import Select from '../components/Select';
-import Toggle from '../components/Toggle';
-import Card from '../components/Card';
 import DaysCell from '../components/DaysCell';
 import { formatRupees, formatCurrency, formatDateReadable, calcGST, roundOff, nextInvoiceNo, waLink, buildLineEntries, computeSectionTotal, getEventSections, functionDateText, itemDays, lineAmount, usesDays, getEventBill } from '../utils/helpers';
 import { DEFAULT_SAC_CODE } from '../constants/data';
@@ -40,6 +37,7 @@ import ActionBar from '../components/ActionBar';
 import DocFit from '../components/DocFit';
 import StickyBar from '../components/StickyBar';
 import { SegmentedTabs, SectionLabel, SwitchRow, DateField, TextField, IconButton } from '../components/PhoneUI';
+import { PageHeader, HeaderIcon, Field, FormCol, Seg, Switch } from '../components/LaptopUI';
 
 // ============================================================
 // BillGenerator — MAIN COMPONENT
@@ -309,39 +307,37 @@ export default function BillGenerator() {
 
   return (
     <div className="space-y-4 pb-8">
-      {/* === LAPTOP: controls (hidden in print) === */}
+      {/* === LAPTOP: title row and one form card in three columns (hidden in print) === */}
       {!isPhone && <div data-no-print className="space-y-4">
-        <div className="flex items-center gap-3">
-          <BackButton />
-          <h1 className="text-xl font-bold text-bb-text">Invoice</h1>
-        </div>
+        <PageHeader title="Invoice" onBack={() => navigate(-1)}
+          sub={[event.clientName, event.eventType, (event.mainEvent?.date || event.date) && formatDateReadable(event.mainEvent?.date || event.date)].filter(Boolean).join(' · ')}
+          actions={<>
+            {(event.clientWhatsapp || event.clientPhone) && <HeaderIcon icon={MessageSquare} label="Share on WhatsApp" tone="green" onClick={handleWhatsApp} data-testid="hdr-whatsapp" />}
+            <HeaderIcon icon={Printer} label="Print" onClick={handlePrint} data-testid="hdr-print" />
+            <PdfButton docRef={pdfRef} fileName={`${docTitle()}.pdf`} variant="laptop" />
+            <HeaderIcon icon={Save} label={autoSaving ? 'Saving…' : hasUnsavedChanges ? 'Save' : 'Saved'} tone="primary" onClick={handleManualSave} disabled={autoSaving} data-testid="hdr-save" />
+          </>} />
 
-        {/* Invoice configuration form */}
-        <Card>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <Input label="Invoice No" value={invoiceNo} onChange={e => setInvoiceNo(e.target.value)} />
-            <Input label="Invoice Date" type="date" value={invoiceDate} onChange={e => setInvoiceDate(e.target.value)} />
-            <Input label="Bill To (Name)" value={billToName} onChange={e => setBillToName(e.target.value)} />
-            <Input label="Bill To (Address)" value={billToAddress} onChange={e => setBillToAddress(e.target.value)} />
-            <Input label="Discount (₹)" type="number" value={discount} onChange={e => setDiscount(e.target.value)} />
-            <Input label="Advance Paid (₹)" type="number" value={advance} onChange={e => setAdvance(e.target.value)} />
-            <Select label="GST Rate" options={['5', '12', '18', '28']} value={gstRate} onChange={e => setGstRate(e.target.value)} />
-          </div>
-          <div className="flex items-center gap-6 mt-4">
-            <Toggle label="GST" checked={gstEnabled} onChange={e => setGstEnabled(e.target.checked)} />
-            <Toggle label="Inter-State (IGST)" checked={interState} onChange={e => setInterState(e.target.checked)} />
-          </div>
-        </Card>
-
-        {/* Action buttons */}
-        <div data-no-print className="flex gap-2 flex-wrap">
-          <Button icon={Save} variant={hasUnsavedChanges ? 'secondary' : 'outline'} onClick={handleManualSave} disabled={autoSaving}>
-            {autoSaving ? 'Saving...' : 'Save'}
-          </Button>
-          <PdfButton docRef={pdfRef} fileName={`${docTitle()}.pdf`} />
-          <span className="hidden md:contents"><Button icon={Printer} variant="secondary" onClick={handlePrint}>Print</Button></span>
-          <Button icon={MessageSquare} variant="success" onClick={handleWhatsApp}>Share via WhatsApp</Button>
-          <Button variant="secondary" onClick={() => navigate(-1)}>Back</Button>
+        <div className="bg-white border border-bb-border rounded-2xl px-5 py-4 grid grid-cols-3 gap-6" data-testid="bill-form">
+          <FormCol title="Invoice">
+            <Field label="Invoice no" id="bill-no" value={invoiceNo} onChange={e => setInvoiceNo(e.target.value)} />
+            <Field label="Invoice date" id="bill-date" type="date" value={invoiceDate} onChange={e => setInvoiceDate(e.target.value)} />
+          </FormCol>
+          <FormCol title="Bill to">
+            <Field label="Name" id="bill-name" value={billToName} onChange={e => setBillToName(e.target.value)} />
+            <Field label="Address" id="bill-address" value={billToAddress} placeholder="Client address" onChange={e => setBillToAddress(e.target.value)} />
+          </FormCol>
+          <FormCol title="Payment & GST">
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Discount ₹" id="bill-discount" type="number" value={discount} onChange={e => setDiscount(e.target.value)} />
+              <Field label="Advance paid ₹" id="bill-advance" type="number" value={advance} onChange={e => setAdvance(e.target.value)} />
+            </div>
+            <div className="flex items-center gap-3 flex-wrap min-h-[34px]">
+              <Switch checked={gstEnabled} onChange={setGstEnabled} label="GST" testId="bill-gst" />
+              {gstEnabled && <Seg size="sm" label="GST rate" value={gstRate} onChange={setGstRate} options={['5', '12', '18', '28'].map(r => ({ value: r, label: `${r}%` }))} testId="bill-gst-rate" />}
+            </div>
+            {gstEnabled && <Switch checked={interState} onChange={setInterState} label="Inter-state (IGST)" testId="bill-igst" />}
+          </FormCol>
         </div>
       </div>}
 

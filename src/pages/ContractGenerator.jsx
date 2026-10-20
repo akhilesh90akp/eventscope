@@ -8,7 +8,9 @@
  *
  * Phones (below 1024px): Details | Preview tabs; the details fold into
  * Client / Payment / Agreement / Stamp paper sections (a closed one shows a
- * one-line summary) and a bar at the bottom holds Save and PDF.
+ * one-line summary) and a bar at the bottom holds Save and PDF. Laptops: a
+ * title row with Print · PDF · Save and one form card (Client · Payment ·
+ * Agreement).
  *
  * Saved per event as event.contract (Save button). The money and the
  * Annexure come from utils/contract.js; the company's own terms (cancellation
@@ -26,15 +28,11 @@ import ActionBar from '../components/ActionBar';
 import DocFit from '../components/DocFit';
 import StickyBar from '../components/StickyBar';
 import { SegmentedTabs, SwitchRow, DateField, TextField } from '../components/PhoneUI';
+import { PageHeader, HeaderIcon, Field, FormCol, Switch } from '../components/LaptopUI';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import BackButton from '../components/BackButton';
 import Button from '../components/Button';
 import PdfButton from '../components/PdfButton';
-import Card from '../components/Card';
-import Input from '../components/Input';
-import Select from '../components/Select';
-import Toggle from '../components/Toggle';
 import ContractDocument from '../components/ContractDocument';
 import { buildContract, nextAgreementNo } from '../utils/contract';
 import { formatRupees, formatDateReadable } from '../utils/helpers';
@@ -169,78 +167,60 @@ export default function ContractGenerator() {
   // ------------------------------------------------------------
   return (
     <div className="space-y-4 pb-8">
-      {/* === LAPTOP: controls (hidden in print) === */}
+      {/* === LAPTOP: title row and one form card in three columns (hidden in print) === */}
       {!isPhone && <div data-no-print className="space-y-4">
-        <div className="flex items-center gap-3">
-          <BackButton />
-          <h1 className="text-xl font-bold text-bb-text">Contract</h1>
-        </div>
+        <PageHeader title="Contract" onBack={() => navigate(-1)} sub={headerSub}
+          actions={<>
+            <HeaderIcon icon={Printer} label="Print" onClick={handlePrint} data-testid="hdr-print" />
+            <PdfButton docRef={docRef} fileName={`${docTitle}.pdf`} variant="laptop" />
+            {canEditEvents && <HeaderIcon icon={Save} label={saving ? 'Saving…' : unsaved ? 'Save contract' : 'Saved'} tone="primary" onClick={handleSave} disabled={saving} data-testid="hdr-save" />}
+          </>} />
 
-        {/* Client */}
-        <Card>
-          <h2 className="text-sm font-semibold text-bb-text mb-3">Client</h2>
-          <fieldset disabled={!canEditEvents} className="grid grid-cols-1 md:grid-cols-2 gap-3 min-w-0">
-            <Input label="Client name (as it should appear)" value={form.clientName} onChange={set('clientName')} />
-            <Input label="Phone" value={form.clientPhone} onChange={set('clientPhone')} />
-            <Input label="Full address" type="textarea" value={form.clientAddress} onChange={set('clientAddress')} className="md:col-span-2" />
-          </fieldset>
-        </Card>
-
-        {/* Payment */}
-        <Card>
-          <h2 className="text-sm font-semibold text-bb-text mb-3">Payment</h2>
-          <fieldset disabled={!canEditEvents} className="grid grid-cols-1 md:grid-cols-3 gap-3 min-w-0">
-            <Input label={`Contract amount (₹) — quote total ${formatRupees(c.quoteTotal)}`} type="number" value={form.amount} placeholder={String(c.quoteTotal)} onChange={set('amount')} />
-            <Input label="Advance received (₹)" type="number" value={form.advance} onChange={set('advance')} />
-            <Input label="Advance received on" type="date" value={form.advanceDate} onChange={set('advanceDate')} />
-            <Select label="Paid by" options={PAYMENT_MODES} value={form.advanceMode} onChange={set('advanceMode')} />
-            <Input label="Payment reference (optional)" value={form.advanceRef} onChange={set('advanceRef')} />
-            <Input label="Balance due by" type="date" value={form.balanceDueDate || c.balanceDueDate} onChange={set('balanceDueDate')} />
-          </fieldset>
-          <p className="text-sm text-bb-text mt-3">
-            Balance: <b>{formatRupees(c.balance)}</b>
-            <span className="text-bb-muted"> = {formatRupees(c.price)} − advance {formatRupees(c.advance)}</span>
-          </p>
-        </Card>
-
-        {/* Agreement */}
-        <Card>
-          <h2 className="text-sm font-semibold text-bb-text mb-3">Agreement</h2>
-          <fieldset disabled={!canEditEvents} className="grid grid-cols-1 md:grid-cols-3 gap-3 min-w-0">
-            <Input label="Agreement no." value={form.agreementNo} onChange={set('agreementNo')} />
-            <Input label="Date" type="date" value={form.agreementDate} onChange={set('agreementDate')} />
-            <Input label="Place signed" value={form.place} placeholder="e.g. Kochi" onChange={set('place')} />
-            <Input label="Signed for the company by" value={form.signatory} onChange={set('signatory')} />
-            <Input label="Quotation ref. (optional)" value={form.quoteRef} onChange={set('quoteRef')} />
-          </fieldset>
-          <div className="mt-4">
-            <Toggle
-              label="Leave space at the top for stamp paper"
-              description="Page 1 starts lower so you can print on stamp paper. The blank area isn’t printed."
-              checked={form.stampSpace}
-              onChange={set('stampSpace')}
-              disabled={!canEditEvents}
-            />
-          </div>
-          {!c.terms.courtCity && (
-            <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mt-3">
-              Tip: set your court city, cancellation terms and setup hours once in Settings → Contract.
+        <fieldset disabled={!canEditEvents} className="bg-white border border-bb-border rounded-2xl px-5 py-4 grid grid-cols-3 gap-6 min-w-0" data-testid="contract-form">
+          <FormCol title="Client">
+            <Field label="Client name (as it should appear)" value={form.clientName} onChange={set('clientName')} />
+            <Field label="Phone" value={form.clientPhone} onChange={set('clientPhone')} />
+            <label className="block">
+              <span className="block text-[12.5px] font-semibold text-gray-700 mb-1">Full address</span>
+              <textarea rows={3} value={form.clientAddress} onChange={set('clientAddress')} className="w-full rounded-xl border border-bb-border bg-bb-input px-3 text-[13.5px] text-bb-text focus:outline-none focus:ring-2 focus:ring-bb-accent/40 py-2 resize-y" />
+            </label>
+          </FormCol>
+          <FormCol title="Payment">
+            <Field label={`Contract amount ₹ · quote ${formatRupees(c.quoteTotal)}`} type="number" value={form.amount} placeholder={String(c.quoteTotal)} onChange={set('amount')} />
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Advance received ₹" type="number" value={form.advance} onChange={set('advance')} />
+              <Field label="Received on" type="date" value={form.advanceDate} onChange={set('advanceDate')} />
+              <label className="block min-w-0">
+                <span className="block text-[12.5px] font-semibold text-gray-700 mb-1">Paid by</span>
+                <select value={form.advanceMode} onChange={set('advanceMode')} className="w-full rounded-xl border border-bb-border bg-bb-input px-3 text-[13.5px] text-bb-text focus:outline-none focus:ring-2 focus:ring-bb-accent/40 h-[38px]">
+                  {PAYMENT_MODES.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </label>
+              <Field label="Reference (optional)" value={form.advanceRef} onChange={set('advanceRef')} />
+            </div>
+            <Field label="Balance due by" type="date" value={form.balanceDueDate || c.balanceDueDate} onChange={set('balanceDueDate')} />
+            <p className="text-[13px] text-bb-text" data-testid="contract-balance">
+              Balance <b>{formatRupees(c.balance)}</b>
+              <span className="text-bb-muted"> = {formatRupees(c.price)} − advance {formatRupees(c.advance)}</span>
             </p>
-          )}
-        </Card>
-
-        {/* Actions */}
-        <div className="flex gap-2 flex-wrap">
-          {canEditEvents && (
-            <Button icon={Save} variant={unsaved ? 'primary' : 'outline'} onClick={handleSave} disabled={saving}>
-              {saving ? 'Saving…' : unsaved ? 'Save' : 'Saved'}
-            </Button>
-          )}
-          <PdfButton docRef={docRef} fileName={`${docTitle}.pdf`} variant="secondary" />
-          <span className="hidden md:contents"><Button icon={Printer} variant="secondary" onClick={handlePrint}>Print</Button></span>
-          <Button variant="secondary" onClick={() => navigate(-1)}>Back</Button>
-        </div>
-        <p className="text-xs text-bb-muted">
+          </FormCol>
+          <FormCol title="Agreement">
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Agreement no." value={form.agreementNo} onChange={set('agreementNo')} />
+              <Field label="Date" type="date" value={form.agreementDate} onChange={set('agreementDate')} />
+            </div>
+            <Field label="Place signed" value={form.place} placeholder="e.g. Kochi" onChange={set('place')} />
+            <Field label="Signed for the company by" value={form.signatory} onChange={set('signatory')} />
+            <Field label="Quotation ref. (optional)" value={form.quoteRef} onChange={set('quoteRef')} />
+            <Switch checked={!!form.stampSpace} onChange={set('stampSpace')} label="Space at the top for stamp paper" disabled={!canEditEvents} testId="stamp-switch" />
+          </FormCol>
+        </fieldset>
+        {!c.terms.courtCity && (
+          <p className="text-[12.5px] text-amber-800 bg-amber-50 rounded-xl px-3 py-2">
+            Tip: set your court city, cancellation terms and setup hours once in Settings → Contract.
+          </p>
+        )}
+        <p className="text-[12px] text-bb-muted">
           This is a standard agreement. Have your advocate read it once before first use. Stamp paper value depends on the contract amount — ask your stamp vendor.
         </p>
       </div>}

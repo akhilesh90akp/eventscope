@@ -13,6 +13,8 @@
  *   StatRow      one row of equal, quiet number cards (label · value · short line)
  *   Seg          small segmented choice (GST rate 5/12/18/28, Completed · All events…)
  *   Switch       on/off switch with its label (GST, IGST, Without GST)
+ *   Field        labelled 38px input for laptop forms (invoice, contract)
+ *   FormCol      one labelled column of a form card
  * Pure UI: no data access here.
  */
 
@@ -161,5 +163,30 @@ export function Switch({ checked, onChange, label, disabled = false, testId }) {
       </span>
       {label}
     </button>
+  );
+}
+
+// ============================================================
+// FORMS
+// ============================================================
+
+/** Labelled 38px input (any <input> props pass through) */
+export function Field({ label, id, className = '', ...rest }) {
+  return (
+    <label className={`block min-w-0 ${className}`} htmlFor={id}>
+      <span className="block text-[12.5px] font-semibold text-gray-700 mb-1">{label}</span>
+      <input id={id} {...rest}
+        className="w-full h-[38px] rounded-xl border border-bb-border bg-bb-input px-3 text-[13.5px] text-bb-text placeholder:text-bb-muted/70 focus:outline-none focus:ring-2 focus:ring-bb-accent/40" />
+    </label>
+  );
+}
+
+/** One labelled column inside a form card */
+export function FormCol({ title, children, className = '' }) {
+  return (
+    <div className={`min-w-0 space-y-3 ${className}`}>
+      <h2 className="text-[12px] font-bold tracking-[0.06em] uppercase text-bb-muted">{title}</h2>
+      {children}
+    </div>
   );
 }
