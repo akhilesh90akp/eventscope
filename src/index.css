@@ -153,6 +153,15 @@ select {
 }
 select:disabled { opacity: 0.6; }
 
+/* === Bottom sheet (components/BottomSheet.jsx) === */
+@keyframes sheet-up {
+  from { transform: translateY(24px); opacity: 0.6; }
+  to   { transform: none; opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [class*="animate-[sheet-up"] { animation: none !important; }
+}
+
 /* === Logo intro (components/AnimatedLogo.jsx) === */
 /* Plays once: letters drop in (staggered inline), then the star falls in
    like a shooting star with a trail, flashes on landing and keeps a soft

@@ -2,9 +2,11 @@
  * Layout — Application shell with navigation
  *
  * Desktop (1024px+): sidebar (logo, nav, account row with logout).
- * Mobile/tablet: purple title bar (logo + hamburger → slide-in menu with the
- * same nav and account row) plus the bottom bar with a floating "new event"
- * button. Shows a banner when the company is suspended. Page content renders via React Router's Outlet.
+ * Mobile/tablet: PhoneHeader (page title, or ← back on task screens) with the
+ * ☰ slide-in menu (same nav and account row), plus the bottom bar with a
+ * floating "new event" button. Task screens (quote, bill, new event…) hide the
+ * bottom bar; their own ActionBar sits at the bottom edge instead.
+ * Shows a banner when the company is suspended. Page content renders via React Router's Outlet.
  * Menu items marked ownerOnly / adminOnly are hidden from everyone else
  * (firestore.rules still enforce access server-side).
  */
@@ -14,12 +16,15 @@
 // ============================================================
 import React, { useEffect, useMemo, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, FilePlus, FileText, CheckCircle2, PartyPopper, Settings, Plus, BarChart3, LogOut, Shield, Menu, X, CalendarDays, ShoppingBag, CreditCard } from 'lucide-react';
+import { LayoutDashboard, FilePlus, FileText, CheckCircle2, PartyPopper, Settings, Plus, BarChart3, LogOut, Shield, X, CalendarDays, ShoppingBag, CreditCard } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useConfirm } from './useConfirm';
 import { PlanNotice } from './NoticeBar';
 import { PlanTag } from './UpgradeCard';
 import { countByStatus } from '../utils/helpers';
+import { useTyping } from './useTyping';
+import PhoneHeader, { PhoneHeaderProvider } from './PhoneHeader';
+import { phoneScreenFor, usePhoneHeaderExtra } from './phoneScreens';
 
 // ============================================================
 // CONSTANTS
@@ -52,33 +57,6 @@ const mobileNav = [
 ];
 
 // ============================================================
-// HOOKS
-// ============================================================
-
-/** Fields that bring up the on-screen keyboard (not checkboxes, buttons, pickers) */
-const NO_KEYBOARD = new Set(['checkbox', 'radio', 'button', 'submit', 'reset', 'range', 'color', 'file', 'image']);
-const opensKeyboard = (el) => !!el && (
-  el.isContentEditable
-  || el.tagName === 'TEXTAREA'
-  || (el.tagName === 'INPUT' && !NO_KEYBOARD.has((el.type || 'text').toLowerCase()) && !el.readOnly && !el.disabled)
-);
-
-/** true while a text field has focus on a touch screen (i.e. the keyboard is up) */
-function useTyping() {
-  const [typing, setTyping] = useState(false);
-  useEffect(() => {
-    if (typeof window === 'undefined' || !window.matchMedia('(pointer: coarse)').matches) return undefined;
-    const update = () => setTyping(opensKeyboard(document.activeElement));
-    // focusout fires before the next field gets focus — check after it settles
-    const onOut = () => setTimeout(update, 50);
-    document.addEventListener('focusin', update);
-    document.addEventListener('focusout', onOut);
-    return () => { document.removeEventListener('focusin', update); document.removeEventListener('focusout', onOut); };
-  }, []);
-  return typing;
-}
-
-// ============================================================
 // SUB-COMPONENTS
 // ============================================================
 
@@ -93,11 +71,11 @@ function BottomTab({ item }) {
       end={item.to === '/'}
       className={({ isActive }) =>
         `flex flex-col items-center justify-center gap-0.5 py-2 transition-colors
-        ${isActive ? 'text-bb-accent' : 'text-bb-sidebar-muted'}`
+        ${isActive ? 'text-white font-bold' : 'text-white/60'}`
       }
     >
-      <Icon size={20} />
-      <span className="text-[10px]">{item.label}</span>
+      <Icon size={22} />
+      <span className="text-[11.5px]">{item.label}</span>
     </NavLink>
   );
 }
@@ -165,8 +143,13 @@ function NavPanel({ items, counts, companyName, roleLabel, onLogout, canUse }) {
 // Layout — MAIN COMPONENT
 // ============================================================
 
-/** Main layout wrapper with sidebar / title bar + menu, content area, and mobile nav */
+/** Main layout wrapper: provides the phone title bar's context to every page */
 export default function Layout() {
+  return <PhoneHeaderProvider><LayoutShell /></PhoneHeaderProvider>;
+}
+
+/** Sidebar / title bar + menu, content area, and mobile nav */
+function LayoutShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const { logout, user, tenant, tenantStatus, settings, role, isOwner, isPlatformAdmin, events, lockAsked, access, canUse } = useApp();
@@ -227,6 +210,11 @@ export default function Layout() {
     ? item.adminOnly
     : (!item.ownerOnly || isOwner) && (!item.adminOnly || isPlatformAdmin)));
   const counts = useMemo(() => countByStatus(events), [events]);
+  // Phones: which kind of screen this is (main or task) and its title
+  const phoneScreen = adminOnly ? { title: 'EventScope Admin' } : phoneScreenFor(location.pathname);
+  const headerExtra = usePhoneHeaderExtra();
+  const isTask = !!phoneScreen.task;
+  const goBack = () => (((window.history.state?.idx ?? 0) > 0) ? navigate(-1) : navigate(phoneScreen.back || '/'));
   const panelProps = { items: visibleNav, counts, companyName, roleLabel, onLogout: logout, canUse };
 
   // ------------------------------------------------------------
@@ -243,20 +231,10 @@ export default function Layout() {
         <NavPanel {...panelProps} />
       </aside>
 
-      {/* === MOBILE TITLE BAR (below 1024px) — logo + hamburger, stays on top === */}
+      {/* === MOBILE TITLE BAR (below 1024px) — page title or ← back, stays on top === */}
       <header className="lg:hidden sticky top-0 z-40 bg-bb-sidebar border-b border-bb-sidebar-border pt-[env(safe-area-inset-top)]">
-        <div className="h-14 px-4 flex items-center justify-between">
-          <button onClick={() => navigate(adminOnly ? '/admin' : '/')} aria-label="Home" className="cursor-pointer">
-            <img src={LOGO} alt="EventScope" className="h-[18px] w-auto" />
-          </button>
-          <button
-            onClick={() => setMenuOpen(true)}
-            aria-label="Open menu"
-            className="w-10 h-10 -mr-2 rounded-lg flex items-center justify-center text-white hover:bg-white/10 cursor-pointer"
-          >
-            <Menu size={24} />
-          </button>
-        </div>
+        <PhoneHeader screen={phoneScreen} extra={headerExtra} logo={LOGO}
+          onMenu={() => setMenuOpen(true)} onBack={goBack} onLogo={() => navigate(adminOnly ? '/admin' : '/')} />
       </header>
 
       {/* === MOBILE SLIDE-IN MENU === */}
@@ -281,17 +259,18 @@ export default function Layout() {
       </div>
 
       {/* === MAIN CONTENT === */}
-      <main className="lg:ml-[240px] pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-6">
+      <main className={`lg:ml-[240px] ${isTask ? 'pb-[calc(7rem+env(safe-area-inset-bottom))]' : 'pb-[calc(5.5rem+env(safe-area-inset-bottom))]'} lg:pb-6`} data-screen={isTask ? 'task' : 'main'}>
         {/* Plan notice: pilot ending, payment due, read-only… (one at a time) */}
-        {!adminOnly && <div className="px-3 pt-3 sm:px-4 md:px-6 lg:px-8 lg:pt-5 empty:hidden"><PlanNotice /></div>}
-        <div className="p-3 sm:p-4 md:p-6 lg:p-8 w-full">
+        {!adminOnly && <div className="px-4 pt-4 md:px-6 lg:px-8 lg:pt-5 empty:hidden"><PlanNotice /></div>}
+        <div className="p-4 md:p-6 lg:p-8 w-full">
           <Outlet />
         </div>
       </main>
 
       {/* === MOBILE BOTTOM NAV (below 1024px) — not shown in admin-only mode.
+           Task screens hide it (their ActionBar takes the bottom edge).
            Extra bottom padding keeps it clear of the iPhone home bar. === */}
-      <nav data-testid="bottom-nav" className={`${adminOnly || typing ? 'hidden' : 'lg:hidden'} fixed bottom-0 left-0 right-0 h-[calc(4rem+env(safe-area-inset-bottom))] pb-[env(safe-area-inset-bottom)] bg-bb-sidebar/95 backdrop-blur-md border-t border-bb-sidebar-border z-50`}>
+      <nav data-testid="bottom-nav" className={`${adminOnly || typing || isTask ? 'hidden' : 'lg:hidden'} fixed bottom-0 left-0 right-0 h-[calc(4.25rem+env(safe-area-inset-bottom))] pb-[env(safe-area-inset-bottom)] bg-bb-sidebar border-t border-bb-sidebar-border z-50`}>
         <div className="grid grid-cols-5 items-center h-full w-full">
           {/* Left 2 items */}
           {mobileNav.slice(0, 2).map(item => <BottomTab key={item.to} item={item} />)}

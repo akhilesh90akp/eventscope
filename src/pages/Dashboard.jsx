@@ -6,17 +6,23 @@
  * as the Confirmed page. Each stat card opens its page (Revenue → Reports,
  * owners only).
  *
+ * Phones: roomier tiles and EventCardPhone cards (Quote · Call · WhatsApp,
+ * every function listed); laptops keep the compact cards.
+ *
  * Read-only vs. Firestore: only reads `events` from AppContext.
  */
 
 // ============================================================
 // IMPORTS
 // ============================================================
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import Card from '../components/Card';
 import EventSummary from '../components/EventSummary';
+import EventCardPhone, { EventItemsSheet } from '../components/EventCardPhone';
+import { SectionLabel } from '../components/PhoneUI';
+import { useIsPhone } from '../components/useIsPhone';
 import { formatCurrency, telLink, sortByActiveDate } from '../utils/helpers';
 import { FileText, CheckCircle, PartyPopper, IndianRupee, Phone, CalendarDays } from 'lucide-react';
 
@@ -28,6 +34,8 @@ import { FileText, CheckCircle, PartyPopper, IndianRupee, Phone, CalendarDays } 
 export default function Dashboard() {
   const { events, isOwner } = useApp();
   const navigate = useNavigate();
+  const [itemsId, setItemsId] = useState(null); // phone: items sheet
+  const isPhone = useIsPhone();
 
   // ------------------------------------------------------------
   // DERIVED / CALCULATED VALUES
@@ -55,11 +63,11 @@ export default function Dashboard() {
   // ------------------------------------------------------------
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 lg:space-y-6">
       {/* Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {stats.map(s => (
-          <Card key={s.label} hover={!!s.to} onClick={s.to ? () => navigate(s.to) : undefined}>
+          <Card key={s.label} hover={!!s.to} onClick={s.to ? () => navigate(s.to) : undefined} className="max-lg:!p-4 max-lg:rounded-2xl">
             <div className="flex items-center gap-3" role={s.to ? 'link' : undefined} aria-label={s.to ? `Open ${s.label}` : undefined}>
               <div className={`${s.color}`}>
                 <s.icon size={22} />
@@ -75,7 +83,10 @@ export default function Dashboard() {
 
       {/* Confirmed Events */}
       <div>
-        <h2 className="text-lg font-semibold text-bb-text mb-3">Confirmed Events</h2>
+        {!isPhone && <h2 className="text-lg font-semibold text-bb-text mb-3">Confirmed Events</h2>}
+        {isPhone && <SectionLabel className="mb-3" right={displayEvents.length > 0 && (
+          <button onClick={() => navigate('/confirmed')} className="text-[14px] font-semibold text-bb-accent-hover min-h-[40px] px-1 cursor-pointer">See all</button>
+        )}>Confirmed events</SectionLabel>}
 
         {displayEvents.length === 0 ? (
           <Card>
@@ -86,6 +97,15 @@ export default function Dashboard() {
             </div>
           </Card>
         ) : (
+          isPhone ? (
+          /* Phone: the same card as the Confirmed page, with Quote · Call · WhatsApp */
+          <div className="space-y-4" data-testid="phone-list">
+            {displayEvents.map(ev => (
+              <EventCardPhone key={ev.id} ev={ev} variant="home"
+                on={{ quote: () => navigate(`/quotation/${ev.id}`), items: () => setItemsId(ev.id) }} />
+            ))}
+          </div>
+          ) : (
           <div className="space-y-3">
             {displayEvents.map(ev => (
               // Same card face as the Confirmed page; tapping opens that event there
@@ -106,8 +126,10 @@ export default function Dashboard() {
               </Card>
             ))}
           </div>
+          )
         )}
       </div>
+      {itemsId && <EventItemsSheet ev={events.find(e => e.id === itemsId)} onClose={() => setItemsId(null)} onEdit={() => navigate(`/quotation/${itemsId}`)} />}
     </div>
   );
 }

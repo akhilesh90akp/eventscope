@@ -5,6 +5,8 @@
  * Provides functionality to add items (choosing main or sub-event),
  * set per-item pricing, mark events as done, and navigate to generators.
  * Backward compatible with old event format.
+ * Phones get EventCardPhone (one action row + ⋯ sheet + items sheet);
+ * laptops (1024px+) keep the fold-open cards.
  *
  * All updateEvent/deleteEvent calls await the Firestore result before
  * showing a success toast — see CODE_STRUCTURE.md §3-4.
@@ -24,7 +26,9 @@ import Modal from '../components/Modal';
 import { useConfirm } from '../components/useConfirm';
 import CostsPanel from '../components/CostsPanel';
 import EventSummary from '../components/EventSummary';
-import { telLink, waLink, sortByActiveDate, openJobLog, functionDays, itemDays, lineAmount } from '../utils/helpers';
+import EventCardPhone, { EventItemsSheet, EventMoreSheet } from '../components/EventCardPhone';
+import { useIsPhone } from '../components/useIsPhone';
+import { telLink, waLink, sortByActiveDate, openJobLog, functionDays, itemDays, lineAmount, getAllEventDates } from '../utils/helpers';
 import {
   Search, Phone, MessageSquare, FileText, CheckCircle2,
   MapPin, PackageOpen, Plus, Receipt, Edit3,
@@ -81,6 +85,7 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
   const confirm = useConfirm();
   const navigate = useNavigate();
   const location = useLocation();
+  const isPhone = useIsPhone();
 
   // ------------------------------------------------------------
   // STATE
@@ -93,6 +98,9 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
   const [prices, setPrices] = useState({});
   const [expandedId, setExpandedId] = useState(location.state?.expandId || null); // Home links open one event
   const [moveId, setMoveId] = useState(null); // event id for the "Move to..." status-change modal
+  const [itemsId, setItemsId] = useState(null); // phone: event whose items sheet is open
+  const [moreId, setMoreId] = useState(null);   // phone: event whose ⋯ sheet is open
+  const [range, setRange] = useState('all');    // phone quick filter: all | month | next30
 
   // ------------------------------------------------------------
   // DERIVED DATA
@@ -114,6 +122,21 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
         );
       })
   );
+
+  // Phone quick filter (Confirmed): this month / next 30 days, by the event's next date
+  const inRange = (ev) => {
+    if (range === 'all') return true;
+    const next = getAllEventDates(ev).find(d => !d.isPast);
+    if (!next) return false;
+    const d = new Date(`${next.date}T00:00:00`), now = new Date(); now.setHours(0, 0, 0, 0);
+    if (range === 'month') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    return (d - now) / 86400000 <= 30;
+  };
+  const phoneEvents = status === 'confirmed' ? confirmedEvents.filter(inRange) : confirmedEvents;
+  const moreEv = events.find(e => e.id === moreId);
+  const itemsEv = events.find(e => e.id === itemsId);
+  /** Closes the ⋯ sheet, then runs the action */
+  const fromMore = (fn) => () => { setMoreId(null); fn(); };
 
   // ------------------------------------------------------------
   // EVENT HANDLERS — ITEMS & PRICING
@@ -283,7 +306,7 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
   // ------------------------------------------------------------
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
+      <div className="hidden lg:flex items-center gap-3">
         <h1 className="text-xl font-bold text-bb-text">{pageLabel} Events<span className="inline-flex items-center justify-center align-middle min-w-[1.75rem] h-7 px-2 ml-2 rounded-full bg-violet-100 text-violet-700 text-sm font-bold tabular-nums" data-testid="title-count">{events.filter(e => e.status === statusFilter).length}</span></h1>
         <span className="flex-1" />
         {/* Job Log is a wide grid — laptop/tablet only (md and up) */}
@@ -302,6 +325,36 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
         />
       </StickyBar>
 
+      {/* === PHONE: quick filters (Confirmed) === */}
+      {isPhone && status === 'confirmed' && confirmedEvents.length > 0 && (
+        <div className="flex gap-2 overflow-x-auto -mt-1" data-testid="range-chips">
+          {[['all', `All ${confirmedEvents.length}`], ['month', 'This month'], ['next30', 'Next 30 days']].map(([k, label]) => (
+            <button key={k} onClick={() => setRange(k)}
+              className={`shrink-0 min-h-[38px] px-3.5 rounded-full text-[13.5px] font-semibold border cursor-pointer ${range === k ? 'bg-bb-accent border-bb-accent text-white' : 'bg-white border-gray-300 text-bb-text'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* === PHONE: one card per event (laptops: fold-open cards below) === */}
+      {isPhone && confirmedEvents.length > 0 && (
+        <div className="space-y-4" data-testid="phone-list">
+          {phoneEvents.length === 0 && <p className="text-center text-gray-600 py-8">No events in this range.</p>}
+          {phoneEvents.map(ev => (
+            <EventCardPhone key={ev.id} ev={ev} variant={status} locked={isSuspended}
+              on={{
+                quote: () => navigate(`/quotation/${ev.id}`),
+                bill: () => navigate(`/bill/${ev.id}`),
+                markDone: status === 'confirmed' ? guard(() => markDone(ev.id)) : undefined,
+                jobLog: status === 'completed' && isOwner && canUse('jobLog') ? () => navigate(`/job/${ev.id}`) : undefined,
+                items: () => setItemsId(ev.id),
+                more: () => setMoreId(ev.id),
+              }} />
+          ))}
+        </div>
+      )}
+
       {confirmedEvents.length === 0 ? (
         <Card>
           <div className="text-center py-10">
@@ -313,7 +366,7 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
           </div>
         </Card>
       ) : (
-        <div className="space-y-3">
+        !isPhone && <div className="space-y-3">
           {confirmedEvents.map(ev => {
             const allItems = getAllItems(ev);
             const isExpanded = expandedId === ev.id;
@@ -493,6 +546,22 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
             );
           })}
         </div>
+      )}
+
+      {/* === PHONE SHEETS: items on an event · ⋯ actions === */}
+      {itemsEv && <EventItemsSheet ev={itemsEv} onClose={() => setItemsId(null)} onEdit={() => navigate(`/quotation/${itemsEv.id}`)} />}
+      {moreEv && (
+        <EventMoreSheet ev={moreEv} onClose={() => setMoreId(null)} locked={isSuspended}
+          contractTag={!canUse('contracts') ? <PlanTag feature="contracts" /> : null}
+          on={{
+            edit: fromMore(guard(() => navigate(`/edit/${moreEv.id}`))),
+            addItems: fromMore(guard(() => { setAddItemModal(moreEv.id); setAddItemTarget('main'); })),
+            setPrices: fromMore(guard(() => openPriceModal(moreEv))),
+            contract: fromMore(() => navigate(`/contract/${moreEv.id}`)),
+            move: getMoveOptions(moreEv.status).length ? fromMore(() => setMoveId(moreEv.id)) : undefined,
+            markDone: moreEv.status === 'confirmed' ? fromMore(guard(() => markDone(moreEv.id))) : undefined,
+            delete: fromMore(guard(() => handleDelete(moreEv))),
+          }} />
       )}
 
       {/* Add Item Modal */}

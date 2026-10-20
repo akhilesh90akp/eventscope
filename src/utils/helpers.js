@@ -21,6 +21,9 @@ export const formatCurrency = (amt) => {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 2 }).format(amt);
 };
 
+/** Whole rupees for phone cards and totals: "₹2,26,250" (paise rounded away) */
+export const formatRupees = (amt) => `₹${Math.round(Number(amt) || 0).toLocaleString('en-IN')}`;
+
 /**
  * Formats a date in a human-readable format (e.g., "15 Jan 2025").
  * @param {string} d - ISO date string
@@ -322,6 +325,19 @@ export const eventCountdown = (ev) => {
   return daysUntil(getActiveDate(ev));
 };
 
+/** Every function of an event (main first), each marked past once its last day is over */
+export function eventFunctions(ev) {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const isPast = (fn) => !!fn?.date && new Date(`${functionEnd(fn)}T00:00:00`) < today;
+  if (!ev?.mainEvent) {
+    const fn = { name: ev?.eventType || 'Event', date: ev?.date, location: ev?.eventLocation };
+    return [{ fn, main: true, past: isPast(fn) }];
+  }
+  const main = { fn: { ...ev.mainEvent, name: ev.mainEvent.name || ev.eventType || 'Event' }, main: true, past: isPast(ev.mainEvent) };
+  const subs = (ev.subEvents || []).map(s => ({ fn: { ...s, name: s.name || 'Sub event' }, main: false, past: isPast(s) }));
+  return [main, ...subs].sort((a, b) => (a.fn.date || '9999').localeCompare(b.fn.date || '9999'));
+}
+
 /** { draft, confirmed, completed } — how many events each list holds (menu badges, page titles) */
 export const countByStatus = (events = []) => events.reduce((acc, e) => {
   if (e && acc[e.status] !== undefined) acc[e.status]++;
@@ -514,6 +530,9 @@ export const getEventSections = (event) => {
   }];
   return { allItems: items, eventGroups };
 };
+
+/** Number of items on an event (every function) */
+export const eventItemCount = (ev) => getEventSections(ev).eventGroups.reduce((n, g) => n + (g.items || []).length, 0);
 
 // ============================================================
 // REVENUE & JOB LOG MATH

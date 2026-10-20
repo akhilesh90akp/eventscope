@@ -27,6 +27,12 @@
  * Discount (quoteDetails.discount): an amount ("5000") or a percentage
  * ("10%"), taken off before GST; the bill starts with it (helpers.getEventBill).
  *
+ * Phones (below 1024px) get QuotePhoneEditor: Details | Preview tabs, the
+ * tools bar, open groups, an item ⋮ menu (move / remove from group, duplicate,
+ * rename, delete), a Price & terms card and a total bar pinned to the bottom.
+ * Laptops keep the editor below. Both have Fit to budget (FitBudgetSheet) and
+ * quote versions (event.quoteRevisions, QuoteRevisionsSheet — utils/quoteFit).
+ *
  * Saving: changes auto-save about 1.5 s after you stop typing (toast "✓ Saved");
  * the Save button saves at once, or says "Already saved ✌️". Both await
  * AppContext.updateEvent() — see CODE_STRUCTURE.md §4.
@@ -53,7 +59,7 @@ import DaysCell from '../components/DaysCell';
 import {
   formatCurrency, formatDateReadable, calcGST, waLink,
   buildLineEntries, flattenLineEntries, computeSectionTotal,
-  functionDays, functionEnd, functionDateText, itemDays, lineAmount, usesDays, parseDiscount,
+  functionDays, functionEnd, functionDateText, itemDays, lineAmount, usesDays, parseDiscount, formatRupees,
 } from '../utils/helpers';
 import {
   Printer, MessageSquare, X, Plus, Save, Package,
@@ -61,6 +67,20 @@ import {
 } from 'lucide-react';
 import { useConfirm } from '../components/useConfirm';
 import { docBrandColor, showsEventScopeMark } from '../utils/billing';
+import { useIsPhone } from '../components/useIsPhone';
+import { usePhoneHeader } from '../components/phoneScreens';
+import { HeaderIconButton } from '../components/PhoneHeader';
+import ActionBar from '../components/ActionBar';
+import BottomSheet from '../components/BottomSheet';
+import DocFit from '../components/DocFit';
+import { SegmentedTabs, IconButton, MenuRow, SwitchRow } from '../components/PhoneUI';
+import QuotePhoneEditor from '../components/QuotePhoneEditor';
+import FitBudgetSheet from '../components/FitBudgetSheet';
+import QuoteRevisionsSheet from '../components/QuoteRevisionsSheet';
+import { fitUnits, applyFit, makeRevision, addRevision } from '../utils/quoteFit';
+import {
+  MoreVertical, Wand2, History, EyeOff, FileSignature, Copy, Type, FolderInput, FolderOutput, Trash2, Undo2, Pencil,
+} from 'lucide-react';
 
 // ============================================================
 // HELPERS
@@ -174,7 +194,7 @@ function PriceHeader({ hidePrices }) {
 /** Builds and previews a printable quotation document for an event */
 export default function QuotationGenerator() {
   const { eventId } = useParams();
-  const { events, settings, categories, updateEvent, showToast, isSuspended, tenant } = useApp();
+  const { events, settings, categories, updateEvent, showToast, isSuspended, askUnlock, tenant } = useApp();
   // Premium: the company's own colour on the document and no EventScope mark
   const brand = docBrandColor(tenant?.plan, settings);
   const showMark = showsEventScopeMark(tenant?.plan);
@@ -195,7 +215,7 @@ export default function QuotationGenerator() {
    * render) is handled the same way as one that's already loaded.
    */
   const deriveState = (ev) => {
-    if (!ev) return { sectionItems: {}, itemPrices: {}, bundles: [], hidePrices: false, finalAmounts: {}, quoteDetails: {} };
+    if (!ev) return { sectionItems: {}, itemPrices: {}, bundles: [], hidePrices: false, finalAmounts: {}, quoteDetails: {}, revisions: [] };
     const stored = ev.itemPrices || {};
     const sectionItems = {};
     if (ev.mainEvent) {
@@ -221,6 +241,7 @@ export default function QuotationGenerator() {
       // GST on/off, GST rate and validity are saved with the quote, so
       // reopening it (or sharing it later) keeps what was chosen.
       quoteDetails: ev.quoteDetails || {},
+      revisions: ev.quoteRevisions || [],   // earlier versions (Fit to budget / Restore)
     };
   };
 
@@ -233,6 +254,21 @@ export default function QuotationGenerator() {
   const [gstRate, setGstRate] = useState(() => deriveState(event).quoteDetails.gstRate ?? String(settings.defaultGstRate || 18));
   const [validityDays, setValidityDays] = useState(() => deriveState(event).quoteDetails.validityDays ?? 15);
   const [discountText, setDiscountText] = useState(() => deriveState(event).quoteDetails.discount ?? '');
+  const [revisions, setRevisions] = useState(() => deriveState(event).revisions);
+  const [revisedLabel, setRevisedLabel] = useState(() => !!deriveState(event).quoteDetails.revisedLabel);
+
+  // Phones: which tab, Select mode, and the open sheet / menu
+  const isPhone = useIsPhone();
+  const [tab, setTab] = useState('details');               // 'details' | 'preview'
+  const [selectMode, setSelectMode] = useState(false);
+  const [sheet, setSheet] = useState(null);                 // 'options' | 'fit' | 'revisions' | null
+  const [itemMenu, setItemMenu] = useState(null);           // { sectionId, name, key, bundleId }
+  const [groupMenu, setGroupMenu] = useState(null);         // a bundle
+  const [moveMenu, setMoveMenu] = useState(null);           // item being moved to a group
+  const [renaming, setRenaming] = useState(null);           // { kind: 'item'|'group', sectionId, name, bundleId, value }
+  const [addItemSection, setAddItemSection] = useState(null);
+  const [addItemText, setAddItemText] = useState('');
+  const [undoInfo, setUndoInfo] = useState(null);           // { rev, message } after Fit to budget
 
   // Add item state — each section (main event / each sub-event) gets its
   // own free-text "add item" box, so items go into the section actually
@@ -292,6 +328,8 @@ export default function QuotationGenerator() {
       if (derived.quoteDetails.gstRate !== undefined) setGstRate(derived.quoteDetails.gstRate);
       if (derived.quoteDetails.validityDays !== undefined) setValidityDays(derived.quoteDetails.validityDays);
       if (derived.quoteDetails.discount !== undefined) setDiscountText(derived.quoteDetails.discount);
+      setRevisions(derived.revisions);
+      setRevisedLabel(!!derived.quoteDetails.revisedLabel);
       loadedRef.current = true;
       justSyncedRef.current = true;   // the auto-save baseline is taken once these values have rendered
     }
@@ -404,7 +442,8 @@ export default function QuotationGenerator() {
     if (!event) return null;
     const data = {
       itemPrices, bundles, hidePrices, finalAmounts, totalAmount: subtotal,
-      quoteDetails: { gstEnabled, gstRate: String(gstRate), validityDays: Number(validityDays) || 15, discount: String(discountText ?? '').trim() },
+      quoteDetails: { gstEnabled, gstRate: String(gstRate), validityDays: Number(validityDays) || 15, discount: String(discountText ?? '').trim(), revisedLabel: !!revisedLabel },
+      quoteRevisions: revisions,
     };
     if (event.mainEvent) {
       data.mainEvent = { ...event.mainEvent, items: sectionItems.main || [] };
@@ -453,6 +492,20 @@ export default function QuotationGenerator() {
     return () => clearTimeout(autoSaveTimer.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSnap]);
+
+  // Phones: client · event · date under the title, ⋮ for quote options
+  const headerSub = event ? [event.clientName, event.eventType, (event.mainEvent?.date || event.date) && formatDateReadable(event.mainEvent?.date || event.date)].filter(Boolean).join(' · ') : '';
+  usePhoneHeader({
+    sub: headerSub,
+    right: <HeaderIconButton icon={MoreVertical} label="Quote options" onClick={() => setSheet('options')} data-testid="quote-options" />,
+  }, [headerSub]);
+
+  // The "Undo" bar after Fit to budget goes away by itself
+  useEffect(() => {
+    if (!undoInfo) return undefined;
+    const t = setTimeout(() => setUndoInfo(null), 15000);
+    return () => clearTimeout(t);
+  }, [undoInfo]);
 
   if (!event) {
     return (
@@ -660,6 +713,181 @@ export default function QuotationGenerator() {
   };
 
   // ------------------------------------------------------------
+  // EVENT HANDLERS — PHONE (item / group menus, Select mode)
+  // ------------------------------------------------------------
+
+  /** One item's qty / rate / days */
+  const setItemPrice = (key, field, value) => setItemPrices(p => ({ ...p, [key]: { ...(p[key] || newPrice(1)), [field]: value } }));
+
+  /** Leaves Select mode and clears every tick */
+  const endSelect = () => {
+    setSelectMode(false);
+    setSelectedForGroup({});
+    setSelectedBundles(new Set());
+    setSelectedBundleMembers(new Set());
+  };
+
+  /** Takes an item out of its group; the group price drops by the item's price. A group left with 1 item ends. */
+  const removeFromGroup = (key) => {
+    const p = itemPrices[key] || { qty: 1, rate: 0 };
+    setBundles(bs => bs
+      .map(b => (b.itemKeys.includes(key) ? { ...b, itemKeys: b.itemKeys.filter(k => k !== key), amount: Math.max(0, (Number(b.amount) || 0) - lineAmount(p)) } : b))
+      .filter(b => b.itemKeys.length >= 2));
+  };
+
+  /** Moves an item into a group (from no group or another group); prices follow it */
+  const moveToGroup = (key, bundleId) => {
+    const add = lineAmount(itemPrices[key] || { qty: 1, rate: 0 });
+    setBundles(bs => bs
+      .map(b => {
+        if (b.id === bundleId) return b.itemKeys.includes(key) ? b : { ...b, itemKeys: [...b.itemKeys, key], amount: (Number(b.amount) || 0) + add };
+        if (b.itemKeys.includes(key)) return { ...b, itemKeys: b.itemKeys.filter(k => k !== key), amount: Math.max(0, (Number(b.amount) || 0) - add) };
+        return b;
+      })
+      .filter(b => b.itemKeys.length >= 2));
+    const target = bundles.find(b => b.id === bundleId);
+    showToast(`Moved to "${target?.name || 'group'}"`);
+  };
+
+  /** A copy of an item right under it ("Chairs (copy)"), same price, not in a group */
+  const duplicateItem = (sectionId, name) => {
+    const names = sectionItems[sectionId] || [];
+    let copy = `${name} (copy)`;
+    for (let n = 2; names.includes(copy); n++) copy = `${name} (copy ${n})`;
+    const at = names.indexOf(name);
+    setSectionItems(s => ({ ...s, [sectionId]: [...names.slice(0, at + 1), copy, ...names.slice(at + 1)] }));
+    setItemPrices(p => ({ ...p, [`${sectionId}::${copy}`]: { ...(p[`${sectionId}::${name}`] || newPrice(1)) } }));
+  };
+
+  /** Renames an item (its price and group come along) or a group. Returns an error text or null. */
+  const renameThing = ({ kind, sectionId, name, bundleId }, rawValue) => {
+    const value = rawValue.trim();
+    if (!value) return 'Type a name';
+    if (kind === 'group') {
+      setBundles(bs => bs.map(b => (b.id === bundleId ? { ...b, name: value } : b)));
+      return null;
+    }
+    if (value === name) return null;
+    if ((sectionItems[sectionId] || []).includes(value)) return 'An item with this name is already in this event';
+    const oldKey = `${sectionId}::${name}`, newKey = `${sectionId}::${value}`;
+    setSectionItems(s => ({ ...s, [sectionId]: (s[sectionId] || []).map(n => (n === name ? value : n)) }));
+    setItemPrices(p => { const next = { ...p, [newKey]: p[oldKey] || newPrice(1) }; delete next[oldKey]; return next; });
+    setBundles(bs => bs.map(b => ({ ...b, itemKeys: b.itemKeys.map(k => (k === oldKey ? newKey : k)) })));
+    return null;
+  };
+
+  /** Ungroups one group (its items stay, priced one by one) */
+  const dissolveGroup = (bundleId) => setBundles(bs => bs.filter(b => b.id !== bundleId));
+
+  /** Asks, then removes a group and every item in it */
+  const askDeleteGroup = async (bundle) => {
+    const ok = await confirm({ title: 'Delete this group and its items?', message: <><b className="text-bb-text">{bundle.name}</b> and its {bundle.itemKeys.length} items will be taken off this quotation.</>, confirmLabel: 'Delete', tone: 'danger' });
+    if (!ok) return;
+    bundle.itemKeys.forEach(k => { const [sec, ...rest] = k.split('::'); handleRemoveItem(sec, rest.join('::')); });
+    setBundles(bs => bs.filter(b => b.id !== bundle.id));
+  };
+
+  /** Select mode: everything ticked, as { sectionId, name } */
+  const tickedItems = () => {
+    const out = [];
+    Object.entries(selectedForGroup).forEach(([sec, set]) => set.forEach(name => out.push({ sectionId: sec, name })));
+    selectedBundleMembers.forEach(k => { const [sec, ...rest] = k.split('::'); out.push({ sectionId: sec, name: rest.join('::') }); });
+    bundles.filter(b => selectedBundles.has(b.id)).forEach(b => b.itemKeys.forEach(k => { const [sec, ...rest] = k.split('::'); if (!out.some(o => o.sectionId === sec && o.name === rest.join('::'))) out.push({ sectionId: sec, name: rest.join('::') }); }));
+    return out;
+  };
+
+  /** Select mode: what the ticked things cost (a ticked group counts its group price) */
+  const tickedValue = () => {
+    const price = (k) => lineAmount(itemPrices[k] || { qty: 1, rate: 0 });
+    let t = 0;
+    Object.entries(selectedForGroup).forEach(([sec, set]) => set.forEach(name => { t += price(`${sec}::${name}`); }));
+    bundles.forEach(b => { if (selectedBundles.has(b.id)) t += Number(b.amount) || 0; });
+    selectedBundleMembers.forEach(k => { if (!bundles.some(b => selectedBundles.has(b.id) && b.itemKeys.includes(k))) t += price(k); });
+    return t;
+  };
+
+  /** Select mode: asks, then removes every ticked item */
+  const askRemoveTicked = async () => {
+    const list = tickedItems();
+    if (!list.length) return;
+    const ok = await confirm({ title: `Remove ${list.length} item${list.length > 1 ? 's' : ''}?`, message: list.map(i => i.name).join(', '), confirmLabel: 'Remove', tone: 'danger' });
+    if (!ok) return;
+    list.forEach(i => handleRemoveItem(i.sectionId, i.name));
+    endSelect();
+  };
+
+  /** Phone "Add item" sheet: adds the typed name to that event */
+  const addTypedItem = () => {
+    const name = addItemText.trim();
+    if (!name || !addItemSection) return;
+    if ((sectionItems[addItemSection] || []).includes(name)) { showToast('That item is already in this event', 'error'); return; }
+    setSectionItems(s => ({ ...s, [addItemSection]: [...(s[addItemSection] || []), name] }));
+    setItemPrices(p => ({ ...p, [`${addItemSection}::${name}`]: newPrice(sectionDaysOf(event)[addItemSection]) }));
+    setAddItemText('');
+    showToast(`Added "${name}"`);
+  };
+
+  // ------------------------------------------------------------
+  // EVENT HANDLERS — FIT TO BUDGET & VERSIONS
+  // ------------------------------------------------------------
+
+  /** Today's prices, as a revision */
+  const snapshot = (label) => makeRevision({ itemPrices, bundles, hidePrices, finalAmounts, sectionItems, quoteDetails: { gstEnabled, gstRate: String(gstRate), validityDays, discount: String(discountText ?? '') } }, afterDiscount, label);
+
+  /** Puts a saved version's prices back */
+  const applySnapshot = (d) => {
+    if (d.sectionItems) setSectionItems(d.sectionItems);
+    setItemPrices(d.itemPrices || {});
+    setBundles(d.bundles || []);
+    setHidePrices(!!d.hidePrices);
+    setFinalAmounts(d.finalAmounts || {});
+    const qd = d.quoteDetails || {};
+    if (qd.gstEnabled !== undefined) setGstEnabled(qd.gstEnabled);
+    if (qd.gstRate !== undefined) setGstRate(qd.gstRate);
+    if (qd.validityDays !== undefined) setValidityDays(qd.validityDays);
+    setDiscountText(qd.discount ?? '');
+  };
+
+  /** Fit to budget → new prices (or a discount); the old prices are kept as a revision */
+  const handleFitApply = ({ mode, amounts, target, keepRevision }) => {
+    if (isSuspended) { setSheet(null); askUnlock(); return; }
+    const rev = snapshot('Before Fit to budget');
+    if (keepRevision) setRevisions(r => addRevision(r, rev));
+    if (mode === 'discount') {
+      setDiscountText(String(Math.max(0, subtotal - target)));
+    } else {
+      const units = fitUnits({ groups: printGroups, itemPrices, bundles, hidePrices, finalAmounts });
+      const next = applyFit({ itemPrices, bundles, finalAmounts }, units, amounts);
+      setItemPrices(next.itemPrices);
+      setBundles(next.bundles);
+      setFinalAmounts(next.finalAmounts);
+      setDiscountText('');
+    }
+    setSheet(null);
+    setUndoInfo({ rev, kept: keepRevision, message: mode === 'discount' ? `Discount added — total ${formatRupees(target)}` : `Prices changed to fit ${formatRupees(target)}` });
+  };
+
+  /** Undo right after Fit to budget */
+  const undoFit = () => {
+    if (!undoInfo) return;
+    applySnapshot(undoInfo.rev.data);
+    if (undoInfo.kept) setRevisions(r => r.filter(x => x.id !== undoInfo.rev.id));
+    setUndoInfo(null);
+    showToast('Back to the old prices');
+  };
+
+  /** Restore an earlier version (today's prices are kept as a version first) */
+  const restoreRevision = async (rev) => {
+    if (isSuspended) { askUnlock(); return; }
+    const ok = await confirm({ title: 'Restore this version?', message: <>The quote goes back to <b className="text-bb-text">{formatRupees(rev.total)}</b>. Today’s prices are kept as a version, so you can switch back.</>, confirmLabel: 'Restore' });
+    if (!ok) return;
+    setRevisions(r => addRevision(r.filter(x => x.id !== rev.id), snapshot('Before restore')));
+    applySnapshot(rev.data);
+    setSheet(null);
+    showToast('Version restored');
+  };
+
+  // ------------------------------------------------------------
   // EVENT HANDLERS — SAVE
   // ------------------------------------------------------------
 
@@ -694,7 +922,7 @@ export default function QuotationGenerator() {
 
   /** Generates a formatted WhatsApp message with quotation details */
   const generateWhatsAppMsg = () => {
-    let msg = `*QUOTATION*\n`;
+    let msg = revisedLabel ? `*REVISED QUOTATION*\n` : `*QUOTATION*\n`;
     msg += `From: ${settings.companyName}\n`;
     msg += `To: ${event.clientName}\n`;
     msg += `Date: ${formatDateReadable(new Date().toISOString())}\n\n`;
@@ -744,8 +972,8 @@ export default function QuotationGenerator() {
 
   return (
     <div className="space-y-4 pb-8">
-      {/* Controls - hidden in print */}
-      <div data-no-print className="space-y-4">
+      {/* === LAPTOP: controls (hidden in print) === */}
+      {!isPhone && <div data-no-print className="space-y-4">
         <div className="flex items-center gap-3">
           <BackButton />
           <h1 className="text-xl font-bold text-bb-text">Quotation</h1>
@@ -993,6 +1221,10 @@ export default function QuotationGenerator() {
                 {discount.amount > 0 && <span className="text-sm font-semibold text-emerald-600" data-testid="discount-amount">− {formatCurrency(discount.amount)}</span>}
               </div>
             </div>
+            <div className="flex items-end gap-2 self-end">
+              <Button size="sm" variant="outline" icon={Wand2} onClick={() => setSheet('fit')}>Fit to budget</Button>
+              {revisions.length > 0 && <Button size="sm" variant="ghost" icon={History} onClick={() => setSheet('revisions')}>Versions ({revisions.length})</Button>}
+            </div>
           </div>
         </Card>
 
@@ -1004,7 +1236,47 @@ export default function QuotationGenerator() {
           <Button icon={MessageSquare} variant="success" onClick={handleWhatsApp}>Share via WhatsApp</Button>
           <Button variant="secondary" onClick={() => navigate(-1)}>Back</Button>
         </div>
-      </div>
+      </div>}
+
+      {/* === PHONE: Details | Preview, the editor, and the total bar === */}
+      {isPhone && (
+        <div data-no-print className="space-y-5">
+          <SegmentedTabs value={tab} onChange={(t) => { setTab(t); window.scrollTo(0, 0); }} testId="quote-tabs"
+            options={[{ value: 'details', label: 'Details' }, { value: 'preview', label: 'Preview' }]} />
+          {tab === 'details' && (
+            <QuotePhoneEditor q={{
+              printGroups, sectionTotals, itemPrices, bundles, hidePrices, finalAmounts, subtotal, discount, discountText, gstEnabled, gstRate, gstData, validityDays,
+              selectMode, selectedForGroup, selectedBundles, selectedBundleMembers, canGroup, canUngroup, dndSensors,
+              setSelectMode: (on) => (on ? setSelectMode(true) : endSelect()),
+              setItemPrice, updateBundleMemberPrice, sectionSplit, setSectionDays,
+              setBundleAmount: (id, amt) => setBundles(bs => bs.map(x => (x.id === id ? { ...x, amount: amt } : x))),
+              setFinalAmount: (sec, v) => setFinalAmounts(f => ({ ...f, [sec]: v })),
+              setDiscountText, setValidityDays, setGstEnabled, setGstRate, setHidePrices,
+              toggleSelectForGroup, toggleSelectBundle, toggleSelectBundleMember,
+              onGroup: handleGroupClick, onUngroup: handleUngroupSelected,
+              onDragEnd: handleDragEnd,
+              openItemMenu: setItemMenu, openGroupMenu: setGroupMenu,
+              openAddItem: (sec) => { setAddItemSection(sec); setAddItemText(''); },
+              openCategories: setCategoryModalSection,
+              onFitBudget: () => setSheet('fit'),
+            }} />
+          )}
+          {selectMode ? (
+            <ActionBar dark testId="select-bar" label={`${tickedItems().length} selected`} value={formatRupees(tickedValue())}>
+              <button onClick={askRemoveTicked} disabled={!tickedItems().length} className="min-h-[44px] px-3.5 rounded-xl bg-white text-red-600 font-semibold cursor-pointer disabled:opacity-40">Remove</button>
+              {canUngroup && !canGroup
+                ? <button onClick={() => { handleUngroupSelected(); }} className="min-h-[44px] px-3.5 rounded-xl bg-bb-accent text-white font-semibold cursor-pointer">Ungroup</button>
+                : <button onClick={handleGroupClick} disabled={!canGroup} data-testid="make-group" className="min-h-[44px] px-3.5 rounded-xl bg-bb-accent text-white font-semibold cursor-pointer disabled:opacity-40">{canMergeIntoExisting ? 'Add to group' : 'Make a group'}</button>}
+            </ActionBar>
+          ) : (
+            <ActionBar label={saveState === 'saved' ? 'Total' : saveState === 'saving' ? 'Total · saving…' : saveState === 'error' ? 'Total · not saved' : 'Total · not saved yet'}
+              status={saveState === 'saved' ? '✓ Saved' : null} value={formatRupees(gstData.total)}>
+              {(event.clientWhatsapp || event.clientPhone) && <IconButton icon={MessageSquare} label="Share on WhatsApp" tone="green" onClick={handleWhatsApp} />}
+              <PdfButton docRef={pdfRef} fileName={`${docTitle()}.pdf`} />
+            </ActionBar>
+          )}
+        </div>
+      )}
 
       {/* Create Group Modal */}
       <Modal isOpen={!!groupModalSection} onClose={() => setGroupModalSection(null)} title="Create Group" size="md">
@@ -1087,14 +1359,15 @@ export default function QuotationGenerator() {
       </Modal>
 
       {/* === Quotation Preview - printable document === */}
-      <div className="doc-scroll">{/* scrolls sideways on phones */}
+      {/* phones: fitted to the screen (Preview tab); laptops: as before */}
+      <DocFit hidden={isPhone && tab === 'details'}>
       <div ref={pdfRef} className="print-doc" style={{backgroundColor: 'white', color: '#1f2937', fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif', maxWidth: '800px', margin: '0 auto', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'}}>
         <table style={{width: '100%', borderCollapse: 'collapse', padding: '0', margin: '0'}}>
           <tbody>
             {/* Row 1: Title */}
             <tr>
               <td colSpan={COLS} style={{textAlign: 'center', padding: '24px 24px 12px'}}>
-                <span style={{fontSize: '20px', fontWeight: '800', letterSpacing: '0.2em', textTransform: 'uppercase', color: brand}}>QUOTATION</span>
+                <span style={{fontSize: '20px', fontWeight: '800', letterSpacing: '0.2em', textTransform: 'uppercase', color: brand}}>{revisedLabel ? 'REVISED QUOTATION' : 'QUOTATION'}</span>
                 <div style={{height: '3px', width: '80px', margin: '8px auto 0', backgroundColor: brand, borderRadius: '2px'}} />
               </td>
             </tr>
@@ -1386,7 +1659,90 @@ export default function QuotationGenerator() {
           </tbody>
         </table>
       </div>
-      </div>
+      </DocFit>
+
+      {/* === SHEETS: quote options · Fit to budget · versions · item / group menus === */}
+      {sheet === 'options' && (
+        <BottomSheet open onClose={() => setSheet(null)} title="Quote options" testId="options-sheet">
+          <MenuRow icon={Wand2} title="Fit to budget" sub="Bring the total to the client’s number" onClick={() => setSheet('fit')} testId="opt-fit" />
+          <SwitchRow title={<span className="inline-flex items-center gap-3"><EyeOff size={20} />Hide item prices</span>} sub="PDF shows one final amount per event" checked={hidePrices} onChange={setHidePrices} />
+          <MenuRow icon={Layers} title="Select & group items" sub="Tick items, then make a group" onClick={() => { setSheet(null); setTab('details'); setSelectMode(true); }} />
+          <MenuRow icon={History} title="Versions" sub={revisions.length ? `${revisions.length} earlier version${revisions.length > 1 ? 's' : ''}` : 'Fit to budget keeps the old prices here'} onClick={() => setSheet('revisions')} testId="opt-versions" />
+          {(event.clientWhatsapp || event.clientPhone) && <MenuRow icon={MessageSquare} title="Share on WhatsApp" sub="Message with the prices" onClick={() => { setSheet(null); handleWhatsApp(); }} />}
+          <MenuRow icon={FileSignature} title="Make contract" sub="Uses this quote" onClick={() => navigate(`/contract/${event.id}`)} />
+          <MenuRow icon={Save} title="Save now" sub="Changes also save by themselves" onClick={() => { setSheet(null); handleSave(); }} testId="opt-save" />
+        </BottomSheet>
+      )}
+      {sheet === 'fit' && (
+        <FitBudgetSheet units={fitUnits({ groups: printGroups, itemPrices, bundles, hidePrices, finalAmounts })}
+          subtotal={subtotal} discountNow={discount.amount} gstOn={gstEnabled} onApply={handleFitApply} onClose={() => setSheet(null)} />
+      )}
+      {sheet === 'revisions' && (
+        <QuoteRevisionsSheet revisions={revisions} currentTotal={afterDiscount} revisedLabel={revisedLabel} onToggleRevised={setRevisedLabel}
+          onRestore={restoreRevision} onClose={() => setSheet(null)} locked={isSuspended} />
+      )}
+      {itemMenu && (() => {
+        const inGroup = bundles.find(b => b.id === itemMenu.bundleId);
+        const others = bundles.filter(b => b.id !== itemMenu.bundleId && b.itemKeys.some(k => k.startsWith(`${itemMenu.sectionId}::`)));
+        const close = (fn) => () => { setItemMenu(null); fn(); };
+        return (
+          <BottomSheet open onClose={() => setItemMenu(null)} title={itemMenu.name} sub={inGroup ? `In the group “${inGroup.name}”` : 'Item'} testId="item-menu">
+            {others.length > 0 && <MenuRow icon={FolderInput} title={inGroup ? 'Move to another group' : 'Add to a group'} onClick={close(() => setMoveMenu(itemMenu))} testId="item-move" />}
+            {inGroup && <MenuRow icon={FolderOutput} title="Remove from group" sub="It stays on the quote with its own price" onClick={close(() => removeFromGroup(itemMenu.key))} testId="item-ungroup" />}
+            <MenuRow icon={Copy} title="Duplicate" onClick={close(() => duplicateItem(itemMenu.sectionId, itemMenu.name))} testId="item-duplicate" />
+            <MenuRow icon={Type} title="Edit item name" onClick={close(() => setRenaming({ kind: 'item', sectionId: itemMenu.sectionId, name: itemMenu.name, value: itemMenu.name }))} testId="item-rename" />
+            <div className="mt-3 border-t-4 border-gray-100">
+              <MenuRow icon={Trash2} title="Delete item" sub="Asks you first" tone="red" onClick={close(() => askRemoveItem(itemMenu.sectionId, itemMenu.name))} testId="item-delete" />
+            </div>
+          </BottomSheet>
+        );
+      })()}
+      {moveMenu && (
+        <BottomSheet open onClose={() => setMoveMenu(null)} title="Move to group" sub={moveMenu.name} testId="move-menu">
+          {bundles.filter(b => b.id !== moveMenu.bundleId && b.itemKeys.some(k => k.startsWith(`${moveMenu.sectionId}::`))).map(b => (
+            <MenuRow key={b.id} icon={Layers} title={b.name} sub={`${b.itemKeys.length} items`} onClick={() => { moveToGroup(moveMenu.key, b.id); setMoveMenu(null); }} />
+          ))}
+        </BottomSheet>
+      )}
+      {groupMenu && (
+        <BottomSheet open onClose={() => setGroupMenu(null)} title={groupMenu.name} sub={`Group · ${groupMenu.itemKeys.length} items`} testId="group-menu">
+          <MenuRow icon={Pencil} title="Rename group" onClick={() => { setRenaming({ kind: 'group', bundleId: groupMenu.id, name: groupMenu.name, value: groupMenu.name }); setGroupMenu(null); }} />
+          <MenuRow icon={Ungroup} title="Ungroup" sub="Items stay, each with its own price" onClick={() => { dissolveGroup(groupMenu.id); setGroupMenu(null); }} testId="group-ungroup" />
+          <div className="mt-3 border-t-4 border-gray-100">
+            <MenuRow icon={Trash2} title="Delete group and its items" sub="Asks you first" tone="red" onClick={() => { const b = groupMenu; setGroupMenu(null); askDeleteGroup(b); }} />
+          </div>
+        </BottomSheet>
+      )}
+      {renaming && (
+        <BottomSheet open onClose={() => setRenaming(null)} title={renaming.kind === 'group' ? 'Rename group' : 'Edit item name'} testId="rename-sheet"
+          footer={<div className="flex gap-2.5">
+            <button onClick={() => setRenaming(null)} className="flex-1 min-h-[46px] rounded-xl border border-gray-300 font-semibold cursor-pointer">Cancel</button>
+            <button data-testid="rename-save" onClick={() => { const err = renameThing(renaming, renaming.value); if (err) showToast(err, 'error'); else setRenaming(null); }}
+              className="flex-[1.6] min-h-[46px] rounded-xl bg-bb-accent text-white font-semibold cursor-pointer">Save name</button>
+          </div>}>
+          <input autoFocus value={renaming.value} onChange={e => setRenaming(r => ({ ...r, value: e.target.value }))} aria-label="Name" data-testid="rename-input"
+            className="w-full min-h-[48px] rounded-xl border border-bb-border bg-bb-input px-3 text-[16px] focus:outline-none focus:ring-2 focus:ring-bb-accent/40" />
+        </BottomSheet>
+      )}
+      {addItemSection && (
+        <BottomSheet open onClose={() => setAddItemSection(null)} title="Add item" sub={printGroups.find(g => g.id === addItemSection)?.name} testId="add-item-sheet"
+          footer={<div className="flex gap-2.5">
+            <button onClick={() => { const sec = addItemSection; setAddItemSection(null); setCategoryModalSection(sec); }} className="flex-1 min-h-[46px] rounded-xl border border-gray-300 font-semibold cursor-pointer">From services</button>
+            <button onClick={addTypedItem} disabled={!addItemText.trim()} data-testid="add-item-save" className="flex-1 min-h-[46px] rounded-xl bg-bb-accent text-white font-semibold cursor-pointer disabled:opacity-40">Add</button>
+          </div>}>
+          <input autoFocus value={addItemText} onChange={e => setAddItemText(e.target.value)} onKeyDown={e => e.key === 'Enter' && addTypedItem()} placeholder="e.g. Welcome board" aria-label="Item name" data-testid="add-item-input"
+            className="w-full min-h-[48px] rounded-xl border border-bb-border bg-bb-input px-3 text-[16px] focus:outline-none focus:ring-2 focus:ring-bb-accent/40" />
+          <p className="text-[13px] text-gray-600 mt-2">Add as many as you like — the sheet stays open.</p>
+        </BottomSheet>
+      )}
+
+      {/* "Undo" right after Fit to budget */}
+      {undoInfo && (
+        <div className="fixed z-[70] left-4 right-4 bottom-[calc(6.75rem+env(safe-area-inset-bottom))] lg:left-auto lg:right-8 lg:bottom-6 lg:w-[420px] rounded-2xl bg-[#1f1530] text-white shadow-2xl px-4 py-3 flex items-center gap-3" data-testid="undo-bar" role="status">
+          <span className="flex-1 text-[14.5px]">{undoInfo.message}</span>
+          <button onClick={undoFit} className="min-h-[40px] px-2 inline-flex items-center gap-1.5 font-bold text-violet-300 cursor-pointer" data-testid="undo-fit"><Undo2 size={18} />Undo</button>
+        </div>
+      )}
     </div>
   );
 }

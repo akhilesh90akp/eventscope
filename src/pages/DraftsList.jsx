@@ -4,6 +4,8 @@
  * Displays all draft events in an expandable card list with search filtering.
  * Each card shows client info, event details, items, and action buttons.
  * Backward compatible with old event format (no mainEvent/subEvents).
+ * Phones get EventCardPhone (Confirm · Quote · Call · ⋯); laptops (1024px+)
+ * keep the fold-open cards.
  *
  * Confirm/Delete actions await the Firestore result before showing a
  * success toast — see CODE_STRUCTURE.md §3-4.
@@ -29,6 +31,8 @@ import {
   Lock,
 } from 'lucide-react';
 import { useConfirm } from '../components/useConfirm';
+import EventCardPhone, { EventItemsSheet, EventMoreSheet } from '../components/EventCardPhone';
+import { useIsPhone } from '../components/useIsPhone';
 
 // ============================================================
 // HELPERS
@@ -70,12 +74,15 @@ export default function DraftsList() {
   const lk = (icon) => (isSuspended ? Lock : icon);
   const confirm = useConfirm();
   const navigate = useNavigate();
+  const isPhone = useIsPhone();
 
   // ------------------------------------------------------------
   // STATE
   // ------------------------------------------------------------
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState(null);
+  const [itemsId, setItemsId] = useState(null); // phone: items sheet
+  const [moreId, setMoreId] = useState(null);   // phone: ⋯ sheet
 
   // ------------------------------------------------------------
   // DERIVED DATA
@@ -144,7 +151,7 @@ export default function DraftsList() {
   // ------------------------------------------------------------
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-bold text-bb-text">Drafts<span className="inline-flex items-center justify-center align-middle min-w-[1.75rem] h-7 px-2 ml-2 rounded-full bg-violet-100 text-violet-700 text-sm font-bold tabular-nums" data-testid="title-count">{events.filter(e => e.status === 'draft').length}</span></h1>
+      <h1 className="hidden lg:block text-xl font-bold text-bb-text">Drafts<span className="inline-flex items-center justify-center align-middle min-w-[1.75rem] h-7 px-2 ml-2 rounded-full bg-violet-100 text-violet-700 text-sm font-bold tabular-nums" data-testid="title-count">{events.filter(e => e.status === 'draft').length}</span></h1>
 
       {/* Search — stays pinned while scrolling */}
       <StickyBar>
@@ -171,6 +178,22 @@ export default function DraftsList() {
           </div>
         </Card>
       ) : (
+        isPhone ? (
+        /* === PHONE: one card per draft === */
+        <div className="space-y-4" data-testid="phone-list">
+          {drafts.map(ev => (
+            <EventCardPhone key={ev.id} ev={ev} variant="draft" locked={isSuspended}
+              on={{
+                confirm: guard(() => confirmEvent(ev.id)),
+                quote: () => navigate(`/quotation/${ev.id}`),
+                items: () => setItemsId(ev.id),
+                more: () => setMoreId(ev.id),
+              }} />
+          ))}
+          <p className="text-center text-[13px] text-gray-600 pt-1">Drafts move to Confirmed when you tap <b>Confirm</b>.</p>
+        </div>
+        ) : (
+        /* === LAPTOP: fold-open cards === */
         <div className="space-y-3">
           {drafts.map(ev => {
             const eventDates = getAllEventDates(ev);
@@ -340,8 +363,23 @@ export default function DraftsList() {
             );
           })}
         </div>
+        )
       )}
 
+      {/* === PHONE SHEETS === */}
+      {itemsId && <EventItemsSheet ev={events.find(e => e.id === itemsId)} onClose={() => setItemsId(null)} onEdit={() => navigate(`/quotation/${itemsId}`)} />}
+      {moreId && (() => {
+        const ev = events.find(e => e.id === moreId);
+        const close = (fn) => () => { setMoreId(null); fn(); };
+        return (
+          <EventMoreSheet ev={ev} onClose={() => setMoreId(null)} locked={isSuspended}
+            on={{
+              edit: close(guard(() => navigate(`/edit/${moreId}`))),
+              quote: close(() => navigate(`/quotation/${moreId}`)),
+              delete: close(guard(() => handleDelete(ev))),
+            }} />
+        );
+      })()}
     </div>
   );
 }
