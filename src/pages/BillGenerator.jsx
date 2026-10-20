@@ -38,6 +38,7 @@ import { useIsPhone } from '../components/useIsPhone';
 import { usePhoneHeader } from '../components/phoneScreens';
 import ActionBar from '../components/ActionBar';
 import DocFit from '../components/DocFit';
+import StickyBar from '../components/StickyBar';
 import { SegmentedTabs, SectionLabel, SwitchRow, DateField, TextField, IconButton } from '../components/PhoneUI';
 
 // ============================================================
@@ -347,8 +348,10 @@ export default function BillGenerator() {
       {/* === PHONE: Details (every input, in groups) | Preview === */}
       {isPhone && (
         <div data-no-print className="space-y-5">
-          <SegmentedTabs value={tab} onChange={(t) => { setTab(t); window.scrollTo(0, 0); }} testId="bill-tabs"
-            options={[{ value: 'details', label: 'Details' }, { value: 'preview', label: 'Preview' }]} />
+          <StickyBar className="!py-3">
+            <SegmentedTabs value={tab} onChange={(t) => { setTab(t); window.scrollTo(0, 0); }} testId="bill-tabs"
+              options={[{ value: 'details', label: 'Details' }, { value: 'preview', label: 'Preview' }]} />
+          </StickyBar>
           {tab === 'details' && (
             <div className="space-y-5" data-testid="bill-phone">
               <SectionLabel>Invoice</SectionLabel>

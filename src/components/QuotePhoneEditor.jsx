@@ -3,8 +3,9 @@
  *
  * Same quote, same data and same handlers as the laptop editor in
  * QuotationGenerator; only the layout differs:
- *   - a tools row at the top that scrolls sideways: Save · Group · Ungroup ·
- *     Hide prices · WhatsApp · Fit to budget · Versions
+ *   - QuoteTools: a tools row that scrolls sideways (Save · Group · Ungroup ·
+ *     Hide prices · WhatsApp · Fit to budget · Versions); the page pins it
+ *     under the title bar together with the Details | Preview tabs
  *   - every item and group: a tick box with the ⋮⋮ drag handle under it
  *   - one block per event (main + sub events) with its date, items and total
  *   - every item: ⋮⋮ drag handle · name · amount · ⋮ menu, then labelled
@@ -145,6 +146,35 @@ function GroupBlock({ q, sectionId, bundle, handle }) {
 }
 
 // ============================================================
+// QuoteTools — the sideways tools row (pinned with the tabs by the page)
+// ============================================================
+
+/** Save · Group · Ungroup · Hide prices · WhatsApp · Fit to budget · Versions; Group / Ungroup light up once items are ticked */
+export function QuoteTools({ q }) {
+  return (
+    <div className="-mx-4 px-4 flex gap-2 overflow-x-auto no-scrollbar pb-0.5" data-testid="quote-tools">
+      {[
+        { id: 'save', icon: Save, label: q.saveState === 'saved' ? 'Saved' : q.saveState === 'saving' ? 'Saving…' : 'Save', onClick: q.onSave, tone: q.saveState === 'saved' ? 'done' : 'main' },
+        { id: 'group', icon: Layers, label: 'Group', onClick: q.onGroup, disabled: !q.canGroup },
+        { id: 'ungroup', icon: Ungroup, label: 'Ungroup', onClick: q.onUngroup, disabled: !q.canUngroup },
+        { id: 'hide', icon: q.hidePrices ? Eye : EyeOff, label: q.hidePrices ? 'Show prices' : 'Hide prices', onClick: () => q.setHidePrices(!q.hidePrices), on: q.hidePrices },
+        q.hasPhone && { id: 'whatsapp', icon: MessageSquare, label: 'WhatsApp', onClick: q.onWhatsApp, tone: 'green' },
+        { id: 'fit', icon: Wand2, label: 'Fit to budget', onClick: q.onFitBudget },
+        { id: 'versions', icon: History, label: q.revisionsCount ? `Versions (${q.revisionsCount})` : 'Versions', onClick: q.onVersions },
+      ].filter(Boolean).map(t => (
+        <button key={t.id} onClick={t.onClick} disabled={t.disabled} data-testid={`tool-${t.id}`} aria-pressed={t.on}
+          className={`shrink-0 min-h-[42px] px-3.5 rounded-xl border font-semibold text-[14px] inline-flex items-center gap-2 cursor-pointer whitespace-nowrap
+            disabled:text-gray-400 disabled:border-gray-200 disabled:bg-gray-50 disabled:cursor-default
+            ${t.tone === 'main' ? 'bg-white border-bb-accent text-bb-accent-hover' : t.tone === 'done' ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+              : t.tone === 'green' ? 'bg-white border-emerald-200 text-emerald-700' : t.on ? 'bg-violet-100 border-violet-300 text-bb-accent-hover' : 'bg-white border-gray-300 text-bb-text'}`}>
+          <t.icon size={17} />{t.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ============================================================
 // QuotePhoneEditor — MAIN COMPONENT
 // ============================================================
 
@@ -153,27 +183,7 @@ export default function QuotePhoneEditor({ q }) {
   const many = sections.length > 1;
   return (
     <div className="space-y-5" data-testid="quote-phone">
-      {/* Tools — one row that scrolls sideways; Group / Ungroup light up once items are ticked */}
-      <div className="-mx-4 px-4 flex gap-2 overflow-x-auto no-scrollbar pb-0.5" data-testid="quote-tools">
-        {[
-          { id: 'save', icon: Save, label: q.saveState === 'saved' ? 'Saved' : q.saveState === 'saving' ? 'Saving…' : 'Save', onClick: q.onSave, tone: q.saveState === 'saved' ? 'done' : 'main' },
-          { id: 'group', icon: Layers, label: 'Group', onClick: q.onGroup, disabled: !q.canGroup },
-          { id: 'ungroup', icon: Ungroup, label: 'Ungroup', onClick: q.onUngroup, disabled: !q.canUngroup },
-          { id: 'hide', icon: q.hidePrices ? Eye : EyeOff, label: q.hidePrices ? 'Show prices' : 'Hide prices', onClick: () => q.setHidePrices(!q.hidePrices), on: q.hidePrices },
-          q.hasPhone && { id: 'whatsapp', icon: MessageSquare, label: 'WhatsApp', onClick: q.onWhatsApp, tone: 'green' },
-          { id: 'fit', icon: Wand2, label: 'Fit to budget', onClick: q.onFitBudget },
-          { id: 'versions', icon: History, label: q.revisionsCount ? `Versions (${q.revisionsCount})` : 'Versions', onClick: q.onVersions },
-        ].filter(Boolean).map(t => (
-          <button key={t.id} onClick={t.onClick} disabled={t.disabled} data-testid={`tool-${t.id}`} aria-pressed={t.on}
-            className={`shrink-0 min-h-[42px] px-3.5 rounded-xl border font-semibold text-[14px] inline-flex items-center gap-2 cursor-pointer whitespace-nowrap
-              disabled:text-gray-400 disabled:border-gray-200 disabled:bg-gray-50 disabled:cursor-default
-              ${t.tone === 'main' ? 'bg-white border-bb-accent text-bb-accent-hover' : t.tone === 'done' ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                : t.tone === 'green' ? 'bg-white border-emerald-200 text-emerald-700' : t.on ? 'bg-violet-100 border-violet-300 text-bb-accent-hover' : 'bg-white border-gray-300 text-bb-text'}`}>
-            <t.icon size={17} />{t.label}
-          </button>
-        ))}
-      </div>
-      <p className="-mt-3 text-[12.5px] text-gray-600">Tick items to group or remove them · hold ⋮⋮ to move. Groups stay inside one event.</p>
+      <p className="text-[12.5px] text-gray-600">Tick items to group or remove them · hold ⋮⋮ to move. Groups stay inside one event.</p>
 
       {/* One block per event */}
       {sections.map(group => {

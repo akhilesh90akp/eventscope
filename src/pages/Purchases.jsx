@@ -8,7 +8,7 @@
  * saves the selected year. Purchases never change an event's profit in the
  * Job Log — Reports shows "Profit after purchases" separately.
  *
- * Phones: ‹ year › switcher, "Add purchase" at the top (a long list never
+ * Phones: ‹ year › switcher and "Add purchase" pinned at the top (a long list never
  * pushes it down), Excel in the title bar, ✎ / 🗑 as icons in an open row.
  *
  * Data: tenants/{id}/purchases (see utils/purchases.js).
@@ -21,6 +21,7 @@ import React, { useMemo, useState } from 'react';
 import { Plus, Download, Edit2, Edit3, Trash2, ChevronDown, ChevronUp, Lock, ShoppingBag } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import Card from '../components/Card';
+import StickyBar from '../components/StickyBar';
 import Button from '../components/Button';
 import PurchaseDialog from '../components/PurchaseDialog';
 import { useConfirm } from '../components/useConfirm';
@@ -137,14 +138,14 @@ export default function Purchases() {
     <div className="space-y-4">
       {/* === PHONE: ‹ year ›, then Add purchase (always at the top) === */}
       {isPhone && (
-        <div className="space-y-3">
+        <StickyBar className="!py-3 space-y-3" testId="purchases-sticky">
           <div className="flex items-center gap-2">
             <IconButton icon={ChevronLeft} label="Previous year" onClick={() => setYear(y => y - 1)} disabled={year <= Math.min(...years)} />
             <span className="flex-1 min-h-[44px] flex items-center justify-center rounded-xl border border-bb-border bg-white font-bold text-[15.5px]" data-testid="fy-label">{fyLabel(year)} (Apr–Mar)</span>
             <IconButton icon={ChevronRight} label="Next year" onClick={() => setYear(y => y + 1)} disabled={year >= Math.max(...years)} />
           </div>
           <Button icon={Plus} fullWidth size="lg" onClick={() => setDialog({ editing: null })}>Add purchase</Button>
-        </div>
+        </StickyBar>
       )}
 
       {/* === HEADER (laptop) === */}

@@ -30,6 +30,7 @@ import { ChevronLeft, ChevronRight, AlertTriangle, Bell, CalendarDays, Users, Sl
 import { useIsPhone } from '../components/useIsPhone';
 import BottomSheet from '../components/BottomSheet';
 import { SegmentedTabs, IconButton } from '../components/PhoneUI';
+import StickyBar from '../components/StickyBar';
 import { useApp } from '../context/AppContext';
 import Card from '../components/Card';
 import ReminderSwitch from '../components/ReminderSwitch';
@@ -361,7 +362,7 @@ export default function Calendar() {
 
       {/* === PHONE: Month | List · filters · month switcher === */}
       {isPhone && (
-        <div className="space-y-3">
+        <StickyBar className="!py-3 space-y-3" testId="cal-sticky">
           <div className="flex items-center gap-2">
             <SegmentedTabs className="flex-1" value={view} onChange={setView} testId="cal-view"
               options={[{ value: 'month', label: 'Month' }, { value: 'list', label: 'List' }]} />
@@ -377,7 +378,7 @@ export default function Calendar() {
           {(status !== 'all' || type) && (
             <p className="text-[13px] text-gray-600">Showing {STATUS_FILTERS.find(x => x.id === status)?.label.toLowerCase()}{type ? ` · ${type}` : ''} · <button onClick={() => { setStatus('all'); setType(''); }} className="font-semibold text-bb-accent-hover cursor-pointer">Clear</button></p>
           )}
-        </div>
+        </StickyBar>
       )}
 
       {/* Month switcher, filters, view toggle (laptop) */}

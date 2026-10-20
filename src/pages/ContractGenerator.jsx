@@ -24,6 +24,7 @@ import { useIsPhone } from '../components/useIsPhone';
 import { usePhoneHeader } from '../components/phoneScreens';
 import ActionBar from '../components/ActionBar';
 import DocFit from '../components/DocFit';
+import StickyBar from '../components/StickyBar';
 import { SegmentedTabs, SwitchRow, DateField, TextField } from '../components/PhoneUI';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
@@ -247,8 +248,10 @@ export default function ContractGenerator() {
       {/* === PHONE: Details (folding sections) | Preview === */}
       {isPhone && (
         <div data-no-print className="space-y-4">
-          <SegmentedTabs value={tab} onChange={(t) => { setTab(t); window.scrollTo(0, 0); }} testId="contract-tabs"
-            options={[{ value: 'details', label: 'Details' }, { value: 'preview', label: 'Preview' }]} />
+          <StickyBar className="!py-3">
+            <SegmentedTabs value={tab} onChange={(t) => { setTab(t); window.scrollTo(0, 0); }} testId="contract-tabs"
+              options={[{ value: 'details', label: 'Details' }, { value: 'preview', label: 'Preview' }]} />
+          </StickyBar>
           {tab === 'details' && (
             <fieldset disabled={!canEditEvents} className="space-y-4 min-w-0" data-testid="contract-phone">
               {[

@@ -75,7 +75,8 @@ import ActionBar from '../components/ActionBar';
 import BottomSheet from '../components/BottomSheet';
 import DocFit from '../components/DocFit';
 import { SegmentedTabs, IconButton, MenuRow, SwitchRow } from '../components/PhoneUI';
-import QuotePhoneEditor from '../components/QuotePhoneEditor';
+import QuotePhoneEditor, { QuoteTools } from '../components/QuotePhoneEditor';
+import StickyBar from '../components/StickyBar';
 import FitBudgetSheet from '../components/FitBudgetSheet';
 import QuoteRevisionsSheet from '../components/QuoteRevisionsSheet';
 import { fitUnits, applyFit, makeRevision, addRevision } from '../utils/quoteFit';
@@ -996,6 +997,41 @@ export default function QuotationGenerator() {
   const showDays = usesDays(itemPrices);
   const COLS = showDays ? 6 : 5;
 
+  /** Hide item prices; turning it on scrolls to the first Final amount box (phones) */
+  const setHidePricesAndShow = (on) => {
+    setHidePrices(on);
+    if (!on || !isPhone) return;
+    setSheet(null);
+    setTab('details');
+    setTimeout(() => {
+      const box = document.querySelector('[data-testid="final-amount-box"]');
+      if (!box) return;
+      const top = box.getBoundingClientRect().top + window.scrollY - window.innerHeight / 3;
+      window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+      box.querySelector('input')?.focus({ preventScroll: true });
+    }, 120);
+  };
+
+  // Phones: everything the editor and its sticky tools row need
+  const phoneQ = {
+    printGroups, sectionTotals, itemPrices, bundles, hidePrices, finalAmounts, subtotal, discount, discountText, gstEnabled, gstRate, gstData, validityDays,
+    selectedForGroup, selectedBundles, selectedBundleMembers, canGroup, canUngroup, dndSensors,
+    setItemPrice, updateBundleMemberPrice, sectionSplit, setSectionDays,
+    setBundleAmount: (id, amt) => setBundles(bs => bs.map(x => (x.id === id ? { ...x, amount: amt } : x))),
+    setFinalAmount: (sec, v) => setFinalAmounts(f => ({ ...f, [sec]: v })),
+    setDiscountText, setValidityDays, setGstEnabled, setGstRate, setHidePrices: setHidePricesAndShow,
+    toggleSelectForGroup, toggleSelectBundle, toggleSelectBundleMember,
+    onGroup: handleGroupClick, onUngroup: handleUngroupSelected,
+    onDragEnd: handleDragEnd, onMemberDragEnd: handleMemberDragEnd,
+    openItemMenu: setItemMenu, openGroupMenu: setGroupMenu,
+    openAddItem: (sec) => { setAddItemSection(sec); setAddItemText(''); },
+    openCategories: setCategoryModalSection,
+    onFitBudget: () => setSheet('fit'),
+    onVersions: () => setSheet('revisions'), revisionsCount: revisions.length,
+    onSave: handleSave, saveState,
+    hasPhone: !!(event.clientWhatsapp || event.clientPhone), onWhatsApp: handleWhatsApp,
+  };
+
   // ------------------------------------------------------------
   // RENDER
   // ------------------------------------------------------------
@@ -1271,27 +1307,14 @@ export default function QuotationGenerator() {
       {/* === PHONE: Details | Preview, the editor, and the total bar === */}
       {isPhone && (
         <div data-no-print className="space-y-5">
-          <SegmentedTabs value={tab} onChange={(t) => { setTab(t); window.scrollTo(0, 0); }} testId="quote-tabs"
-            options={[{ value: 'details', label: 'Details' }, { value: 'preview', label: 'Preview' }]} />
+          {/* Tabs and the tools row stay pinned under the title bar; the quote scrolls below */}
+          <StickyBar className="!py-3 space-y-3 border-b border-bb-border/70" testId="quote-sticky">
+            <SegmentedTabs value={tab} onChange={(t) => { setTab(t); window.scrollTo(0, 0); }} testId="quote-tabs"
+              options={[{ value: 'details', label: 'Details' }, { value: 'preview', label: 'Preview' }]} />
+            {tab === 'details' && <QuoteTools q={phoneQ} />}
+          </StickyBar>
           {tab === 'details' && (
-            <QuotePhoneEditor q={{
-              printGroups, sectionTotals, itemPrices, bundles, hidePrices, finalAmounts, subtotal, discount, discountText, gstEnabled, gstRate, gstData, validityDays,
-              selectedForGroup, selectedBundles, selectedBundleMembers, canGroup, canUngroup, dndSensors,
-              setItemPrice, updateBundleMemberPrice, sectionSplit, setSectionDays,
-              setBundleAmount: (id, amt) => setBundles(bs => bs.map(x => (x.id === id ? { ...x, amount: amt } : x))),
-              setFinalAmount: (sec, v) => setFinalAmounts(f => ({ ...f, [sec]: v })),
-              setDiscountText, setValidityDays, setGstEnabled, setGstRate, setHidePrices,
-              toggleSelectForGroup, toggleSelectBundle, toggleSelectBundleMember,
-              onGroup: handleGroupClick, onUngroup: handleUngroupSelected,
-              onDragEnd: handleDragEnd, onMemberDragEnd: handleMemberDragEnd,
-              openItemMenu: setItemMenu, openGroupMenu: setGroupMenu,
-              openAddItem: (sec) => { setAddItemSection(sec); setAddItemText(''); },
-              openCategories: setCategoryModalSection,
-              onFitBudget: () => setSheet('fit'),
-              onVersions: () => setSheet('revisions'), revisionsCount: revisions.length,
-              onSave: handleSave, saveState,
-              hasPhone: !!(event.clientWhatsapp || event.clientPhone), onWhatsApp: handleWhatsApp,
-            }} />
+            <QuotePhoneEditor q={phoneQ} />
           )}
           {anyTicked ? (
             <ActionBar testId="select-bar" label={`${tickedItems().length} selected`} value={formatRupees(tickedValue())}>
@@ -1700,7 +1723,7 @@ export default function QuotationGenerator() {
           <MenuRow icon={Save} title="Save now" sub="Changes also save by themselves" onClick={() => { setSheet(null); handleSave(); }} testId="opt-save" />
           <MenuRow icon={Layers} title="Group ticked items" sub={canGroup ? 'Make one group with one price' : 'Tick 2 or more items first'} disabled={!canGroup} onClick={() => { setSheet(null); handleGroupClick(); }} testId="opt-group" />
           <MenuRow icon={Ungroup} title="Ungroup ticked" sub={canUngroup ? 'Items go back to their own prices' : 'Tick a group first'} disabled={!canUngroup} onClick={() => { setSheet(null); handleUngroupSelected(); }} testId="opt-ungroup" />
-          <SwitchRow icon={EyeOff} title="Hide item prices" sub="PDF shows one final amount per event" checked={hidePrices} onChange={setHidePrices} testId="opt-hide" />
+          <SwitchRow icon={EyeOff} title="Hide item prices" sub="PDF shows one final amount per event" checked={hidePrices} onChange={setHidePricesAndShow} testId="opt-hide" />
           {(event.clientWhatsapp || event.clientPhone) && <MenuRow icon={MessageSquare} title="Share on WhatsApp" sub="Message with the prices" onClick={() => { setSheet(null); handleWhatsApp(); }} />}
           <MenuRow icon={Wand2} title="Fit to budget" sub="Bring the total to the client’s number" onClick={() => setSheet('fit')} testId="opt-fit" />
           <MenuRow icon={History} title="Versions" sub={revisions.length ? `${revisions.length} earlier version${revisions.length > 1 ? 's' : ''}` : 'Fit to budget keeps the old prices here'} onClick={() => setSheet('revisions')} testId="opt-versions" />

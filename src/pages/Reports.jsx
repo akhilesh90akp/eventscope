@@ -33,6 +33,7 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useIsPhone } from '../components/useIsPhone';
 import { usePhoneHeader } from '../components/phoneScreens';
+import StickyBar from '../components/StickyBar';
 import { SegmentedTabs, SectionLabel, IconButton, DateField } from '../components/PhoneUI';
 
 // ============================================================
@@ -316,21 +317,24 @@ export default function Reports() {
     return (
       <div data-testid="reports-phone">
         <div data-no-print className="space-y-4">
-          <SegmentedTabs value={filter} onChange={setFilter} testId="report-period"
-            options={[{ value: 'all', label: 'All time' }, { value: 'monthly', label: 'Month' }, { value: 'yearly', label: 'Year' }, { value: 'custom', label: 'Custom' }]} />
-          {(filter === 'monthly' || filter === 'yearly') && (
-            <div className="flex items-center gap-2 bg-white border border-bb-border rounded-2xl px-1.5 py-1">
-              <IconButton icon={ChevronLeft} label={filter === 'monthly' ? 'Previous month' : 'Previous year'} tone="quiet" onClick={() => shift(-1)} />
-              <span className="flex-1 text-center text-[17px] font-bold" data-testid="report-period-label">{periodLabel}</span>
-              <IconButton icon={ChevronRight} label={filter === 'monthly' ? 'Next month' : 'Next year'} tone="quiet" onClick={() => shift(1)} />
-            </div>
-          )}
-          {filter === 'custom' && (
-            <div className="grid grid-cols-2 gap-3">
-              <DateField label="From" id="rep-from" value={dateFrom} onChange={setDateFrom} />
-              <DateField label="To" id="rep-to" value={dateTo} onChange={setDateTo} />
-            </div>
-          )}
+          {/* Period tabs and the ‹ month › stepper stay pinned while the list scrolls */}
+          <StickyBar className="!py-3 space-y-3">
+            <SegmentedTabs value={filter} onChange={setFilter} testId="report-period"
+              options={[{ value: 'all', label: 'All time' }, { value: 'monthly', label: 'Month' }, { value: 'yearly', label: 'Year' }, { value: 'custom', label: 'Custom' }]} />
+            {(filter === 'monthly' || filter === 'yearly') && (
+              <div className="flex items-center gap-2 bg-white border border-bb-border rounded-2xl px-1.5 py-1">
+                <IconButton icon={ChevronLeft} label={filter === 'monthly' ? 'Previous month' : 'Previous year'} tone="quiet" onClick={() => shift(-1)} />
+                <span className="flex-1 text-center text-[17px] font-bold" data-testid="report-period-label">{periodLabel}</span>
+                <IconButton icon={ChevronRight} label={filter === 'monthly' ? 'Next month' : 'Next year'} tone="quiet" onClick={() => shift(1)} />
+              </div>
+            )}
+            {filter === 'custom' && (
+              <div className="grid grid-cols-2 gap-3">
+                <DateField label="From" id="rep-from" value={dateFrom} onChange={setDateFrom} />
+                <DateField label="To" id="rep-to" value={dateTo} onChange={setDateTo} />
+              </div>
+            )}
+          </StickyBar>
           <div className="flex items-center gap-2">
             {[['completed', 'Completed'], ['all', 'All events']].map(([k, l]) => (
               <button key={k} onClick={() => setStatusFilter(k)} className={`shrink-0 whitespace-nowrap min-h-[40px] px-3.5 rounded-full border text-[14px] font-semibold cursor-pointer ${statusFilter === k ? 'bg-bb-accent border-bb-accent text-white' : 'bg-white border-gray-300'}`}>{l}</button>

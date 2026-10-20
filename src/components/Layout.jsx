@@ -14,7 +14,7 @@
 // ============================================================
 // IMPORTS
 // ============================================================
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import { LayoutDashboard, FilePlus, FileText, CheckCircle2, PartyPopper, Settings, Plus, BarChart3, LogOut, Shield, X, CalendarDays, ShoppingBag, CreditCard } from 'lucide-react';
 import { useApp } from '../context/AppContext';
@@ -223,6 +223,17 @@ function LayoutShell() {
   const goBack = () => (((window.history.state?.idx ?? 0) > 0) ? navigate(-1) : navigate(phoneScreen.back || '/'));
   const panelProps = { items: visibleNav, counts, companyName, roleLabel, onLogout: logout, canUse };
 
+  // Phones: the title bar's height (it grows with a sub-line) as --phone-head,
+  // so StickyBar rows (tabs, tools, search) pin right under it
+  const headerRef = useRef(null);
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(() => document.documentElement.style.setProperty('--phone-head', `${el.offsetHeight}px`));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   // ------------------------------------------------------------
   // RENDER
   // ------------------------------------------------------------
@@ -238,7 +249,7 @@ function LayoutShell() {
       </aside>
 
       {/* === MOBILE TITLE BAR (below 1024px) — page title or ← back, stays on top === */}
-      <header className={`lg:hidden sticky top-0 z-40 bg-bb-sidebar border-b ${isTask ? "border-transparent" : "border-bb-sidebar-border"} pt-[env(safe-area-inset-top)]`}>
+      <header ref={headerRef} className={`lg:hidden sticky top-0 z-40 bg-bb-sidebar border-b ${isTask ? "border-transparent" : "border-bb-sidebar-border"} pt-[env(safe-area-inset-top)]`}>
         <PhoneHeader screen={phoneScreen} extra={headerExtra} logo={LOGO}
           onMenu={() => setMenuOpen(true)} onBack={goBack} onLogo={() => navigate(adminOnly ? '/admin' : '/')} />
       </header>
