@@ -30,6 +30,7 @@ import { ChevronLeft, ChevronRight, AlertTriangle, Bell, CalendarDays, Users, Sl
 import { useIsPhone } from '../components/useIsPhone';
 import BottomSheet from '../components/BottomSheet';
 import { SegmentedTabs, IconButton } from '../components/PhoneUI';
+import { PageHeader, Seg } from '../components/LaptopUI';
 import StickyBar from '../components/StickyBar';
 import { useApp } from '../context/AppContext';
 import Card from '../components/Card';
@@ -358,7 +359,8 @@ export default function Calendar() {
   // ------------------------------------------------------------
   return (
     <div className="space-y-4 pb-8">
-      {!isPhone && <h1 className="text-xl font-bold text-bb-text">Calendar</h1>}
+      {!isPhone && <PageHeader title="Calendar"
+        actions={<Seg label="View" value={view} onChange={setView} testId="cal-view" options={[{ value: 'month', label: 'Month' }, { value: 'list', label: 'List' }]} />} />}
 
       {/* === PHONE: Month | List · filters · month switcher === */}
       {isPhone && (
@@ -382,32 +384,18 @@ export default function Calendar() {
       )}
 
       {/* Month switcher, filters, view toggle (laptop) */}
-      {!isPhone && <div className="flex flex-wrap items-center gap-2">
+      {!isPhone && <div className="flex flex-wrap items-center gap-3 bg-white border border-bb-border rounded-2xl px-3 py-2" data-testid="cal-filters-strip">
         <div className="flex items-center gap-1.5 w-full sm:w-auto justify-between">
-          <button onClick={() => shiftMonth(-1)} aria-label="Previous month" className="p-2 rounded-lg border border-bb-border bg-white cursor-pointer"><ChevronLeft size={16} /></button>
-          <span className="min-w-[150px] text-center font-semibold text-bb-text" data-testid="month-title">{monthTitle(month.y, month.m)}</span>
-          <button onClick={() => shiftMonth(1)} aria-label="Next month" className="p-2 rounded-lg border border-bb-border bg-white cursor-pointer"><ChevronRight size={16} /></button>
-          <button onClick={goToday} className="hidden sm:block px-3 py-1.5 rounded-lg border border-bb-border bg-white text-sm font-medium cursor-pointer">Today</button>
+          <IconButton icon={ChevronLeft} label="Previous month" tone="quiet" size={32} iconSize={17} onClick={() => shiftMonth(-1)} />
+          <b className="min-w-[140px] text-center text-[14px] text-bb-text" data-testid="month-title">{monthTitle(month.y, month.m)}</b>
+          <IconButton icon={ChevronRight} label="Next month" tone="quiet" size={32} iconSize={17} onClick={() => shiftMonth(1)} />
+          <button onClick={goToday} className="h-[32px] px-3 rounded-lg border border-gray-300 bg-white text-[13px] font-semibold cursor-pointer hover:bg-gray-50">Today</button>
         </div>
-        <div className="flex gap-1.5 overflow-x-auto">
-          {STATUS_FILTERS.map(s => (
-            <button key={s.id} onClick={() => setStatus(s.id)}
-              className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap border cursor-pointer ${status === s.id ? 'bg-bb-accent text-white border-bb-accent' : 'bg-white text-bb-muted border-bb-border'}`}>
-              {s.label}
-            </button>
-          ))}
-        </div>
-        <select aria-label="Event type" value={type} onChange={e => setType(e.target.value)} className="bg-white border border-bb-border rounded-lg px-3 py-1.5 text-sm">
+        <Seg label="Status" value={status} onChange={setStatus} testId="cal-status" options={STATUS_FILTERS.map(f => ({ value: f.id, label: f.label }))} />
+        <select aria-label="Event type" value={type} onChange={e => setType(e.target.value)} className="ml-auto h-[34px] bg-white border border-gray-300 rounded-lg px-3 text-[13px] font-semibold cursor-pointer">
           <option value="">All event types</option>
           {usedTypes.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
-        <div className="hidden md:flex ml-auto gap-1.5">
-          {['month', 'list'].map(v => (
-            <button key={v} onClick={() => setView(v)} className={`px-3 py-1.5 rounded-lg border text-sm font-medium cursor-pointer ${view === v ? 'bg-white border-bb-accent text-bb-text' : 'bg-white border-bb-border text-bb-muted'}`}>
-              {v === 'month' ? 'Month' : 'List'}
-            </button>
-          ))}
-        </div>
       </div>}
 
       {/* Colour key (laptop) */}

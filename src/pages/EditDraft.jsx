@@ -16,7 +16,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import BackButton from '../components/BackButton';
+import { PageHeader, HeaderIcon } from '../components/LaptopUI';
+import { IconButton } from '../components/PhoneUI';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import Input from '../components/Input';
@@ -29,7 +30,7 @@ import { EVENT_TYPES } from '../constants/data';
 import { functionDatesProblem, functionDatesToSave, genId, functionDays } from '../utils/helpers';
 import {
   User, Phone, MessageSquare, MapPin, Clock,
-  IndianRupee, ChevronDown, ChevronUp, X, Plus, Save, StickyNote, Layers,
+  IndianRupee, ChevronDown, ChevronUp, X, Plus, Save, StickyNote, Layers, Trash2,
 } from 'lucide-react';
 
 // ============================================================
@@ -434,10 +435,8 @@ export default function EditDraft() {
 
   return (
     <div className="space-y-4 pb-8">
-      <div className="flex items-center gap-3">
-        <BackButton />
-        <h1 className="text-xl font-bold text-bb-text">Edit Draft</h1>
-      </div>
+      <PageHeader title="Edit event" onBack={() => navigate(((window.history.state?.idx ?? 0) > 0) ? -1 : '/')}
+        actions={<HeaderIcon icon={Save} label={saving ? 'Saving…' : 'Update draft'} tone="primary" onClick={handleSubmit} disabled={saving} data-testid="hdr-save" />} />
 
       {/* Client Info */}
       <Card>
@@ -475,7 +474,7 @@ export default function EditDraft() {
 
       {/* Main Event */}
       <Card>
-        <h3 className="text-sm font-semibold text-bb-muted uppercase mb-3">🎯 Main Event</h3>
+        <h3 className="text-sm font-semibold text-bb-muted uppercase mb-3">Main event</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
           <Input label="Event Name" placeholder={form.eventType || 'e.g., Wedding Ceremony'}
             value={mainEvent.name} onChange={e => setMainField('name', e.target.value)} />
@@ -505,13 +504,8 @@ export default function EditDraft() {
               <Layers size={14} className="inline mr-1" />
               Sub-Event {idx + 1}
             </h3>
-            <button
-              onClick={() => removeSubEvent(sub.id)}
-              className="p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
-              title="Remove sub-event"
-            >
-              <X size={18} />
-            </button>
+            <IconButton icon={Trash2} label={`Remove ${sub.name || 'sub event'}`} tone="quiet" size={34} iconSize={16}
+              className="hover:!text-red-600 hover:!bg-red-50" onClick={() => removeSubEvent(sub.id)} />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
@@ -537,9 +531,10 @@ export default function EditDraft() {
       ))}
 
       {/* Add Sub-Event Button */}
-      <Button icon={Plus} variant="secondary" fullWidth onClick={addSubEvent}>
-        Add Sub-Event
-      </Button>
+      <button onClick={addSubEvent} data-testid="add-sub-event"
+        className="w-full min-h-[46px] rounded-2xl border-2 border-dashed border-violet-300 bg-violet-50/50 text-bb-accent-hover text-[14px] font-semibold inline-flex items-center justify-center gap-2 cursor-pointer hover:bg-violet-50">
+        <Plus size={18} />Add sub event
+      </button>
 
       {/* Notes */}
       <Card>

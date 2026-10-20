@@ -35,6 +35,7 @@ import Modal from '../components/Modal';
 import JobLogColumnsEditor from '../components/JobLogColumnsEditor';
 import { resizeImageFile } from '../utils/helpers';
 import { lastStartupText } from '../utils/startupTiming';
+import { PageHeader, HeaderIcon } from '../components/LaptopUI';
 import { Save, Plus, Trash2, Edit2, X, Building2, Landmark, FileText, Layers, Users, Table2, UserPlus, DatabaseBackup, Download, FileSignature, CalendarDays, Bell } from 'lucide-react';
 import Toggle from '../components/Toggle';
 import ReminderSwitch from '../components/ReminderSwitch';
@@ -306,7 +307,8 @@ export default function Settings() {
 
   return (
     <div className="space-y-4 pb-8">
-      {!isPhone && <h1 className="text-xl font-bold text-bb-text">Settings</h1>}
+      {!isPhone && <PageHeader title="Settings"
+        actions={savable && <HeaderIcon icon={Save} label={saving ? 'Saving…' : 'Save settings'} tone="primary" onClick={handleSave} disabled={saving} data-testid="hdr-save" />} />}
 
       {/* Tab Buttons — stay pinned while scrolling (laptops; phones open one section at a time) */}
       {!isPhone && <StickyBar>
