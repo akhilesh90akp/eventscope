@@ -196,11 +196,11 @@ export function FunctionRow({ fn, main = false, past = false, detail, right = nu
     <div className={`flex items-center gap-3 ${past ? 'opacity-60' : ''} ${className}`} data-testid="function-row">
       <DateBlock date={fn?.date} past={past} />
       <div className="flex-1 min-w-0">
-        <p className={`text-[15px] font-bold text-bb-text truncate ${past ? 'line-through' : ''}`}>
+        <p className={`text-[15px] font-bold text-bb-text break-words ${past ? 'line-through' : ''}`}>
           {fn?.name || 'Event'}
           {main && <span className="ml-1.5 align-middle text-[11px] font-bold px-1.5 py-px rounded-full bg-violet-100 text-bb-accent-hover no-underline">Main</span>}
         </p>
-        <p className="text-[13px] text-gray-600 truncate">{sub}</p>
+        <p className="text-[13px] text-gray-600 break-words">{sub}</p>
       </div>
       {right}
     </div>

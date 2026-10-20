@@ -117,7 +117,7 @@ export default function EventCardPhone({ ev, variant = ev?.status, on = {}, lock
             </p>
           )}
           {fns[0]?.fn?.location && (
-            <p className="flex items-center gap-2 text-gray-600 min-w-0"><MapPin size={17} className="shrink-0" /><span className="truncate">{fns[0].fn.location}</span></p>
+            <p className="flex items-start gap-2 text-gray-600 min-w-0"><MapPin size={17} className="shrink-0 mt-0.5" /><span className="min-w-0 break-words">{fns[0].fn.location}</span></p>
           )}
         </div>
       )}
