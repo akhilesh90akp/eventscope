@@ -87,7 +87,7 @@ export default function EventCard({ ev, variant = ev?.status, on = {}, locked = 
   const dayOver = (variant === 'confirmed' || variant === 'home') && allOver && !!on.markDone;
 
   return (
-    <article className={`bg-white border rounded-2xl p-[18px] lg:p-5 ${highlight ? 'border-bb-accent ring-2 ring-bb-accent/25' : 'border-bb-border'}`} data-testid="event-card" data-event={ev.id}>
+    <article className={`min-w-0 bg-white border rounded-2xl p-[18px] lg:p-5 ${highlight ? 'border-bb-accent ring-2 ring-bb-accent/25' : 'border-bb-border'}`} data-testid="event-card" data-event={ev.id}>
       {/* Name · chips · amount */}
       <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0">

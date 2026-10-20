@@ -327,7 +327,7 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
         </Card>
       ) : (
         /* One card per event — the same card on phones and laptops (two per row on laptops) */
-        <div className="grid gap-4 lg:grid-cols-2 lg:gap-5 items-start" data-testid="phone-list">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[repeat(2,minmax(0,1fr))] lg:gap-5 items-start" data-testid="phone-list">
           {phoneEvents.length === 0 && <p className="text-center text-gray-600 py-8 lg:col-span-2">No events in this range.</p>}
           {phoneEvents.map(ev => (
             <EventCard key={ev.id} ev={ev} variant={status} locked={isSuspended} highlight={!isPhone && expandedId === ev.id}

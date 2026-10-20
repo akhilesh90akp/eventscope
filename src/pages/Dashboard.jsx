@@ -117,7 +117,7 @@ export default function Dashboard() {
             </div>
           </Card>
         ) : (
-          <div className="grid gap-4 lg:grid-cols-2 lg:gap-5 items-start" data-testid="phone-list">
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[repeat(2,minmax(0,1fr))] lg:gap-5 items-start" data-testid="phone-list">
             {displayEvents.map(ev => (
               <EventCard key={ev.id} ev={ev} variant="home"
                 on={{

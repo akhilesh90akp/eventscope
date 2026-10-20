@@ -157,7 +157,7 @@ export default function DraftsList() {
         </Card>
       ) : (
         /* One card per draft — the same card on phones and laptops (two per row on laptops) */
-        <div className="grid gap-4 lg:grid-cols-2 lg:gap-5 items-start" data-testid="phone-list">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[repeat(2,minmax(0,1fr))] lg:gap-5 items-start" data-testid="phone-list">
           {drafts.map(ev => (
             <EventCard key={ev.id} ev={ev} variant="draft" locked={isSuspended}
               on={{
