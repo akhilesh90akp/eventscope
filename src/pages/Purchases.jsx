@@ -161,7 +161,7 @@ export default function Purchases() {
       {!isPhone && <>
         <PageHeader title="Purchases" sub="Things you buy for the business and use across many events"
           actions={<>
-            <HeaderText icon={Download} onClick={handleDownload} disabled={busy || !list.length} data-testid="purchases-excel">{busy ? 'Preparing…' : 'Excel'}</HeaderText>
+            <HeaderText icon={Download} onClick={handleDownload} disabled={busy || !list.length} aria-label="Download Excel" title="Download Excel" data-testid="purchases-excel">{busy ? 'Preparing…' : 'Excel'}</HeaderText>
             <HeaderText icon={Plus} primary onClick={() => setDialog({ editing: null })} data-testid="add-purchase">Add purchase</HeaderText>
           </>} />
         <div className="flex items-center gap-3 bg-white border border-bb-border rounded-2xl px-4 py-2" data-testid="fy-strip">

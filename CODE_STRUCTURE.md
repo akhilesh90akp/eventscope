@@ -40,13 +40,19 @@ src/
       QuotePhoneEditor (quote Details tab), FitBudgetSheet + QuoteRevisionsSheet (Fit to budget,
         versions — also on laptops), EventFormPhone (New/Edit event in 3 steps) + VenueInput
         (saved venues first, then OpenStreetMap, then "use as typed"),
+    LAPTOP DESIGN (1024px and up — same design system, phone code untouched):
+      LaptopUI (PageHeader title row, HeaderIcon / HeaderText header buttons, MorePopover +
+        PopItem ⋯ menu under its button, StatRow quiet number cards, Seg segmented choice,
+        Switch, Field / FormCol form parts), EventCardLaptop (+ EventDetails fold-out — long
+        3-line card on Home/Drafts/Confirmed/Completed; items tile opens EventItemsSheet),
+      QuoteLaptopEditor (+ QuoteLaptopTools — quote editor as a list, same `q` object as
+        QuotePhoneEditor), PdfButton variant="laptop" ("⤓ PDF" in a title row),
     Badge, Toggle, LocationInput, ErrorBoundary,
     CostsPanel (costs on one event), JobLogColumnsEditor (Settings tab),
     ImportCompanyDialog (Admin: create a company from an old app's backup),
     AdminTeamDialog (Admin: a company's members/invites — change role, remove),
     AuthBackground (video behind sign-in / sign-up / invite screens),
     AnimatedLogo (logo that builds itself once on those screens and while loading),
-    EventSummary (event card face shared by Home and Confirmed/Completed),
     StickyBar (keeps search boxes / Settings tabs pinned while scrolling),
     PdfButton (makes a PDF of a document, previews it, then Share / Download / Open),
     ContractDocument (the printable agreement), ReminderSwitch (push reminders on/off per device),
@@ -68,7 +74,8 @@ src/
   utils/
     helpers.js              Formatting, GST, IDs/links, dates (incl. multi-day functions:
                             functionDays / formatDateRange), pricing (qty × rate × days), bill &
-                            Job Log math, image resizing (no Firestore here)
+                            Job Log math, countdownText / countdownTone (days-left chip),
+                            image resizing (no Firestore here)
     jobLogExcel.js          Job Log ⇄ .xlsx (exceljs, loaded on demand)
     tenantImport.js         Reads/cleans a backup file for "Import company" (no Firestore);
                             restores Job Log, cost columns, team and contact from full backups

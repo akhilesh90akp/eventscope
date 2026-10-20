@@ -104,7 +104,7 @@ export default function Dashboard() {
       /* Laptop: number tiles with an icon box and › (each opens its list) */
       <div className="grid grid-cols-4 gap-4" data-testid="home-tiles">
         {stats.map(s => (
-          <button key={s.label} disabled={!s.to} onClick={s.to ? () => navigate(s.to) : undefined}
+          <button key={s.label} role={s.to ? 'link' : undefined} disabled={!s.to} onClick={s.to ? () => navigate(s.to) : undefined}
             aria-label={s.to ? `Open ${s.label}` : s.label}
             className={`flex items-center gap-3 bg-white border border-bb-border rounded-2xl px-4 py-3.5 text-left ${s.to ? 'cursor-pointer hover:border-bb-accent/50' : 'cursor-default'}`}>
             <span className={`w-10 h-10 rounded-xl grid place-items-center shrink-0 ${s.box}`}><s.icon size={19} /></span>
