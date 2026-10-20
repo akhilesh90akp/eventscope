@@ -165,9 +165,13 @@ export default function EventFormPhone({ f }) {
   const [waSame, setWaSame] = useState(() => !f.form.clientWhatsapp || f.form.clientWhatsapp === f.form.clientPhone);
   const subCount = useRef(f.subEvents.length);
 
-  // A sub event was just added → open its sheet
+  // "Add sub event" was tapped → open the new one's sheet (not when an
+  // existing event's sub events load in on Edit)
+  const adding = useRef(false);
+  const addSub = () => { adding.current = true; f.addSubEvent(); };
   useEffect(() => {
-    if (f.subEvents.length > subCount.current) setSubEdit(f.subEvents[f.subEvents.length - 1].id);
+    if (adding.current && f.subEvents.length > subCount.current) setSubEdit(f.subEvents[f.subEvents.length - 1].id);
+    adding.current = false;
     subCount.current = f.subEvents.length;
   }, [f.subEvents]);
 
@@ -294,7 +298,7 @@ export default function EventFormPhone({ f }) {
           <VenueInput value={f.mainEvent.location} onChange={v => f.setMainField('location', v)} events={f.events} testId="main-venue" />
         </div>
 
-        <SectionLabel right={<button onClick={f.addSubEvent} className="min-h-[40px] px-1 inline-flex items-center gap-1 text-[14px] font-semibold text-bb-accent-hover cursor-pointer" data-testid="add-sub-top"><Plus size={17} />Add</button>}>
+        <SectionLabel right={<button onClick={addSub} className="min-h-[40px] px-1 inline-flex items-center gap-1 text-[14px] font-semibold text-bb-accent-hover cursor-pointer" data-testid="add-sub-top"><Plus size={17} />Add</button>}>
           Sub events · {f.subEvents.length}
         </SectionLabel>
         {f.subEvents.length > 0 && (
@@ -313,7 +317,7 @@ export default function EventFormPhone({ f }) {
             ))}
           </div>
         )}
-        <button onClick={f.addSubEvent} data-testid="add-sub"
+        <button onClick={addSub} data-testid="add-sub"
           className="w-full min-h-[52px] rounded-2xl border-[1.5px] border-dashed border-bb-accent bg-violet-50 text-bb-accent-hover font-bold text-[15.5px] inline-flex items-center justify-center gap-2 cursor-pointer">
           <Plus size={19} />Add sub event
         </button>

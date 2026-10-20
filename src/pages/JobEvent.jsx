@@ -142,7 +142,7 @@ export default function JobEvent() {
               <span className="flex items-center gap-3">
                 <span className="flex-1 min-w-0 text-[15px] font-semibold">{col.label}{col.type === 'income' && <span className="ml-1.5 text-[11.5px] font-bold px-1.5 py-px rounded-full bg-emerald-100 text-emerald-800">income</span>}</span>
                 <input inputMode="decimal" disabled={!canEditEvents} value={shownText(col)} placeholder="0" aria-label={col.label} data-testid={`job-${col.id}`}
-                  onFocus={() => startEdit(col)} onChange={e => setDrafts(d => ({ ...d, [col.id]: e.target.value }))}
+                  onFocus={e => { const el = e.currentTarget; startEdit(col); requestAnimationFrame(() => el.select()); }} onChange={e => setDrafts(d => ({ ...d, [col.id]: e.target.value }))}
                   onBlur={() => commit(col)} onKeyDown={e => e.key === 'Enter' && e.currentTarget.blur()}
                   className={`w-[150px] min-h-[46px] rounded-xl border px-3 text-right text-[16px] tabular-nums focus:outline-none focus:ring-2 focus:ring-bb-accent/40 ${col.type === 'income' ? 'bg-emerald-50 border-emerald-200' : 'bg-bb-input border-bb-border'}`} />
               </span>

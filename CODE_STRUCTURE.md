@@ -22,11 +22,24 @@ src/
     Reports (owner; All time / month / year / custom, purchases), JobLog (owner, own tab;
     cells take sums like 12000+3500), Purchases (owner; business purchases by financial year),
     Billing (owner: Plan & billing — plans, UPI pay, "I've paid", receipts),
+    JobEvent (phones: the Job Log of one completed event — /job/:eventId; same data as JobLog),
     Settings, Admin (platform admins: companies, statuses, Actions ▾, collections, payment settings), CreateCompany (sign-up),
     JoinInvite (accept/decline an invite), Login,
     Legal (Terms / Privacy / Data protection — public)
   components/               Reusable UI pieces
-    Layout (desktop sidebar; mobile title bar + hamburger menu + bottom nav), Button, Card, Input, Select, Modal, Toast,
+    Layout (desktop sidebar; mobile title bar + hamburger menu + bottom nav; task screens hide the bottom nav), Button, Card, Input, Select, Modal, Toast,
+    PHONE DESIGN (below 1024px — laptops keep their own layouts; pages pick one with useIsPhone):
+      PhoneHeader + phoneScreens.js (the purple bar: main screens = title + ☰, task screens =
+        ← back + title + sub-line; route table PHONE_SCREENS; pages add a sub-line / buttons
+        with usePhoneHeader), useIsPhone.js, useTyping.js (keyboard open → bars step aside),
+      ActionBar (white bar pinned to the bottom of a task screen: total + main buttons),
+      BottomSheet (slides up on phones, a dialog on laptops), DocFit (A4 document fitted to the
+        phone width, "Actual size" switch), PhoneUI (IconButton, SectionLabel, SegmentedTabs,
+        MenuRow, SwitchRow, NumberBox, DateField "Sat, 12 Sep 2026", TextField, DateBlock, FunctionRow),
+      EventCardPhone (+ EventItemsSheet, EventMoreSheet — Home/Drafts/Confirmed/Completed cards),
+      QuotePhoneEditor (quote Details tab), FitBudgetSheet + QuoteRevisionsSheet (Fit to budget,
+        versions — also on laptops), EventFormPhone (New/Edit event in 3 steps) + VenueInput
+        (saved venues first, then OpenStreetMap, then "use as typed"),
     Badge, Toggle, LocationInput, ErrorBoundary,
     CostsPanel (costs on one event), JobLogColumnsEditor (Settings tab),
     ImportCompanyDialog (Admin: create a company from an old app's backup),
@@ -67,6 +80,8 @@ src/
     billing.js              Plans, prices, features/team limits, pilot & paid-until dates, grace days,
                             read-only state, admin status labels, UPI link (no Firestore)
     purchases.js            Purchases: financial year (Apr–Mar), totals, form cleaning, Excel download
+    quoteFit.js             Fit to budget (lower prices evenly to a target, locks, rounding) and quote
+                            revisions (event.quoteRevisions, newest first, max 10)
     push.js                 This device's push token (Firebase Cloud Messaging); saving is in AppContext
     startupTiming.js        Records how long opening the app took (shown at the bottom of Settings)
 tools/
@@ -80,7 +95,7 @@ tests/
   firestore.rules.test.mjs  Rules tests (emulator; also run on GitHub)
   helpers.test.mjs          Unit tests for money/bill math
   tenantImport.test.mjs     Unit tests for reading backup files (old export, Drive and owner backups)
-  pdfExport / contract / calendar / purchases / billing .test.mjs   Unit tests for page breaks, contract
+  pdfExport / contract / calendar / purchases / billing / quoteFit .test.mjs   Unit tests for page breaks, contract
                             figures, calendar math, purchases
 public/                     Logos, icons, manifest, service worker, login-bg.* (video),
                             export-bluebell.html (one-time old-app export — delete after migration)
