@@ -257,10 +257,9 @@ export default function QuotationGenerator() {
   const [revisions, setRevisions] = useState(() => deriveState(event).revisions);
   const [revisedLabel, setRevisedLabel] = useState(() => !!deriveState(event).quoteDetails.revisedLabel);
 
-  // Phones: which tab, Select mode, and the open sheet / menu
+  // Phones: which tab, and the open sheet / menu
   const isPhone = useIsPhone();
   const [tab, setTab] = useState('details');               // 'details' | 'preview'
-  const [selectMode, setSelectMode] = useState(false);
   const [sheet, setSheet] = useState(null);                 // 'options' | 'fit' | 'revisions' | null
   const [itemMenu, setItemMenu] = useState(null);           // { sectionId, name, key, bundleId }
   const [groupMenu, setGroupMenu] = useState(null);         // a bundle
@@ -433,6 +432,7 @@ export default function QuotationGenerator() {
   // via its header checkbox (full dissolve), or any individual member
   // checked inside a bundle (pulls just that item out).
   const canUngroup = selectedBundles.size > 0 || selectedBundleMembers.size > 0;
+  const anyTicked = Object.values(selectedForGroup).some(a => a?.size) || selectedBundles.size > 0 || selectedBundleMembers.size > 0;
 
   // ------------------------------------------------------------
   // SAVING — auto-save 1.5 s after the last change, plus the Save button
@@ -713,15 +713,14 @@ export default function QuotationGenerator() {
   };
 
   // ------------------------------------------------------------
-  // EVENT HANDLERS — PHONE (item / group menus, Select mode)
+  // EVENT HANDLERS — PHONE (item / group menus, ticked items)
   // ------------------------------------------------------------
 
   /** One item's qty / rate / days */
   const setItemPrice = (key, field, value) => setItemPrices(p => ({ ...p, [key]: { ...(p[key] || newPrice(1)), [field]: value } }));
 
-  /** Leaves Select mode and clears every tick */
+  /** Clears every tick */
   const endSelect = () => {
-    setSelectMode(false);
     setSelectedForGroup({});
     setSelectedBundles(new Set());
     setSelectedBundleMembers(new Set());
@@ -1246,8 +1245,7 @@ export default function QuotationGenerator() {
           {tab === 'details' && (
             <QuotePhoneEditor q={{
               printGroups, sectionTotals, itemPrices, bundles, hidePrices, finalAmounts, subtotal, discount, discountText, gstEnabled, gstRate, gstData, validityDays,
-              selectMode, selectedForGroup, selectedBundles, selectedBundleMembers, canGroup, canUngroup, dndSensors,
-              setSelectMode: (on) => (on ? setSelectMode(true) : endSelect()),
+              selectedForGroup, selectedBundles, selectedBundleMembers, canGroup, canUngroup, dndSensors,
               setItemPrice, updateBundleMemberPrice, sectionSplit, setSectionDays,
               setBundleAmount: (id, amt) => setBundles(bs => bs.map(x => (x.id === id ? { ...x, amount: amt } : x))),
               setFinalAmount: (sec, v) => setFinalAmounts(f => ({ ...f, [sec]: v })),
@@ -1259,10 +1257,14 @@ export default function QuotationGenerator() {
               openAddItem: (sec) => { setAddItemSection(sec); setAddItemText(''); },
               openCategories: setCategoryModalSection,
               onFitBudget: () => setSheet('fit'),
+              onVersions: () => setSheet('revisions'), revisionsCount: revisions.length,
+              onSave: handleSave, saveState,
+              hasPhone: !!(event.clientWhatsapp || event.clientPhone), onWhatsApp: handleWhatsApp,
             }} />
           )}
-          {selectMode ? (
+          {anyTicked ? (
             <ActionBar dark testId="select-bar" label={`${tickedItems().length} selected`} value={formatRupees(tickedValue())}>
+              <button onClick={endSelect} className="min-h-[44px] px-3 rounded-xl text-white/80 font-semibold cursor-pointer">Clear</button>
               <button onClick={askRemoveTicked} disabled={!tickedItems().length} className="min-h-[44px] px-3.5 rounded-xl bg-white text-red-600 font-semibold cursor-pointer disabled:opacity-40">Remove</button>
               {canUngroup && !canGroup
                 ? <button onClick={() => { handleUngroupSelected(); }} className="min-h-[44px] px-3.5 rounded-xl bg-bb-accent text-white font-semibold cursor-pointer">Ungroup</button>
@@ -1664,13 +1666,14 @@ export default function QuotationGenerator() {
       {/* === SHEETS: quote options · Fit to budget · versions · item / group menus === */}
       {sheet === 'options' && (
         <BottomSheet open onClose={() => setSheet(null)} title="Quote options" testId="options-sheet">
-          <MenuRow icon={Wand2} title="Fit to budget" sub="Bring the total to the client’s number" onClick={() => setSheet('fit')} testId="opt-fit" />
-          <SwitchRow title={<span className="inline-flex items-center gap-3"><EyeOff size={20} />Hide item prices</span>} sub="PDF shows one final amount per event" checked={hidePrices} onChange={setHidePrices} />
-          <MenuRow icon={Layers} title="Select & group items" sub="Tick items, then make a group" onClick={() => { setSheet(null); setTab('details'); setSelectMode(true); }} />
-          <MenuRow icon={History} title="Versions" sub={revisions.length ? `${revisions.length} earlier version${revisions.length > 1 ? 's' : ''}` : 'Fit to budget keeps the old prices here'} onClick={() => setSheet('revisions')} testId="opt-versions" />
-          {(event.clientWhatsapp || event.clientPhone) && <MenuRow icon={MessageSquare} title="Share on WhatsApp" sub="Message with the prices" onClick={() => { setSheet(null); handleWhatsApp(); }} />}
-          <MenuRow icon={FileSignature} title="Make contract" sub="Uses this quote" onClick={() => navigate(`/contract/${event.id}`)} />
           <MenuRow icon={Save} title="Save now" sub="Changes also save by themselves" onClick={() => { setSheet(null); handleSave(); }} testId="opt-save" />
+          <MenuRow icon={Layers} title="Group ticked items" sub={canGroup ? 'Make one group with one price' : 'Tick 2 or more items first'} disabled={!canGroup} onClick={() => { setSheet(null); handleGroupClick(); }} testId="opt-group" />
+          <MenuRow icon={Ungroup} title="Ungroup ticked" sub={canUngroup ? 'Items go back to their own prices' : 'Tick a group first'} disabled={!canUngroup} onClick={() => { setSheet(null); handleUngroupSelected(); }} testId="opt-ungroup" />
+          <SwitchRow icon={EyeOff} title="Hide item prices" sub="PDF shows one final amount per event" checked={hidePrices} onChange={setHidePrices} testId="opt-hide" />
+          {(event.clientWhatsapp || event.clientPhone) && <MenuRow icon={MessageSquare} title="Share on WhatsApp" sub="Message with the prices" onClick={() => { setSheet(null); handleWhatsApp(); }} />}
+          <MenuRow icon={Wand2} title="Fit to budget" sub="Bring the total to the client’s number" onClick={() => setSheet('fit')} testId="opt-fit" />
+          <MenuRow icon={History} title="Versions" sub={revisions.length ? `${revisions.length} earlier version${revisions.length > 1 ? 's' : ''}` : 'Fit to budget keeps the old prices here'} onClick={() => setSheet('revisions')} testId="opt-versions" />
+          <MenuRow icon={FileSignature} title="Make contract" sub="Uses this quote" onClick={() => navigate(`/contract/${event.id}`)} />
         </BottomSheet>
       )}
       {sheet === 'fit' && (

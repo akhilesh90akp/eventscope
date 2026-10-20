@@ -176,12 +176,14 @@ export function EventItemsSheet({ ev, onClose, onEdit }) {
   const fnFor = (g) => (g.id === 'main' ? ev.mainEvent || { name: g.name, date: g.date, location: g.location } : (ev.subEvents || []).find(s => (s.id || s.name) === g.id) || g);
   const total = eventGroups.reduce((t, g) => t + computeSectionTotal(g.id, g.items, prices, ev.bundles, ev.hidePrices, ev.finalAmounts), 0);
   const count = eventGroups.reduce((n, g) => n + g.items.length, 0);
+  const showAmounts = !ev.hidePrices;
 
-  const Line = ({ name, qty, amt }) => (
-    <div className="flex items-center gap-3 min-h-[40px] text-[15px]">
-      <span className="flex-1 min-w-0 text-bb-text">{name}</span>
-      {qty && <span className="text-[13px] text-gray-600 whitespace-nowrap">{qty}</span>}
-      {amt !== undefined && <b className="min-w-[72px] text-right tabular-nums">{amt}</b>}
+  /** One line: name · qty · amount, in fixed columns so they line up */
+  const Line = ({ name, qty, amt, inGroup }) => (
+    <div className={`grid ${showAmounts ? 'grid-cols-[1fr_56px_84px]' : 'grid-cols-[1fr_56px]'} items-center gap-2 min-h-[46px] py-1.5 border-b border-gray-100 last:border-b-0 text-[15px] ${inGroup ? 'pl-3' : ''}`} data-testid="items-line">
+      <span className="min-w-0 text-bb-text leading-snug">{name}</span>
+      <span className="text-center text-[13px] text-gray-600 tabular-nums">{qty}</span>
+      {showAmounts && <span className="text-right font-semibold tabular-nums">{amt ?? ''}</span>}
     </div>
   );
 
@@ -192,28 +194,44 @@ export function EventItemsSheet({ ev, onClose, onEdit }) {
         <button onClick={onEdit} className="flex-[1.6] min-h-[46px] rounded-xl bg-bb-accent text-white font-semibold inline-flex items-center justify-center gap-2 cursor-pointer"><FileText size={18} />Edit in quote</button>
       </div>}>
       {count === 0 && <p className="text-gray-600 py-6 text-center">No items yet. Open the quote to add some.</p>}
-      <div className="divide-y divide-bb-border">
+      <div className="space-y-5 pt-1">
         {eventGroups.map(g => {
           const entries = buildLineEntries(g.id, g.items, ev.bundles);
           const secTotal = computeSectionTotal(g.id, g.items, prices, ev.bundles, ev.hidePrices, ev.finalAmounts);
+          const fn = fnFor(g);
           return (
-            <section key={g.id} className="py-3">
-              <FunctionRow fn={fnFor(g)} main={g.id === 'main' && eventGroups.length > 1}
-                detail={`${g.items.length} item${g.items.length === 1 ? '' : 's'}${g.location ? ` · ${g.location}` : ''}`}
-                right={secTotal ? <b className="tabular-nums">{formatRupees(secTotal)}</b> : null} />
-              <div className="pl-[58px] pt-2">
+            <section key={g.id} data-testid="items-section">
+              {/* Event header: tinted strip with date, name and its total */}
+              <div className="flex items-center gap-3 rounded-xl bg-violet-50 px-3 py-2.5">
+                <DateBlockMini date={fn.date} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[15px] font-extrabold truncate">{g.name}{g.id === 'main' && eventGroups.length > 1 && <span className="ml-1.5 align-middle text-[11px] font-bold px-1.5 py-px rounded-full bg-white text-bb-accent-hover">Main</span>}</p>
+                  <p className="text-[12.5px] text-gray-600 truncate">{g.items.length} item{g.items.length === 1 ? '' : 's'}{g.location ? ` · ${g.location}` : ''}</p>
+                </div>
+                {secTotal > 0 && <b className="text-[15px] tabular-nums">{formatRupees(secTotal)}</b>}
+              </div>
+              {/* Column names, so qty and amount are easy to map */}
+              <div className={`grid ${showAmounts ? 'grid-cols-[1fr_56px_84px]' : 'grid-cols-[1fr_56px]'} gap-2 px-0 pt-3 pb-1 text-[11.5px] font-bold uppercase tracking-wider text-gray-500`}>
+                <span>Item</span><span className="text-center">Qty</span>{showAmounts && <span className="text-right">Amount</span>}
+              </div>
+              <div>
                 {entries.map(en => en.type === 'bundle' ? (
-                  <div key={en.bundle.id} className="border-l-[3px] border-violet-300 pl-2.5 my-1">
-                    <p className="text-[13px] font-extrabold text-bb-accent-hover">{en.bundle.name || 'Group'}{!ev.hidePrices && ` · ${formatRupees(Number(en.bundle.amount) || 0)}`}</p>
-                    {en.bundle.itemKeys.filter(k => k.startsWith(`${g.id}::`)).map(k => {
-                      const p = prices[k] || {};
-                      return <Line key={k} name={k.slice(g.id.length + 2)} qty={String(p.qty || 1)} />;
-                    })}
+                  <div key={en.bundle.id} className="my-1.5 rounded-xl border border-violet-200 overflow-hidden">
+                    <div className="flex items-center justify-between gap-2 bg-violet-50/70 px-3 py-2">
+                      <span className="text-[13.5px] font-extrabold text-bb-accent-hover">{en.bundle.name || 'Group'} <span className="font-semibold text-gray-600">· group</span></span>
+                      {showAmounts && <b className="text-[14px] tabular-nums">{formatRupees(Number(en.bundle.amount) || 0)}</b>}
+                    </div>
+                    <div className="px-2">
+                      {en.bundle.itemKeys.filter(k => k.startsWith(`${g.id}::`)).map(k => {
+                        const p = prices[k] || {};
+                        return <Line key={k} name={k.slice(g.id.length + 2)} qty={`× ${p.qty || 1}`} amt="" inGroup />;
+                      })}
+                    </div>
                   </div>
                 ) : (() => {
                   const p = prices[en.key] || prices[en.name] || { qty: 1, rate: 0 };
                   const d = itemDays(p);
-                  return <Line key={en.key} name={en.name} qty={`${p.qty || 1}${d > 1 ? ` × ${d} days` : ''}`} amt={ev.hidePrices ? undefined : formatRupees(lineAmount(p))} />;
+                  return <Line key={en.key} name={en.name} qty={`× ${p.qty || 1}${d > 1 ? ` · ${d}d` : ''}`} amt={formatRupees(lineAmount(p))} />;
                 })())}
               </div>
             </section>
@@ -221,6 +239,17 @@ export function EventItemsSheet({ ev, onClose, onEdit }) {
         })}
       </div>
     </BottomSheet>
+  );
+}
+
+/** Small date square for the items sheet headers */
+function DateBlockMini({ date }) {
+  const d = date ? new Date(`${date}T00:00:00`) : null;
+  return (
+    <div className="w-11 shrink-0 text-center rounded-lg bg-white py-0.5" aria-hidden="true">
+      <div className="text-[10.5px] font-extrabold text-bb-accent-hover">{d ? d.toLocaleDateString('en-IN', { weekday: 'short' }).toUpperCase() : '—'}</div>
+      <div className="text-[16px] leading-tight font-extrabold">{d ? d.getDate() : '?'}</div>
+    </div>
   );
 }
 

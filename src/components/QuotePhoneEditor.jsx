@@ -3,7 +3,9 @@
  *
  * Same quote, same data and same handlers as the laptop editor in
  * QuotationGenerator; only the layout differs:
- *   - tools bar always visible: Select (→ checkboxes) · Group · Ungroup
+ *   - a tools row at the top that scrolls sideways: Save · Group · Ungroup ·
+ *     Hide prices · WhatsApp · Fit to budget · Versions
+ *   - every item and group: a tick box with the ⋮⋮ drag handle under it
  *   - one block per event (main + sub events) with its date, items and total
  *   - every item: ⋮⋮ drag handle · name · amount · ⋮ menu, then labelled
  *     Qty · Rate ₹ · Days boxes (big amounts like ₹2,00,000 fit on line 1)
@@ -20,7 +22,7 @@ import React from 'react';
 import { DndContext, closestCenter } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, MoreVertical, Plus, ListPlus, Layers, Ungroup, SquareCheck, Check, Wand2 } from 'lucide-react';
+import { GripVertical, MoreVertical, Plus, ListPlus, Layers, Ungroup, Check, Wand2, Save, EyeOff, Eye, MessageSquare, History } from 'lucide-react';
 import { DateBlock, IconButton, NumberBox, SwitchRow, SectionLabel } from './PhoneUI';
 import { formatRupees, buildLineEntries, lineAmount, itemDays } from '../utils/helpers';
 
@@ -42,21 +44,21 @@ function Sortable({ id, children }) {
   );
 }
 
-/** ⋮⋮ handle (drag) or a checkbox (Select mode) at the start of a line */
-function Lead({ selectMode, checked, onCheck, handle, label }) {
-  if (selectMode) {
-    return (
+/** Start of a line: tick box on top (group / remove), ⋮⋮ drag handle under it */
+function Lead({ checked, onCheck, handle, label, noDrag = false }) {
+  return (
+    <div className="flex flex-col items-center gap-1.5 shrink-0 w-7">
       <button onClick={onCheck} role="checkbox" aria-checked={checked} aria-label={`Select ${label}`}
-        className={`w-6 h-6 mt-0.5 shrink-0 rounded-md border-2 flex items-center justify-center cursor-pointer ${checked ? 'bg-bb-accent border-bb-accent text-white' : 'bg-white border-gray-300'}`}>
+        className={`w-6 h-6 rounded-md border-2 flex items-center justify-center cursor-pointer ${checked ? 'bg-bb-accent border-bb-accent text-white' : 'bg-white border-gray-300'}`}>
         {checked && <Check size={15} strokeWidth={3} />}
       </button>
-    );
-  }
-  return (
-    <button {...handle} aria-label={`Drag ${label}`} title="Hold and drag to move"
-      className="w-6 h-7 -ml-0.5 shrink-0 flex items-center justify-center text-gray-400 touch-none cursor-grab active:cursor-grabbing">
-      <GripVertical size={18} />
-    </button>
+      {!noDrag && (
+        <button {...handle} aria-label={`Drag ${label}`} title="Hold and drag to move"
+          className="w-7 h-8 flex items-center justify-center text-gray-400 touch-none cursor-grab active:cursor-grabbing">
+          <GripVertical size={18} />
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -68,18 +70,17 @@ function ItemRow({ q, sectionId, name, keyId, bundle, handle, last }) {
   const checked = inBundle ? q.selectedBundleMembers.has(keyId) : (q.selectedForGroup[sectionId] || new Set()).has(name);
   const set = (field, value) => (inBundle ? q.updateBundleMemberPrice(bundle, keyId, field, value) : q.setItemPrice(keyId, field, value));
   return (
-    <div className={`py-3.5 ${last ? '' : 'border-b border-bb-border'} ${q.selectMode && checked ? 'bg-violet-50 -mx-2.5 px-2.5 rounded-xl' : ''}`} data-testid="quote-item" data-item={name}>
+    <div className={`flex items-start gap-2.5 py-3.5 ${last ? '' : 'border-b border-bb-border'} ${checked ? 'bg-violet-50 -mx-2.5 px-2.5 rounded-xl' : ''}`} data-testid="quote-item" data-item={name}>
+      <Lead checked={checked} handle={handle} label={name} noDrag={inBundle}
+        onCheck={() => (inBundle ? q.toggleSelectBundleMember(keyId) : q.toggleSelectForGroup(sectionId, name))} />
+      <div className="flex-1 min-w-0">
       <div className="flex items-start gap-2.5">
-        <Lead selectMode={q.selectMode} checked={checked} handle={handle} label={name}
-          onCheck={() => (inBundle ? q.toggleSelectBundleMember(keyId) : q.toggleSelectForGroup(sectionId, name))} />
-        <p className="flex-1 min-w-0 text-[15.5px] font-bold leading-snug break-words">{name}</p>
-        {!q.hidePrices && <b className={`text-[15.5px] whitespace-nowrap tabular-nums ${inBundle ? 'text-bb-muted font-semibold' : ''}`} data-testid="line-amount">{formatRupees(lineAmount(p))}</b>}
-        {!q.selectMode && (
-          <IconButton icon={MoreVertical} label={`Options for ${name}`} tone="quiet" size={36} iconSize={18} className="-my-1.5 -mr-2"
-            onClick={() => q.openItemMenu({ sectionId, name, key: keyId, bundleId: bundle?.id || null })} />
-        )}
+        <p className="flex-1 min-w-0 text-[15.5px] font-bold leading-snug break-words pt-0.5">{name}</p>
+        {!q.hidePrices && <b className={`text-[15.5px] whitespace-nowrap tabular-nums pt-0.5 ${inBundle ? 'text-bb-muted font-semibold' : ''}`} data-testid="line-amount">{formatRupees(lineAmount(p))}</b>}
+        <IconButton icon={MoreVertical} label={`Options for ${name}`} tone="quiet" size={36} iconSize={18} className="-my-1 -mr-2"
+          onClick={() => q.openItemMenu({ sectionId, name, key: keyId, bundleId: bundle?.id || null })} />
       </div>
-      <div className={`grid gap-2 mt-2.5 ml-[34px] ${q.hidePrices ? 'grid-cols-[72px_64px]' : 'grid-cols-[72px_1fr_64px]'}`}>
+      <div className={`grid gap-2 mt-2.5 ${q.hidePrices ? 'grid-cols-[72px_64px]' : 'grid-cols-[72px_1fr_64px]'}`}>
         <NumberBox label="Qty" value={p.qty === '' ? '' : (p.qty || 1)} min="1" aria-label={`${name} quantity`}
           onChange={e => set('qty', e.target.value === '' ? '' : Number(e.target.value))} />
         {!q.hidePrices && (
@@ -88,6 +89,7 @@ function ItemRow({ q, sectionId, name, keyId, bundle, handle, last }) {
         )}
         <NumberBox label="Days" value={p.days === '' ? '' : days} min="1" highlight={days > 1} aria-label={`${name} days`}
           onChange={e => set('days', e.target.value === '' ? '' : Math.max(1, Math.round(Number(e.target.value)) || 1))} />
+      </div>
       </div>
     </div>
   );
@@ -100,7 +102,7 @@ function GroupBlock({ q, sectionId, bundle, handle }) {
   return (
     <div className={`my-2 rounded-2xl border-[1.5px] ${checked ? 'border-bb-accent bg-violet-100/60' : 'border-violet-300 bg-violet-50/60'} px-3.5 pt-3`} data-testid="quote-group" data-group={bundle.name}>
       <div className="flex items-center gap-2.5 pb-3 border-b border-violet-200">
-        <Lead selectMode={q.selectMode} checked={checked} handle={handle} label={bundle.name} onCheck={() => q.toggleSelectBundle(bundle.id)} />
+        <Lead checked={checked} handle={handle} label={bundle.name} onCheck={() => q.toggleSelectBundle(bundle.id)} />
         <div className="flex-1 min-w-0">
           <p className="text-[16px] font-extrabold text-bb-accent-hover break-words">{bundle.name}</p>
           <p className="text-[13px] text-gray-600">Group · {members.length} items</p>
@@ -113,10 +115,8 @@ function GroupBlock({ q, sectionId, bundle, handle }) {
               className="w-full min-h-[44px] rounded-xl border border-bb-border bg-white px-2.5 text-[15px] font-extrabold tabular-nums focus:outline-none focus:ring-2 focus:ring-bb-accent/40" />
           </label>
         )}
-        {!q.selectMode && (
-          <IconButton icon={MoreVertical} label={`Options for group ${bundle.name}`} tone="quiet" size={36} iconSize={18} className="-mr-2"
-            onClick={() => q.openGroupMenu(bundle)} />
-        )}
+        <IconButton icon={MoreVertical} label={`Options for group ${bundle.name}`} tone="quiet" size={36} iconSize={18} className="-mr-2"
+          onClick={() => q.openGroupMenu(bundle)} />
       </div>
       {members.map((k, i) => (
         <ItemRow key={k} q={q} sectionId={sectionId} name={k.slice(sectionId.length + 2)} keyId={k} bundle={bundle}
@@ -135,23 +135,27 @@ export default function QuotePhoneEditor({ q }) {
   const many = sections.length > 1;
   return (
     <div className="space-y-5" data-testid="quote-phone">
-      {/* Tools — always visible; Group / Ungroup light up once something is selected */}
-      <div className="flex gap-2" data-testid="quote-tools">
-        <button onClick={() => q.setSelectMode(!q.selectMode)} data-testid="tool-select"
-          className={`min-h-[44px] px-3.5 rounded-xl border font-semibold text-[14.5px] inline-flex items-center gap-2 cursor-pointer
-            ${q.selectMode ? 'bg-bb-accent border-bb-accent text-white' : 'bg-violet-50 border-violet-200 text-bb-accent-hover'}`}>
-          {q.selectMode ? <><Check size={18} />Done</> : <><SquareCheck size={18} />Select</>}
-        </button>
-        <button onClick={q.onGroup} disabled={!q.canGroup} data-testid="tool-group"
-          className="min-h-[44px] px-3.5 rounded-xl border border-gray-300 bg-white font-semibold text-[14.5px] inline-flex items-center gap-2 cursor-pointer disabled:text-gray-400 disabled:border-gray-200 disabled:bg-gray-50 disabled:cursor-default">
-          <Layers size={18} />Group
-        </button>
-        <button onClick={q.onUngroup} disabled={!q.canUngroup} data-testid="tool-ungroup"
-          className="min-h-[44px] px-3.5 rounded-xl border border-gray-300 bg-white font-semibold text-[14.5px] inline-flex items-center gap-2 cursor-pointer disabled:text-gray-400 disabled:border-gray-200 disabled:bg-gray-50 disabled:cursor-default">
-          <Ungroup size={18} />Ungroup
-        </button>
+      {/* Tools — one row that scrolls sideways; Group / Ungroup light up once items are ticked */}
+      <div className="-mx-4 px-4 flex gap-2 overflow-x-auto no-scrollbar pb-0.5" data-testid="quote-tools">
+        {[
+          { id: 'save', icon: Save, label: q.saveState === 'saved' ? 'Saved' : q.saveState === 'saving' ? 'Saving…' : 'Save', onClick: q.onSave, tone: q.saveState === 'saved' ? 'done' : 'main' },
+          { id: 'group', icon: Layers, label: 'Group', onClick: q.onGroup, disabled: !q.canGroup },
+          { id: 'ungroup', icon: Ungroup, label: 'Ungroup', onClick: q.onUngroup, disabled: !q.canUngroup },
+          { id: 'hide', icon: q.hidePrices ? Eye : EyeOff, label: q.hidePrices ? 'Show prices' : 'Hide prices', onClick: () => q.setHidePrices(!q.hidePrices), on: q.hidePrices },
+          q.hasPhone && { id: 'whatsapp', icon: MessageSquare, label: 'WhatsApp', onClick: q.onWhatsApp, tone: 'green' },
+          { id: 'fit', icon: Wand2, label: 'Fit to budget', onClick: q.onFitBudget },
+          { id: 'versions', icon: History, label: q.revisionsCount ? `Versions (${q.revisionsCount})` : 'Versions', onClick: q.onVersions },
+        ].filter(Boolean).map(t => (
+          <button key={t.id} onClick={t.onClick} disabled={t.disabled} data-testid={`tool-${t.id}`} aria-pressed={t.on}
+            className={`shrink-0 min-h-[42px] px-3.5 rounded-xl border font-semibold text-[14px] inline-flex items-center gap-2 cursor-pointer whitespace-nowrap
+              disabled:text-gray-400 disabled:border-gray-200 disabled:bg-gray-50 disabled:cursor-default
+              ${t.tone === 'main' ? 'bg-bb-accent border-bb-accent text-white' : t.tone === 'done' ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                : t.tone === 'green' ? 'bg-white border-emerald-200 text-emerald-700' : t.on ? 'bg-violet-100 border-violet-300 text-bb-accent-hover' : 'bg-white border-gray-300 text-bb-text'}`}>
+            <t.icon size={17} />{t.label}
+          </button>
+        ))}
       </div>
-      {q.selectMode && <p className="-mt-2 text-[13px] text-gray-600">Tick items to group or remove them. Groups stay inside one event.</p>}
+      <p className="-mt-3 text-[12.5px] text-gray-600">Tick items to group or remove them · hold ⋮⋮ to move. Groups stay inside one event.</p>
 
       {/* One block per event */}
       {sections.map(group => {

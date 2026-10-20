@@ -15,7 +15,7 @@
 // IMPORTS
 // ============================================================
 import React, { useEffect, useMemo, useState } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import { LayoutDashboard, FilePlus, FileText, CheckCircle2, PartyPopper, Settings, Plus, BarChart3, LogOut, Shield, X, CalendarDays, ShoppingBag, CreditCard } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useConfirm } from './useConfirm';
@@ -192,6 +192,12 @@ function LayoutShell() {
 
   // Close the mobile menu whenever the page changes
   useEffect(() => { setMenuOpen(false); }, [location.pathname]);
+
+  // A newly opened page starts at the top (Back keeps where you were)
+  const navType = useNavigationType();
+  useEffect(() => {
+    if (navType !== 'POP') window.scrollTo(0, 0);
+  }, [location.pathname, navType]);
 
   // Lock page scroll behind the open menu
   useEffect(() => {

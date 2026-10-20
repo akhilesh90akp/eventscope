@@ -154,6 +154,10 @@ select {
 select:disabled { opacity: 0.6; }
 
 /* === Bottom sheet (components/BottomSheet.jsx) === */
+/* Sideways scrolling rows (phone quote tools) without a scrollbar */
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
 @keyframes sheet-up {
   from { transform: translateY(24px); opacity: 0.6; }
   to   { transform: none; opacity: 1; }

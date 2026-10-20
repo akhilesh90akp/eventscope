@@ -79,11 +79,13 @@ export function SegmentedTabs({ options, value, onChange, className = '', testId
 }
 
 /** Full-width on/off row: title (+ helper text) on the left, switch on the right */
-export function SwitchRow({ title, sub, checked, onChange, testId, disabled }) {
+export function SwitchRow({ icon: Icon, title, sub, checked, onChange, testId, disabled }) {
+  // with an icon it lines up with MenuRow (used inside menus)
   return (
-    <label className={`flex items-center gap-3 min-h-[56px] py-2 ${disabled ? 'opacity-50' : 'cursor-pointer'}`}>
+    <label className={`flex items-center gap-3 ${Icon ? 'gap-3.5 min-h-[60px] border-b border-bb-border last:border-b-0' : 'min-h-[56px]'} py-2 ${disabled ? 'opacity-50' : 'cursor-pointer'}`}>
+      {Icon && <Icon size={20} className="shrink-0 text-bb-text" />}
       <span className="flex-1 min-w-0">
-        <span className="block text-[15px] text-bb-text">{title}</span>
+        <span className={`block text-bb-text ${Icon ? 'text-[16px] font-semibold' : 'text-[15px]'}`}>{title}</span>
         {sub && <span className="block text-[13px] text-gray-600">{sub}</span>}
       </span>
       <input type="checkbox" className="sr-only peer" checked={!!checked} disabled={disabled} onChange={e => onChange(e.target.checked)} data-testid={testId} />

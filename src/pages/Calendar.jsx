@@ -34,7 +34,7 @@ import { useApp } from '../context/AppContext';
 import Card from '../components/Card';
 import ReminderSwitch from '../components/ReminderSwitch';
 import { EVENT_TYPES } from '../constants/data';
-import { formatCurrency, formatDateRange } from '../utils/helpers';
+import { formatCurrency, formatDateRange, formatRupees } from '../utils/helpers';
 import {
   DEFAULT_MAX_PER_DAY, monthGrid, isoDate, eventFunctions, filterFunctions, groupByDate,
   expandDays, assignLanes, dayCount, dayLoad, upcomingReminders,
@@ -136,6 +136,31 @@ function FunctionCard({ f, showAmount, onOpen }) {
           {f.status === 'draft' ? 'Quote ' : ''}{formatCurrency(f.amount)}
         </p>
       )}
+    </button>
+  );
+}
+
+/** Phones: one event as a flat line inside a day's card (no card-in-card) */
+const EDGE = { confirmed: 'bg-bb-accent', draft: 'bg-violet-300', completed: 'bg-gray-300' };
+function FunctionLine({ f, showAmount, onOpen }) {
+  return (
+    <button onClick={onOpen} data-testid="fn-line"
+      className="w-full flex items-stretch gap-3 text-left py-3.5 border-b border-bb-border last:border-b-0 cursor-pointer active:bg-violet-50">
+      <i className={`w-1 rounded-full shrink-0 ${EDGE[f.status] || EDGE.draft}`} />
+      <span className="flex-1 min-w-0">
+        <span className="flex items-baseline gap-2">
+          <b className="flex-1 min-w-0 truncate text-[15.5px] text-bb-text">{f.client}</b>
+          {showAmount && f.amount != null && (
+            <b className={`shrink-0 text-[14.5px] tabular-nums ${f.status === 'draft' ? 'text-bb-muted font-semibold' : 'text-emerald-700'}`}>{formatRupees(f.amount)}</b>
+          )}
+        </span>
+        <span className="block text-[13.5px] text-gray-600 mt-0.5 truncate">
+          {[f.name, time12(f.time)].filter(Boolean).join(' · ')}
+          {f.days > 1 && <span className="ml-1.5 text-[11.5px] font-bold bg-violet-100 text-violet-700 rounded-md px-1.5 py-px" data-testid="day-of">Day {f.dayIndex} of {f.days}</span>}
+        </span>
+        {f.location && <span className="block text-[13px] text-gray-500 mt-0.5 truncate">{f.location}</span>}
+        <span className="block text-[12px] font-semibold text-gray-500 mt-1">{STATUS_NAME[f.status] || f.status}</span>
+      </span>
     </button>
   );
 }
@@ -292,8 +317,8 @@ export default function Calendar() {
   // ------------------------------------------------------------
   const dayPanel = (
     <div className="space-y-2.5" data-testid="day-panel">
-      <div>
-        <h2 className="text-base font-semibold text-bb-text">{longDay(selected)}</h2>
+      <div className={isPhone ? 'px-1' : ''}>
+        <h2 className={isPhone ? 'text-[16px] font-bold text-bb-text' : 'text-base font-semibold text-bb-text'}>{longDay(selected)}</h2>
         <p className="text-xs text-bb-muted">
           {selCount} {selCount === 1 ? 'event' : 'events'}{selDrafts ? ` + ${selDrafts} draft${selDrafts > 1 ? 's' : ''}` : ''} · limit {max} a day
         </p>
@@ -306,7 +331,9 @@ export default function Calendar() {
       )}
       {selFns.length === 0
         ? <p className="text-sm text-bb-muted py-3">{selCount || selDrafts ? 'Nothing matches the filters.' : 'Free day.'}</p>
-        : selFns.map(f => <FunctionCard key={f.key} f={f} showAmount={isOwner} onOpen={() => openEvent(f)} />)}
+        : isPhone
+          ? <div className="bg-white border border-bb-border rounded-2xl px-4">{selFns.map(f => <FunctionLine key={f.key} f={f} showAmount={isOwner} onOpen={() => openEvent(f)} />)}</div>
+          : selFns.map(f => <FunctionCard key={f.key} f={f} showAmount={isOwner} onOpen={() => openEvent(f)} />)}
     </div>
   );
 
@@ -414,6 +441,26 @@ export default function Calendar() {
               })}
             </div>
           </div>
+        ) : isPhone ? (
+          /* ---------- List view (phone): date label, then one card of flat lines per day ---------- */
+          <div className="space-y-5" data-testid="cal-list">
+            {listDates.length === 0
+              ? <p className="text-[14px] text-gray-600 text-center py-10"><CalendarDays className="mx-auto mb-2" />Nothing this month.</p>
+              : listDates.map(d => {
+                const n = dayCount(allByDate[d]);
+                return (
+                  <section key={d} className="space-y-2">
+                    <p className="flex items-baseline justify-between px-1">
+                      <b className={`text-[14.5px] ${d === today ? 'text-bb-accent-hover' : 'text-bb-text'}`}>{d === today ? 'Today · ' : ''}{longDay(d)}</b>
+                      <span className={`text-[12.5px] font-semibold ${n > max ? 'text-rose-700' : 'text-gray-500'}`}>{n} of {max}</span>
+                    </p>
+                    <div className="bg-white border border-bb-border rounded-2xl px-4">
+                      {shownByDate[d].map(f => <FunctionLine key={f.key} f={f} showAmount={isOwner} onOpen={() => openEvent(f)} />)}
+                    </div>
+                  </section>
+                );
+              })}
+          </div>
         ) : (
           /* ---------- List view (laptop) ---------- */
           <Card>
@@ -439,7 +486,7 @@ export default function Calendar() {
               <IconButton icon={Info} label="What the colours mean" tone="quiet" size={36} iconSize={17} className="ml-auto" onClick={() => setSheet('key')} />
             </div>
           )}
-          <Card>{dayPanel}</Card>
+          {isPhone ? (view === 'month' && <div className="pt-1">{dayPanel}</div>) : <Card>{dayPanel}</Card>}
           {remindersPanel && <Card>{remindersPanel}</Card>}
           {!isOwner && <p className="text-xs text-bb-muted px-1">Amounts are visible to owners only.</p>}
           {/* Daily limit — what it means; changed in Settings */}
