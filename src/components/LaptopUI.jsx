@@ -11,6 +11,8 @@
  *   MorePopover  ⋯ button that opens a small menu right under it (closes on
  *                outside click / Esc) + PopItem rows
  *   StatRow      one row of equal, quiet number cards (label · value · short line)
+ *   Seg          small segmented choice (GST rate 5/12/18/28, Completed · All events…)
+ *   Switch       on/off switch with its label (GST, IGST, Without GST)
  * Pure UI: no data access here.
  */
 
@@ -122,5 +124,42 @@ export function StatRow({ items, testId = 'stat-row' }) {
         </div>
       ))}
     </div>
+  );
+}
+
+// ============================================================
+// CHOICES
+// ============================================================
+
+/** Small segmented choice: options = [{ value, label }] or plain strings */
+export function Seg({ options, value, onChange, label, size = 'md', testId }) {
+  const opts = options.map(o => (typeof o === 'object' ? o : { value: o, label: o }));
+  return (
+    <div role="radiogroup" aria-label={label} className="inline-flex bg-[#ece9f3] rounded-[10px] p-[3px] gap-0.5" data-testid={testId}>
+      {opts.map(o => {
+        const on = String(o.value) === String(value);
+        return (
+          <button key={o.value} type="button" role="radio" aria-checked={on} onClick={() => onChange(o.value)}
+            className={`whitespace-nowrap rounded-lg font-semibold cursor-pointer transition-colors ${size === 'sm' ? 'px-2.5 py-1 text-[12px]' : 'px-3 py-1.5 text-[13px]'}
+              ${on ? 'bg-white text-bb-accent-hover shadow-[0_1px_2px_rgba(0,0,0,0.08)]' : 'text-bb-muted hover:text-bb-text'}`}>
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** On/off switch with its label on the right */
+export function Switch({ checked, onChange, label, disabled = false, testId }) {
+  return (
+    <button type="button" role="switch" aria-checked={!!checked} aria-label={label} disabled={disabled} data-testid={testId}
+      onClick={() => onChange(!checked)}
+      className="inline-flex items-center gap-2 text-[13.5px] font-semibold text-bb-text cursor-pointer disabled:opacity-40 disabled:cursor-default">
+      <span className={`relative w-9 h-5 rounded-full transition-colors ${checked ? 'bg-bb-accent' : 'bg-gray-300'}`}>
+        <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${checked ? 'translate-x-4' : ''}`} />
+      </span>
+      {label}
+    </button>
   );
 }
