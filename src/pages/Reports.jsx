@@ -25,10 +25,15 @@ import Button from '../components/Button';
 import Input from '../components/Input';
 import Badge from '../components/Badge';
 import PdfButton from '../components/PdfButton';
-import { formatCurrency, formatDateReadable, formatDateRange, functionEnd, getActiveDate, getEventRevenue, computeEventFinancials, openJobLog } from '../utils/helpers';
+import { formatCurrency, formatRupees, formatDateReadable, formatDateRange, functionEnd, getActiveDate, getEventRevenue, computeEventFinancials, openJobLog } from '../utils/helpers';
 import { fyStart, fyLabel, purchasesBetween, purchaseTotal } from '../utils/purchases';
 import { Printer, Calendar, BarChart3, ExternalLink, Lock } from 'lucide-react';
 import UpgradeCard from '../components/UpgradeCard';
+import { useNavigate } from 'react-router-dom';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useIsPhone } from '../components/useIsPhone';
+import { usePhoneHeader } from '../components/phoneScreens';
+import { SegmentedTabs, SectionLabel, IconButton, DateField } from '../components/PhoneUI';
 
 // ============================================================
 // HELPERS
@@ -62,6 +67,8 @@ export default function Reports() {
   const reportRef = useRef(null);   // the printable report — what the PDF is made from
   const [statusFilter, setStatusFilter] = useState('completed'); // all | completed | confirmed
   const [excludeGST, setExcludeGST] = useState(false);
+  const isPhone = useIsPhone();
+  const navigate = useNavigate();
 
   // Initialize month/year to current period
   const [month, setMonth] = useState(() => {
@@ -189,6 +196,13 @@ export default function Reports() {
   // RENDER
   // ------------------------------------------------------------
 
+  // Phones: the PDF button sits in the title bar (follows the chosen tab)
+  usePhoneHeader({
+    right: isOwner && canUse('reports')
+      ? <PdfButton variant="header" docRef={reportRef} fileName={`${reportTitle}.pdf`} label={`Download PDF · ${filterTabs.find(t => t.key === filter)?.label}`} />
+      : null,
+  }, [reportTitle, filter, isOwner]);
+
   // Owner only — staff reach this page only by typing the address
   if (isOwner && !canUse('reports')) {
     return <UpgradeCard feature="reports" text="Revenue, profit and purchases for any month or year — and a PDF for your accountant." />;
@@ -205,6 +219,202 @@ export default function Reports() {
     );
   }
 
+  // The PDF / print layout (kept off screen; PdfButton renders it)
+  const printable = (
+    <>
+      {/* Printable Report - hidden on screen, shown during print */}
+      <div ref={reportRef} className="print-doc" id="report-print" style={{display: 'none', backgroundColor: 'white', color: '#111827', fontFamily: 'Inter, -apple-system, sans-serif', padding: '20px'}}>
+        <table style={{width: '100%', borderCollapse: 'collapse'}}>
+          <tbody>
+            {/* Title */}
+            <tr>
+              <td colSpan="5" style={{textAlign: 'center', padding: '12px 0'}}>
+                <span style={{fontSize: '18px', fontWeight: '800', letterSpacing: '0.15em', color: '#652D90', textTransform: 'uppercase'}}>EVENT REPORT</span>
+                <div style={{height: '2px', width: '60px', margin: '6px auto 0', backgroundColor: '#652D90'}} />
+              </td>
+            </tr>
+            {/* Company + Period */}
+            <tr>
+              <td colSpan="3" style={{padding: '8px 0', fontSize: '12px', color: '#374151'}}>
+                <strong>{settings.companyName}</strong>{settings.tagline && <> — {settings.tagline}</>}<br/>
+                Ph: {settings.phone}
+              </td>
+              <td colSpan="2" style={{padding: '8px 0', fontSize: '12px', color: '#374151', textAlign: 'right'}}>
+                <strong>Period:</strong> {period}<br/>
+                <strong>Status:</strong> {statusFilter}<br/>
+                <strong>Generated:</strong> {formatDateReadable(new Date().toISOString())}
+              </td>
+            </tr>
+            {/* Separator */}
+            <tr><td colSpan="5" style={{borderBottom: '1px solid #e5e7eb', padding: '4px 0'}} /></tr>
+            {/* Summary Stats */}
+            <tr>
+              <td colSpan="5" style={{padding: '12px 0 8px'}}>
+                <strong style={{fontSize: '11px'}}>Total Events: {stats.total}</strong> &nbsp;|&nbsp;
+                <span style={{fontSize: '11px'}}>Completed: {stats.completed}</span> &nbsp;|&nbsp;
+                <span style={{fontSize: '11px', fontWeight: 'bold', color: '#652D90'}}>Revenue: {formatCurrency(stats.revenue)}</span><br/>
+                <span style={{fontSize: '11px'}}>Profit without purchases: {formatCurrency(stats.profit)}{stats.missingCosts ? ` (expenses added for ${stats.profitEvents} of ${stats.completed} events)` : ''}</span> &nbsp;|&nbsp;
+                <span style={{fontSize: '11px'}}>Spent on purchases: {formatCurrency(stats.spent)}</span>
+                {stats.enoughCosts && <> &nbsp;|&nbsp; <span style={{fontSize: '11px', fontWeight: 'bold'}}>Profit after purchases: {formatCurrency(stats.afterPurchases)}</span></>}
+              </td>
+            </tr>
+            {/* Table Header */}
+            <tr style={{backgroundColor: '#f5f0fa', borderBottom: '2px solid #652D90'}}>
+              <th style={{padding: '8px', textAlign: 'left', fontSize: '10px', fontWeight: '600', textTransform: 'uppercase'}}>#</th>
+              <th style={{padding: '8px', textAlign: 'left', fontSize: '10px', fontWeight: '600', textTransform: 'uppercase'}}>Client</th>
+              <th style={{padding: '8px', textAlign: 'left', fontSize: '10px', fontWeight: '600', textTransform: 'uppercase'}}>Event Type</th>
+              <th style={{padding: '8px', textAlign: 'left', fontSize: '10px', fontWeight: '600', textTransform: 'uppercase'}}>Date</th>
+              <th style={{padding: '8px', textAlign: 'right', fontSize: '10px', fontWeight: '600', textTransform: 'uppercase'}}>Amount</th>
+            </tr>
+            {/* Data Rows (All time: under a heading per financial year) */}
+            {(yearGroups || [{ fy: null, events: filteredEvents }]).map(g => (
+            <React.Fragment key={g.fy ?? 'list'}>
+            {yearGroups && (
+              <tr style={{backgroundColor: '#faf7fd', borderBottom: '1px solid #e9dcf5'}}>
+                <td colSpan="4" style={{padding: '8px', fontSize: '11px', fontWeight: '700', color: '#652D90'}}>{g.label} · {g.events.length} event{g.events.length === 1 ? '' : 's'}</td>
+                <td style={{padding: '8px', fontSize: '11px', fontWeight: '700', textAlign: 'right'}}>{formatCurrency(g.revenue)}</td>
+              </tr>
+            )}
+            {g.events.map((e, i) => (
+              <tr key={e.id} style={{borderBottom: '1px solid #f3f4f6'}}>
+                <td style={{padding: '8px', fontSize: '11px', color: '#6b7280'}}>{i + 1}</td>
+                <td style={{padding: '8px', fontSize: '11px', color: '#1f2937', fontWeight: '500'}}>{e.clientName}</td>
+                <td style={{padding: '8px', fontSize: '11px', color: '#4b5563'}}>{e.eventType}</td>
+                <td style={{padding: '8px', fontSize: '11px', color: '#4b5563'}}>{formatDateRange(e.mainEvent?.date || e.date, e.mainEvent ? functionEnd(e.mainEvent) : '')}</td>
+                <td style={{padding: '8px', fontSize: '11px', color: '#1f2937', fontWeight: '600', textAlign: 'right'}}>{formatCurrency(getEventRevenue(e))}</td>
+              </tr>
+            ))}
+            </React.Fragment>
+            ))}
+            {/* Total Row */}
+            <tr style={{borderTop: '2px solid #652D90'}}>
+              <td colSpan="4" style={{padding: '10px 8px', fontSize: '13px', fontWeight: '700'}}>TOTAL REVENUE</td>
+              <td style={{padding: '10px 8px', fontSize: '13px', fontWeight: '700', color: '#652D90', textAlign: 'right'}}>{formatCurrency(stats.revenue)}</td>
+            </tr>
+            {/* Footer */}
+            <tr>
+              <td colSpan="5" style={{padding: '16px 0 0', textAlign: 'center', fontSize: '10px', color: '#9ca3af'}}>
+                Generated by {settings.companyName || 'EventScope'}{settings.phone && <> | {settings.phone}</>}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+
+  // ------------------------------------------------------------
+  // RENDER — PHONE
+  // ------------------------------------------------------------
+  if (isPhone) {
+    const shift = (n) => {
+      if (filter === 'monthly') { const [y, m] = month.split('-').map(Number); const d = new Date(y, m - 1 + n, 1); setMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`); }
+      if (filter === 'yearly') setYear(String(Number(year) + n));
+    };
+    const periodLabel = filter === 'monthly' ? new Date(`${month}-01T00:00:00`).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }) : year;
+    const groups = yearGroups || [{ fy: null, label: '', events: filteredEvents, revenue: stats.revenue }];
+    return (
+      <div data-testid="reports-phone">
+        <div data-no-print className="space-y-4">
+          <SegmentedTabs value={filter} onChange={setFilter} testId="report-period"
+            options={[{ value: 'all', label: 'All time' }, { value: 'monthly', label: 'Month' }, { value: 'yearly', label: 'Year' }, { value: 'custom', label: 'Custom' }]} />
+          {(filter === 'monthly' || filter === 'yearly') && (
+            <div className="flex items-center gap-2 bg-white border border-bb-border rounded-2xl px-1.5 py-1">
+              <IconButton icon={ChevronLeft} label={filter === 'monthly' ? 'Previous month' : 'Previous year'} tone="quiet" onClick={() => shift(-1)} />
+              <span className="flex-1 text-center text-[17px] font-bold" data-testid="report-period-label">{periodLabel}</span>
+              <IconButton icon={ChevronRight} label={filter === 'monthly' ? 'Next month' : 'Next year'} tone="quiet" onClick={() => shift(1)} />
+            </div>
+          )}
+          {filter === 'custom' && (
+            <div className="grid grid-cols-2 gap-3">
+              <DateField label="From" id="rep-from" value={dateFrom} onChange={setDateFrom} />
+              <DateField label="To" id="rep-to" value={dateTo} onChange={setDateTo} />
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            {[['completed', 'Completed'], ['all', 'All events']].map(([k, l]) => (
+              <button key={k} onClick={() => setStatusFilter(k)} className={`shrink-0 whitespace-nowrap min-h-[40px] px-3.5 rounded-full border text-[14px] font-semibold cursor-pointer ${statusFilter === k ? 'bg-bb-accent border-bb-accent text-white' : 'bg-white border-gray-300'}`}>{l}</button>
+            ))}
+            <span className="flex-1" />
+            <label className="shrink-0 flex items-center gap-2 text-[14px] whitespace-nowrap cursor-pointer">
+              No GST
+              <input type="checkbox" className="sr-only peer" checked={excludeGST} onChange={e => setExcludeGST(e.target.checked)} data-testid="exclude-gst" />
+              <span aria-hidden="true" className={`relative w-11 h-[26px] rounded-full ${excludeGST ? 'bg-bb-accent' : 'bg-gray-300'}`}><span className={`absolute top-[3px] left-[3px] w-5 h-5 rounded-full bg-white shadow transition-transform ${excludeGST ? 'translate-x-[18px]' : ''}`} /></span>
+            </label>
+          </div>
+
+          {/* Revenue — the main number */}
+          <div className="bg-white border border-bb-border rounded-2xl p-5" data-testid="rep-revenue">
+            <p className="text-[14px] text-gray-600">Revenue · {stats.completed} completed event{stats.completed === 1 ? '' : 's'}</p>
+            <p className="text-[32px] font-extrabold text-bb-gold tabular-nums leading-tight my-1">{formatRupees(stats.revenue)}</p>
+            <p className="text-[13px] text-gray-600">What your clients pay you for these events, after discount, before GST</p>
+          </div>
+
+          {/* Profit */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-white border border-bb-border rounded-2xl p-4" data-testid="profit-label">
+              <p className="text-[13.5px] text-gray-600">Profit without purchases</p>
+              <p className={`text-[21px] font-extrabold tabular-nums my-1 ${stats.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{formatRupees(stats.profit)}</p>
+              {stats.missingCosts > 0
+                ? <p className="text-[13px] text-amber-800" data-testid="missing-costs">Based on {stats.profitEvents} event{stats.profitEvents === 1 ? '' : 's'} only. Add expenses for the other {stats.missingCosts}.</p>
+                : <p className="text-[13px] text-gray-600">Expenses added for all {stats.completed} events</p>}
+              {stats.missingCosts > 0 && <button onClick={() => navigate('/completed')} className="mt-1 min-h-[40px] text-[14px] font-semibold text-bb-accent-hover inline-flex items-center gap-1 cursor-pointer">Add expenses<ChevronRight size={16} /></button>}
+            </div>
+            <div className="bg-white border border-bb-border rounded-2xl p-4">
+              <p className="text-[13.5px] text-gray-600">Profit after purchases</p>
+              {stats.enoughCosts
+                ? <><p className={`text-[21px] font-extrabold tabular-nums my-1 ${stats.afterPurchases >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{formatRupees(stats.afterPurchases)}</p><p className="text-[13px] text-gray-600">Profit minus what you spent on purchases</p></>
+                : <><p className="text-[21px] font-extrabold text-bb-muted my-1" data-testid="after-hidden">—</p><p className="text-[13px] text-gray-600">Shows once most events have expenses added</p></>}
+            </div>
+          </div>
+
+          {/* Small tiles */}
+          <div className="grid grid-cols-3 gap-2.5">
+            <div className="bg-white border border-bb-border rounded-2xl px-3.5 py-3"><p className="text-[13px] text-gray-600">Events</p><b className="text-[21px] tabular-nums">{stats.total}</b></div>
+            <div className="bg-white border border-bb-border rounded-2xl px-3.5 py-3"><p className="text-[13px] text-gray-600">Completed</p><b className="text-[21px] tabular-nums text-blue-600">{stats.completed}</b></div>
+            <div className="bg-white border border-bb-border rounded-2xl px-3.5 py-3"><p className="text-[13px] text-gray-600">Purchases</p><b className="text-[17px] tabular-nums text-red-600">{formatRupees(stats.spent)}</b></div>
+          </div>
+
+          {/* The events */}
+          {filteredEvents.length === 0 ? (
+            <div className="bg-white border border-bb-border rounded-2xl text-center py-10 text-gray-600"><BarChart3 size={36} className="mx-auto mb-2 text-bb-muted" />No events in this period</div>
+          ) : groups.map(g => (
+            <div key={g.fy ?? 'list'} className="space-y-2.5" data-testid={g.fy ? 'year-heading' : undefined}>
+              <SectionLabel right={<b className="text-[14px] text-bb-text tabular-nums">{formatRupees(g.revenue)}</b>}>
+                {g.label ? `${g.label} · ${g.events.length} events` : `${g.events.length} event${g.events.length === 1 ? '' : 's'}`}
+              </SectionLabel>
+              <div className="bg-white border border-bb-border rounded-2xl px-[18px]">
+                {g.events.map(e => (
+                  <button key={e.id} onClick={() => navigate(`/${e.status === 'draft' ? 'drafts' : e.status}`, { state: { expandId: e.id } })}
+                    className="w-full flex items-center gap-3 py-4 border-b border-bb-border last:border-b-0 text-left cursor-pointer" data-testid="report-row">
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-[16px] font-bold truncate">{e.clientName}</span>
+                      <span className="block text-[13px] text-gray-600 mt-0.5">{e.eventType} · {formatDateRange(e.mainEvent?.date || e.date, e.mainEvent ? functionEnd(e.mainEvent) : '')}</span>
+                    </span>
+                    <span className="text-right">
+                      <b className="block text-[16px] tabular-nums">{formatRupees(getEventRevenue(e))}</b>
+                      {e.status !== 'completed' && <span className="inline-block mt-1"><Badge variant={e.status}>{e.status}</Badge></span>}
+                    </span>
+                    <ChevronRight size={18} className="text-gray-400 shrink-0" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+          {filteredEvents.length > 0 && (
+            <div className="flex justify-between items-center bg-white border border-bb-border rounded-2xl px-[18px] min-h-[60px] font-extrabold">
+              <span className="text-[16px]">Total revenue</span><span className="text-[18px] text-bb-accent-hover tabular-nums">{formatRupees(stats.revenue)}</span>
+            </div>
+          )}
+        </div>
+        {printable}
+      </div>
+    );
+  }
+
+  // ------------------------------------------------------------
+  // RENDER — LAPTOP
+  // ------------------------------------------------------------
   return (
     <div>
       {/* Screen UI - hidden during print */}
@@ -369,84 +579,7 @@ export default function Reports() {
       </Card>
       </div>
 
-      {/* Printable Report - hidden on screen, shown during print */}
-      <div ref={reportRef} className="print-doc" id="report-print" style={{display: 'none', backgroundColor: 'white', color: '#111827', fontFamily: 'Inter, -apple-system, sans-serif', padding: '20px'}}>
-        <table style={{width: '100%', borderCollapse: 'collapse'}}>
-          <tbody>
-            {/* Title */}
-            <tr>
-              <td colSpan="5" style={{textAlign: 'center', padding: '12px 0'}}>
-                <span style={{fontSize: '18px', fontWeight: '800', letterSpacing: '0.15em', color: '#652D90', textTransform: 'uppercase'}}>EVENT REPORT</span>
-                <div style={{height: '2px', width: '60px', margin: '6px auto 0', backgroundColor: '#652D90'}} />
-              </td>
-            </tr>
-            {/* Company + Period */}
-            <tr>
-              <td colSpan="3" style={{padding: '8px 0', fontSize: '12px', color: '#374151'}}>
-                <strong>{settings.companyName}</strong>{settings.tagline && <> — {settings.tagline}</>}<br/>
-                Ph: {settings.phone}
-              </td>
-              <td colSpan="2" style={{padding: '8px 0', fontSize: '12px', color: '#374151', textAlign: 'right'}}>
-                <strong>Period:</strong> {period}<br/>
-                <strong>Status:</strong> {statusFilter}<br/>
-                <strong>Generated:</strong> {formatDateReadable(new Date().toISOString())}
-              </td>
-            </tr>
-            {/* Separator */}
-            <tr><td colSpan="5" style={{borderBottom: '1px solid #e5e7eb', padding: '4px 0'}} /></tr>
-            {/* Summary Stats */}
-            <tr>
-              <td colSpan="5" style={{padding: '12px 0 8px'}}>
-                <strong style={{fontSize: '11px'}}>Total Events: {stats.total}</strong> &nbsp;|&nbsp;
-                <span style={{fontSize: '11px'}}>Completed: {stats.completed}</span> &nbsp;|&nbsp;
-                <span style={{fontSize: '11px', fontWeight: 'bold', color: '#652D90'}}>Revenue: {formatCurrency(stats.revenue)}</span><br/>
-                <span style={{fontSize: '11px'}}>Profit without purchases: {formatCurrency(stats.profit)}{stats.missingCosts ? ` (expenses added for ${stats.profitEvents} of ${stats.completed} events)` : ''}</span> &nbsp;|&nbsp;
-                <span style={{fontSize: '11px'}}>Spent on purchases: {formatCurrency(stats.spent)}</span>
-                {stats.enoughCosts && <> &nbsp;|&nbsp; <span style={{fontSize: '11px', fontWeight: 'bold'}}>Profit after purchases: {formatCurrency(stats.afterPurchases)}</span></>}
-              </td>
-            </tr>
-            {/* Table Header */}
-            <tr style={{backgroundColor: '#f5f0fa', borderBottom: '2px solid #652D90'}}>
-              <th style={{padding: '8px', textAlign: 'left', fontSize: '10px', fontWeight: '600', textTransform: 'uppercase'}}>#</th>
-              <th style={{padding: '8px', textAlign: 'left', fontSize: '10px', fontWeight: '600', textTransform: 'uppercase'}}>Client</th>
-              <th style={{padding: '8px', textAlign: 'left', fontSize: '10px', fontWeight: '600', textTransform: 'uppercase'}}>Event Type</th>
-              <th style={{padding: '8px', textAlign: 'left', fontSize: '10px', fontWeight: '600', textTransform: 'uppercase'}}>Date</th>
-              <th style={{padding: '8px', textAlign: 'right', fontSize: '10px', fontWeight: '600', textTransform: 'uppercase'}}>Amount</th>
-            </tr>
-            {/* Data Rows (All time: under a heading per financial year) */}
-            {(yearGroups || [{ fy: null, events: filteredEvents }]).map(g => (
-            <React.Fragment key={g.fy ?? 'list'}>
-            {yearGroups && (
-              <tr style={{backgroundColor: '#faf7fd', borderBottom: '1px solid #e9dcf5'}}>
-                <td colSpan="4" style={{padding: '8px', fontSize: '11px', fontWeight: '700', color: '#652D90'}}>{g.label} · {g.events.length} event{g.events.length === 1 ? '' : 's'}</td>
-                <td style={{padding: '8px', fontSize: '11px', fontWeight: '700', textAlign: 'right'}}>{formatCurrency(g.revenue)}</td>
-              </tr>
-            )}
-            {g.events.map((e, i) => (
-              <tr key={e.id} style={{borderBottom: '1px solid #f3f4f6'}}>
-                <td style={{padding: '8px', fontSize: '11px', color: '#6b7280'}}>{i + 1}</td>
-                <td style={{padding: '8px', fontSize: '11px', color: '#1f2937', fontWeight: '500'}}>{e.clientName}</td>
-                <td style={{padding: '8px', fontSize: '11px', color: '#4b5563'}}>{e.eventType}</td>
-                <td style={{padding: '8px', fontSize: '11px', color: '#4b5563'}}>{formatDateRange(e.mainEvent?.date || e.date, e.mainEvent ? functionEnd(e.mainEvent) : '')}</td>
-                <td style={{padding: '8px', fontSize: '11px', color: '#1f2937', fontWeight: '600', textAlign: 'right'}}>{formatCurrency(getEventRevenue(e))}</td>
-              </tr>
-            ))}
-            </React.Fragment>
-            ))}
-            {/* Total Row */}
-            <tr style={{borderTop: '2px solid #652D90'}}>
-              <td colSpan="4" style={{padding: '10px 8px', fontSize: '13px', fontWeight: '700'}}>TOTAL REVENUE</td>
-              <td style={{padding: '10px 8px', fontSize: '13px', fontWeight: '700', color: '#652D90', textAlign: 'right'}}>{formatCurrency(stats.revenue)}</td>
-            </tr>
-            {/* Footer */}
-            <tr>
-              <td colSpan="5" style={{padding: '16px 0 0', textAlign: 'center', fontSize: '10px', color: '#9ca3af'}}>
-                Generated by {settings.companyName || 'EventScope'}{settings.phone && <> | {settings.phone}</>}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      {printable}
     </div>
   );
 }

@@ -8,6 +8,10 @@
  * staff see them read-only (firestore.rules enforces the same).
  * All changes persist to Firestore via AppContext (not localStorage).
  *
+ * Phones: /settings is a list of sections; each opens as its own screen
+ * (/settings/company, /settings/team…) with Save in the title bar and at the
+ * bottom. Laptops keep the tabs (the address can also pick the tab).
+ *
  * Save actions await the Firestore result before confirming success —
  * see CODE_STRUCTURE.md §3-4.
  */
@@ -16,7 +20,12 @@
 // IMPORTS
 // ============================================================
 import React, { useState, useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { ChevronRight } from 'lucide-react';
+import { useIsPhone } from '../components/useIsPhone';
+import { usePhoneHeader } from '../components/phoneScreens';
+import { HeaderTextButton } from '../components/PhoneHeader';
+import ActionBar from '../components/ActionBar';
 import { useApp } from '../context/AppContext';
 import Card from '../components/Card';
 import StickyBar from '../components/StickyBar';
@@ -68,7 +77,11 @@ export default function Settings() {
   // STATE
   // ------------------------------------------------------------
   const location = useLocation();
-  const [tab, setTab] = useState(location.state?.tab || 'company');   // other pages can open a tab (e.g. Calendar → 'calendar')
+  const { section } = useParams();                                   // phones: /settings/<section>
+  const isPhone = useIsPhone();
+  const [tabState, setTabState] = useState(location.state?.tab || 'company');   // other pages can open a tab (e.g. Calendar → 'calendar')
+  const tab = section || tabState;
+  const setTab = (key) => (isPhone ? navigate(`/settings/${key}`) : setTabState(key));
   const [form, setForm] = useState({ ...settings, bankDetails: { ...settings.bankDetails } });
   const [catModal, setCatModal] = useState(null); // category id for item management modal
   const [newCatName, setNewCatName] = useState('');
@@ -238,12 +251,65 @@ export default function Settings() {
 
   const openCat = categories.find(c => c.id === catModal);
 
+  // Phones: the section's name in the title bar, Save on the right (editable sections)
+  const savable = canEditSettings && !['services', 'team', 'joblog', 'backup'].includes(tab);
+  const sectionLabel = tabs.find(t => t.key === tab)?.label || 'Settings';
+  usePhoneHeader(isPhone && section ? {
+    title: sectionLabel,
+    sub: 'Settings',
+    right: savable ? <HeaderTextButton onClick={handleSave} disabled={saving} data-testid="header-save">Save</HeaderTextButton> : null,
+  } : {}, [isPhone, section, sectionLabel, savable, saving, form]);
+
+  // ------------------------------------------------------------
+  // RENDER — PHONE: list of sections
+  // ------------------------------------------------------------
+  if (isPhone && !section) {
+    const subs = {
+      company: 'Name, logo, GSTIN, address, colour', bank: 'Shown on bills', invoice: 'Numbering, GST, terms',
+      contract: 'Court city, cancellation terms', calendar: 'Daily limit, phone reminders', services: 'Your categories & items',
+      team: `${team.length} ${team.length === 1 ? 'person' : 'people'}${invites.length ? ` · ${invites.length} invited` : ''}`, joblog: 'Cost columns', backup: 'Download everything',
+    };
+    return (
+      <div className="space-y-5" data-testid="settings-list">
+        <div className="bg-white border border-bb-border rounded-2xl p-4 flex items-center gap-3">
+          {settings.logo
+            ? <img src={settings.logo} alt="" className="w-12 h-12 rounded-xl object-contain bg-gray-50" />
+            : <div className="w-12 h-12 rounded-xl bg-violet-100 text-bb-accent-hover font-extrabold flex items-center justify-center">{(settings.companyName || '?').trim().slice(0, 2).toUpperCase()}</div>}
+          <div className="min-w-0">
+            <b className="block text-[16px] truncate">{settings.companyName || 'Your company'}</b>
+            <span className="block text-[13px] text-gray-600">{planName(tenant?.plan)} plan · {isOwner ? 'Owner' : 'Staff'}</span>
+          </div>
+        </div>
+        <div className="bg-white border border-bb-border rounded-2xl px-4">
+          {tabs.map(t => (
+            <button key={t.key} onClick={() => navigate(`/settings/${t.key}`)} data-testid={`settings-${t.key}`}
+              className="w-full flex items-center gap-3.5 min-h-[64px] border-b border-bb-border last:border-b-0 text-left cursor-pointer">
+              <span className="w-9 h-9 rounded-xl bg-violet-50 text-bb-accent-hover flex items-center justify-center shrink-0"><t.icon size={19} /></span>
+              <span className="flex-1 min-w-0">
+                <span className="block text-[16px] font-semibold">{t.label}</span>
+                <span className="block text-[13px] text-gray-600 truncate">{subs[t.key]}</span>
+              </span>
+              {t.key === 'joblog' && !canUse('jobLog') && <PlanTag feature="jobLog" />}
+              <ChevronRight size={18} className="text-gray-400" />
+            </button>
+          ))}
+        </div>
+        <p className="text-center text-[13px] text-gray-600 space-x-3">
+          <a href="#/privacy" target="_blank" rel="noreferrer">Privacy</a>
+          <a href="#/terms" target="_blank" rel="noreferrer">Terms</a>
+          <a href="#/data-protection" target="_blank" rel="noreferrer">How we protect your data</a>
+        </p>
+        {startupText && <p className="text-center text-[11px] text-bb-muted/70" data-testid="startup-timing">{startupText}</p>}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4 pb-8">
-      <h1 className="text-xl font-bold text-bb-text">Settings</h1>
+      {!isPhone && <h1 className="text-xl font-bold text-bb-text">Settings</h1>}
 
-      {/* Tab Buttons — stay pinned while scrolling */}
-      <StickyBar>
+      {/* Tab Buttons — stay pinned while scrolling (laptops; phones open one section at a time) */}
+      {!isPhone && <StickyBar>
         <div className="flex gap-1.5 overflow-x-auto pb-1">
           {tabs.map(t => (
             <button
@@ -260,7 +326,7 @@ export default function Settings() {
             </button>
           ))}
         </div>
-      </StickyBar>
+      </StickyBar>}
 
       {/* What this tab is for */}
       <p className="text-sm text-bb-muted -mt-1" data-testid="tab-help">{TAB_HELP[tab]}</p>
@@ -665,11 +731,18 @@ export default function Settings() {
       {/* Start-up timing (diagnostic) — helps pin down slow starts on a phone */}
       {startupText && <p className="text-center text-[11px] text-bb-muted/70" data-testid="startup-timing">{startupText}</p>}
 
-      {/* Save Button - shown for editable tabs, and only to users who can edit */}
-      {canEditSettings && !['services', 'team', 'joblog', 'backup'].includes(tab) && (
+      {/* Save Button - shown for editable tabs, and only to users who can edit (phones: pinned at the bottom) */}
+      {savable && !isPhone && (
         <Button icon={Save} fullWidth size="lg" onClick={handleSave} disabled={saving}>
           {saving ? 'Saving...' : 'Save Settings'}
         </Button>
+      )}
+      {savable && isPhone && (
+        <ActionBar testId="settings-save-bar">
+          <Button icon={Save} fullWidth size="lg" onClick={handleSave} disabled={saving}>
+            {saving ? 'Saving...' : `Save ${sectionLabel.toLowerCase()}`}
+          </Button>
+        </ActionBar>
       )}
     </div>
   );

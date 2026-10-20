@@ -8,6 +8,7 @@
  * automatically.
  *
  * Usage: <PdfButton docRef={pdfRef} fileName="Invoice KC-001 Sneha.pdf" />
+ * variant="header": a white download icon for the phone title bar (Reports).
  */
 
 // ============================================================
@@ -70,7 +71,12 @@ export default function PdfButton({ docRef, fileName, label = 'PDF', variant = '
   const shareable = pdf && canShareFile(pdf.file);
   return (
     <>
-      <Button icon={FileDown} variant={variant} onClick={make} disabled={busy}>{busy ? 'Making PDF…' : label}</Button>
+      {variant === 'header'
+        ? <button onClick={make} disabled={busy} aria-label={label} title={label} data-testid="pdf-header"
+          className="w-11 h-11 rounded-xl flex items-center justify-center text-white hover:bg-white/10 cursor-pointer disabled:opacity-40">
+          {busy ? <span className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <Download size={22} />}
+        </button>
+        : <Button icon={FileDown} variant={variant} onClick={make} disabled={busy}>{busy ? 'Making PDF…' : label}</Button>}
 
       <Modal isOpen={!!pdf} onClose={() => setPdf(null)} title="Check the PDF" size="lg">
         {pdf && (

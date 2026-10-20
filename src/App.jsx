@@ -28,6 +28,7 @@ import DraftsList from './pages/DraftsList';
 import ConfirmedEvents from './pages/ConfirmedEvents';
 import BillGenerator from './pages/BillGenerator';
 import QuotationGenerator from './pages/QuotationGenerator';
+import JobEvent from './pages/JobEvent';
 import ContractGenerator from './pages/ContractGenerator';
 import Calendar from './pages/Calendar';
 import Reports from './pages/Reports';
@@ -177,10 +178,12 @@ function AppRoutes() {
           <Route path="/bill/:eventId" element={<PerEvent page={BillGenerator} />} />
           <Route path="/quotation/:eventId" element={<PerEvent page={QuotationGenerator} />} />
           <Route path="/contract/:eventId" element={<PerEvent page={ContractGenerator} />} />
+          <Route path="/job/:eventId" element={<PerEvent page={JobEvent} />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/purchases" element={<Purchases />} />
           <Route path="/billing" element={<Billing />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/settings/:section" element={<Settings />} />
           <Route path="/admin" element={<Admin />} />
           {/* Unknown address → Home, instead of a blank page */}
           <Route path="*" element={<Navigate to="/" replace />} />

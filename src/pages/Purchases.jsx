@@ -8,6 +8,9 @@
  * saves the selected year. Purchases never change an event's profit in the
  * Job Log — Reports shows "Profit after purchases" separately.
  *
+ * Phones: ‹ year › switcher, "Add purchase" at the top (a long list never
+ * pushes it down), Excel in the title bar, ✎ / 🗑 as icons in an open row.
+ *
  * Data: tenants/{id}/purchases (see utils/purchases.js).
  */
 
@@ -27,6 +30,11 @@ import {
   sortPurchases, eventProfitBetween, exportPurchasesToExcel,
 } from '../utils/purchases';
 import UpgradeCard from '../components/UpgradeCard';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useIsPhone } from '../components/useIsPhone';
+import { usePhoneHeader } from '../components/phoneScreens';
+import { HeaderIconButton } from '../components/PhoneHeader';
+import { IconButton } from '../components/PhoneUI';
 
 // ============================================================
 // HELPERS
@@ -56,6 +64,7 @@ export default function Purchases() {
   const [dialog, setDialog] = useState(null);    // null | { editing: purchase|null }
   const [openId, setOpenId] = useState(null);    // phone: which row is open
   const [busy, setBusy] = useState(false);
+  const isPhone = useIsPhone();
 
   // ------------------------------------------------------------
   // DERIVED
@@ -92,6 +101,13 @@ export default function Purchases() {
     setBusy(false);
   };
 
+  // Phones: Excel download in the title bar
+  usePhoneHeader({
+    right: isOwner && canUse('purchases')
+      ? <HeaderIconButton icon={Download} label="Download Excel" onClick={handleDownload} disabled={busy || !list.length} data-testid="purchases-excel" />
+      : null,
+  }, [busy, list.length, year, isOwner]);
+
   // ------------------------------------------------------------
   // RENDER
   // ------------------------------------------------------------
@@ -113,14 +129,26 @@ export default function Purchases() {
     <Card>
       <p className="text-xs text-bb-muted">{label}</p>
       <p className={`text-lg sm:text-xl font-bold truncate ${cls}`}>{value}</p>
-      {sub && <p className="text-[10px] text-bb-muted">{sub}</p>}
+      {sub && <p className="text-[10px] text-bb-muted max-lg:text-[12.5px] max-lg:text-gray-600">{sub}</p>}
     </Card>
   );
 
   return (
     <div className="space-y-4">
-      {/* === HEADER === */}
-      <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+      {/* === PHONE: ‹ year ›, then Add purchase (always at the top) === */}
+      {isPhone && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <IconButton icon={ChevronLeft} label="Previous year" onClick={() => setYear(y => y - 1)} disabled={year <= Math.min(...years)} />
+            <span className="flex-1 min-h-[44px] flex items-center justify-center rounded-xl border border-bb-border bg-white font-bold text-[15.5px]" data-testid="fy-label">{fyLabel(year)} (Apr–Mar)</span>
+            <IconButton icon={ChevronRight} label="Next year" onClick={() => setYear(y => y + 1)} disabled={year >= Math.max(...years)} />
+          </div>
+          <Button icon={Plus} fullWidth size="lg" onClick={() => setDialog({ editing: null })}>Add purchase</Button>
+        </div>
+      )}
+
+      {/* === HEADER (laptop) === */}
+      {!isPhone && <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
         <h1 className="text-xl font-bold text-bb-text">Purchases</h1>
         <select value={year} onChange={e => setYear(Number(e.target.value))} aria-label="Financial year"
           className="bg-white border border-bb-border rounded-lg px-3 py-1.5 text-sm text-bb-text cursor-pointer">
@@ -131,8 +159,8 @@ export default function Purchases() {
           {busy ? 'Preparing…' : 'Download Excel'}
         </Button>
         <Button icon={Plus} onClick={() => setDialog({ editing: null })}>Add purchase</Button>
-      </div>
-      <p className="text-sm text-bb-muted -mt-1">
+      </div>}
+      <p className="text-sm text-bb-muted -mt-1 max-lg:text-[13.5px] max-lg:text-gray-600 max-lg:mt-0">
         Things you buy for the business and use across many events — chairs, lights, a generator. Not part of any one event’s costs in the Job Log.
       </p>
 
@@ -164,12 +192,12 @@ export default function Purchases() {
               return (
                 <div key={p.id} className={`rounded-lg overflow-hidden transition-all ${on ? 'border-l-4 border-l-bb-accent border border-bb-accent/30 bg-bb-accent/5 shadow-sm' : 'border border-bb-border bg-white'}`}>
                   <button onClick={() => setOpenId(on ? null : p.id)}
-                    className={`w-full flex items-center gap-2 px-3 py-2.5 text-left cursor-pointer ${on ? 'bg-bb-accent/10' : 'hover:bg-bb-card-hover'}`}>
+                    className={`w-full flex items-center gap-2 px-4 py-3.5 text-left cursor-pointer ${on ? 'bg-bb-accent/10' : 'hover:bg-bb-card-hover'}`}>
                     <span className="flex-1 min-w-0">
-                      <span className="block text-sm font-medium text-bb-text truncate">{titleOf(p)}</span>
-                      <span className="block text-xs text-bb-muted">{formatDateReadable(p.date)}</span>
+                      <span className="block text-[15px] font-semibold text-bb-text truncate">{titleOf(p)}</span>
+                      <span className="block text-[13px] text-gray-600 mt-0.5">{formatDateReadable(p.date)}{p.mode !== 'total' && p.category ? ` · ${p.category}` : ''}</span>
                     </span>
-                    <b className="text-sm">{rupees(p.amount)}</b>
+                    <b className="text-[15px] tabular-nums">{rupees(p.amount)}</b>
                     {on ? <ChevronUp size={18} className="text-bb-accent" /> : <ChevronDown size={18} className="text-bb-muted" />}
                   </button>
                   {on && (
@@ -178,9 +206,9 @@ export default function Purchases() {
                         <div className="flex items-center gap-2"><CategoryTag p={p} />{p.mode !== 'total' && <span>Qty {p.qty || 1}</span>}</div>
                         {p.mode !== 'total' && p.note && <div className="text-bb-muted">{p.note}</div>}
                       </div>
-                      <div className="flex gap-2">
-                        <Button size="sm" variant="secondary" icon={Edit3} onClick={() => setDialog({ editing: p })}>Edit</Button>
-                        <Button size="sm" variant="outline" icon={Trash2} className="border-red-500 text-red-500 hover:bg-red-50" onClick={() => askDelete(p)}>Delete</Button>
+                      <div className="flex gap-2 justify-end">
+                        <IconButton icon={Edit3} label="Edit purchase" onClick={() => setDialog({ editing: p })} />
+                        <IconButton icon={Trash2} label="Delete purchase" onClick={() => askDelete(p)} />
                       </div>
                     </div>
                   )}

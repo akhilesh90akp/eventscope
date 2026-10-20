@@ -15,6 +15,9 @@
  *   Settings → Calendar & reminders. Owners also see upcoming reminders and
  *   can turn on reminder notifications for this device. Staff never see amounts.
  *
+ * Phones: Month | List switch (remembered on this phone), a filter button
+ * (status, event type, Today) and a one-line colour key with ⓘ for details.
+ *
  * Logic lives in utils/calendar.js; this file only lays it out.
  */
 
@@ -23,7 +26,10 @@
 // ============================================================
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, AlertTriangle, Bell, CalendarDays, Users } from 'lucide-react';
+import { ChevronLeft, ChevronRight, AlertTriangle, Bell, CalendarDays, Users, SlidersHorizontal, Info } from 'lucide-react';
+import { useIsPhone } from '../components/useIsPhone';
+import BottomSheet from '../components/BottomSheet';
+import { SegmentedTabs, IconButton } from '../components/PhoneUI';
 import { useApp } from '../context/AppContext';
 import Card from '../components/Card';
 import ReminderSwitch from '../components/ReminderSwitch';
@@ -246,7 +252,11 @@ export default function Calendar() {
   const [selected, setSelected] = useState(today);
   const [status, setStatus] = useState('all');
   const [type, setType] = useState('');
-  const [view, setView] = useState('month');           // 'month' | 'list'
+  const isPhone = useIsPhone();
+  // 'month' | 'list' — phones remember the last choice
+  const [view, setViewState] = useState(() => { try { return localStorage.getItem('es-cal-view') || 'month'; } catch { return 'month'; } });
+  const setView = (v) => { setViewState(v); try { localStorage.setItem('es-cal-view', v); } catch { /* private mode */ } };
+  const [sheet, setSheet] = useState(null);            // phones: 'filters' | 'key'
 
   // ------------------------------------------------------------
   // DERIVED / CALCULATED VALUES
@@ -275,7 +285,7 @@ export default function Calendar() {
   const goToday = () => { const d = new Date(); setMonth({ y: d.getFullYear(), m: d.getMonth() }); setSelected(today); };
   const openEvent = (f) => navigate(f.status === 'draft' ? `/edit/${f.eventId}` : `/${f.status === 'completed' ? 'completed' : 'confirmed'}`, { state: { expandId: f.eventId } });
 
-  const openLimitSettings = () => navigate('/settings', { state: { tab: 'calendar' } });
+  const openLimitSettings = () => navigate(isPhone ? '/settings/calendar' : '/settings', { state: { tab: 'calendar' } });
 
   // ------------------------------------------------------------
   // RENDER — pieces
@@ -320,10 +330,31 @@ export default function Calendar() {
   // ------------------------------------------------------------
   return (
     <div className="space-y-4 pb-8">
-      <h1 className="text-xl font-bold text-bb-text">Calendar</h1>
+      {!isPhone && <h1 className="text-xl font-bold text-bb-text">Calendar</h1>}
 
-      {/* Month switcher, filters, view toggle */}
-      <div className="flex flex-wrap items-center gap-2">
+      {/* === PHONE: Month | List · filters · month switcher === */}
+      {isPhone && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <SegmentedTabs className="flex-1" value={view} onChange={setView} testId="cal-view"
+              options={[{ value: 'month', label: 'Month' }, { value: 'list', label: 'List' }]} />
+            <IconButton icon={SlidersHorizontal} label="Filters" onClick={() => setSheet('filters')} data-testid="cal-filters"
+              className={status !== 'all' || type ? '!border-bb-accent !text-bb-accent-hover !bg-violet-50' : ''} />
+          </div>
+          <div className="flex items-center gap-2">
+            <IconButton icon={ChevronLeft} label="Previous month" tone="quiet" onClick={() => shiftMonth(-1)} />
+            <span className="flex-1 text-center text-[17px] font-bold text-bb-text" data-testid="month-title">{monthTitle(month.y, month.m)}</span>
+            <IconButton icon={ChevronRight} label="Next month" tone="quiet" onClick={() => shiftMonth(1)} />
+            <button onClick={goToday} className="min-h-[40px] px-3 rounded-full border border-gray-300 bg-white text-[13.5px] font-semibold cursor-pointer">Today</button>
+          </div>
+          {(status !== 'all' || type) && (
+            <p className="text-[13px] text-gray-600">Showing {STATUS_FILTERS.find(x => x.id === status)?.label.toLowerCase()}{type ? ` · ${type}` : ''} · <button onClick={() => { setStatus('all'); setType(''); }} className="font-semibold text-bb-accent-hover cursor-pointer">Clear</button></p>
+          )}
+        </div>
+      )}
+
+      {/* Month switcher, filters, view toggle (laptop) */}
+      {!isPhone && <div className="flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-1.5 w-full sm:w-auto justify-between">
           <button onClick={() => shiftMonth(-1)} aria-label="Previous month" className="p-2 rounded-lg border border-bb-border bg-white cursor-pointer"><ChevronLeft size={16} /></button>
           <span className="min-w-[150px] text-center font-semibold text-bb-text" data-testid="month-title">{monthTitle(month.y, month.m)}</span>
@@ -349,7 +380,7 @@ export default function Calendar() {
             </button>
           ))}
         </div>
-      </div>
+      </div>}
 
       {/* Colour key (laptop) */}
       <div className="hidden md:flex flex-wrap gap-2 items-stretch">
@@ -399,8 +430,15 @@ export default function Calendar() {
 
         {/* ---------- Selected day + reminders ---------- */}
         <div className="space-y-3">
-          {/* phone: compact key */}
-          <div className="md:hidden flex flex-col gap-2 items-start"><Legend compact /></div>
+          {/* phone: one-line key, ⓘ explains the day colours */}
+          {isPhone && view === 'month' && (
+            <div className="flex items-center gap-3 text-[13px] text-gray-600 px-1">
+              <span className="inline-flex items-center gap-1.5"><i className={`w-2.5 h-2.5 rounded-full ${DOT.confirmed}`} />Confirmed</span>
+              <span className="inline-flex items-center gap-1.5"><i className={`w-2.5 h-2.5 rounded-full ${DOT.draft}`} />Draft</span>
+              <span className="inline-flex items-center gap-1.5"><i className={`w-2.5 h-2.5 rounded-full ${DOT.completed}`} />Done</span>
+              <IconButton icon={Info} label="What the colours mean" tone="quiet" size={36} iconSize={17} className="ml-auto" onClick={() => setSheet('key')} />
+            </div>
+          )}
           <Card>{dayPanel}</Card>
           {remindersPanel && <Card>{remindersPanel}</Card>}
           {!isOwner && <p className="text-xs text-bb-muted px-1">Amounts are visible to owners only.</p>}
@@ -418,6 +456,31 @@ export default function Calendar() {
           </Card>
         </div>
       </div>
+      {/* === PHONE SHEETS: filters · colour key === */}
+      {sheet === 'filters' && (
+        <BottomSheet open onClose={() => setSheet(null)} title="Filters" testId="cal-filter-sheet"
+          footer={<button onClick={() => setSheet(null)} className="w-full min-h-[48px] rounded-xl bg-bb-accent text-white font-semibold cursor-pointer">Show</button>}>
+          <p className="text-[13px] font-semibold text-gray-700 mb-2">Status</p>
+          <div className="flex flex-wrap gap-2 mb-5">
+            {STATUS_FILTERS.map(x => (
+              <button key={x.id} onClick={() => setStatus(x.id)} className={`min-h-[40px] px-3.5 rounded-full border text-[14px] font-semibold cursor-pointer ${status === x.id ? 'bg-bb-accent border-bb-accent text-white' : 'bg-white border-gray-300'}`}>{x.label}</button>
+            ))}
+          </div>
+          <label className="block">
+            <span className="block text-[13px] font-semibold text-gray-700 mb-2">Event type</span>
+            <select value={type} onChange={e => setType(e.target.value)} className="w-full min-h-[48px] rounded-xl border border-bb-border bg-bb-input px-3.5 text-[16px]">
+              <option value="">All event types</option>
+              {usedTypes.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </label>
+        </BottomSheet>
+      )}
+      {sheet === 'key' && (
+        <BottomSheet open onClose={() => setSheet(null)} title="What the colours mean" testId="cal-key-sheet">
+          <div className="flex flex-col gap-2 items-start pb-2"><Legend /></div>
+          <p className="text-[13.5px] text-gray-600 mt-2">Your daily limit is {max} events. Busier days turn orange, full days red, and you’re asked before confirming more.</p>
+        </BottomSheet>
+      )}
     </div>
   );
 }
