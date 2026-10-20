@@ -20,7 +20,8 @@ import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import Card from '../components/Card';
 import EventSummary from '../components/EventSummary';
-import EventCardPhone, { EventItemsSheet } from '../components/EventCardPhone';
+import EventCardPhone, { EventItemsSheet, EventMoreSheet } from '../components/EventCardPhone';
+import { PlanTag } from '../components/UpgradeCard';
 import { SectionLabel } from '../components/PhoneUI';
 import { useIsPhone } from '../components/useIsPhone';
 import { formatCurrency, telLink, sortByActiveDate } from '../utils/helpers';
@@ -32,9 +33,10 @@ import { FileText, CheckCircle, PartyPopper, IndianRupee, Phone, CalendarDays } 
 
 /** Main dashboard view with stats and upcoming events */
 export default function Dashboard() {
-  const { events, isOwner } = useApp();
+  const { events, isOwner, updateEvent, showToast, isSuspended, askUnlock, canUse } = useApp();
   const navigate = useNavigate();
   const [itemsId, setItemsId] = useState(null); // phone: items sheet
+  const [moreId, setMoreId] = useState(null);   // phone: an event's ⋯ menu
   const isPhone = useIsPhone();
 
   // ------------------------------------------------------------
@@ -57,6 +59,18 @@ export default function Dashboard() {
     { label: 'Completed', value: completed.length, icon: PartyPopper, color: 'text-blue-400', to: '/completed' },
     { label: 'Revenue', value: formatCurrency(revenue), icon: IndianRupee, color: 'text-bb-gold', to: isOwner ? '/reports' : null },
   ];
+
+  // ------------------------------------------------------------
+  // EVENT HANDLERS — phone cards
+  // ------------------------------------------------------------
+  const guard = (fn) => (...args) => (isSuspended ? askUnlock() : fn(...args));
+  const fromMore = (fn) => () => { setMoreId(null); fn(); };
+
+  /** Confirmed → Completed */
+  const markDone = async (id) => {
+    const result = await updateEvent(id, { status: 'completed' });
+    showToast(result.success ? 'Event marked as completed' : (result.error || 'Failed to update event'), result.success ? 'success' : 'error');
+  };
 
   // ------------------------------------------------------------
   // RENDER
@@ -102,7 +116,12 @@ export default function Dashboard() {
           <div className="space-y-4" data-testid="phone-list">
             {displayEvents.map(ev => (
               <EventCardPhone key={ev.id} ev={ev} variant="home"
-                on={{ quote: () => navigate(`/quotation/${ev.id}`), items: () => setItemsId(ev.id) }} />
+                on={{
+                  quote: () => navigate(`/quotation/${ev.id}`),
+                  markDone: guard(() => markDone(ev.id)),
+                  items: () => setItemsId(ev.id),
+                  more: () => setMoreId(ev.id),
+                }} locked={isSuspended} />
             ))}
           </div>
           ) : (
@@ -129,6 +148,19 @@ export default function Dashboard() {
           )
         )}
       </div>
+      {moreId && (() => {
+        const ev = events.find(e => e.id === moreId);
+        return ev && (
+          <EventMoreSheet ev={ev} onClose={() => setMoreId(null)} locked={isSuspended}
+            contractTag={!canUse('contracts') ? <PlanTag feature="contracts" /> : null}
+            on={{
+              edit: fromMore(guard(() => navigate(`/edit/${ev.id}`))),
+              bill: fromMore(() => navigate(`/bill/${ev.id}`)),
+              contract: fromMore(() => navigate(`/contract/${ev.id}`)),
+              markDone: fromMore(guard(() => markDone(ev.id))),
+            }} />
+        );
+      })()}
       {itemsId && <EventItemsSheet ev={events.find(e => e.id === itemsId)} onClose={() => setItemsId(null)} onEdit={() => navigate(`/quotation/${itemsId}`)} />}
     </div>
   );

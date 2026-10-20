@@ -44,7 +44,7 @@ const Chip = ({ className, children, testId }) => (
 );
 
 /** Square text button of the action row (Quote / Bill / Job Log / Confirm…) */
-function RowButton({ icon: Icon, children, onClick, kind = 'secondary', testId, compact = false }) {
+function RowButton({ icon: Icon, children, onClick, kind = 'secondary', testId, compact = false, wide = false }) {
   const look = {
     primary: 'bg-bb-accent text-white border-transparent hover:bg-bb-accent-hover',
     success: 'bg-emerald-600 text-white border-transparent hover:bg-emerald-700',
@@ -52,7 +52,7 @@ function RowButton({ icon: Icon, children, onClick, kind = 'secondary', testId, 
   }[kind];
   return (
     <button onClick={onClick} data-testid={testId}
-      className={`flex-1 min-w-0 min-h-[44px] px-2.5 rounded-xl border inline-flex items-center justify-center gap-1.5 font-semibold text-[15px] cursor-pointer whitespace-nowrap ${look}`}>
+      className={`${wide ? 'flex-[1.8]' : 'flex-1'} min-w-0 min-h-[44px] px-2.5 rounded-xl border inline-flex items-center justify-center gap-1.5 font-semibold text-[15px] cursor-pointer whitespace-nowrap ${look}`}>
       {Icon && <Icon size={18} className={`shrink-0 ${compact ? 'max-[400px]:hidden' : ''}`} />}<span className="truncate">{children}</span>
     </button>
   );
@@ -78,6 +78,7 @@ export default function EventCardPhone({ ev, variant = ev?.status, on = {}, lock
   const bill = variant === 'completed' ? getEventBill(ev) : null;
   const amount = variant === 'draft' ? Number(ev.totalAmount) || Number(ev.budget) || 0 : Number(ev.totalAmount) || 0;
   const LockOr = (icon) => (locked ? Lock : icon);
+  const dayOver = (variant === 'confirmed' || variant === 'home') && allOver && !!on.markDone;
 
   return (
     <article className="bg-white border border-bb-border rounded-2xl p-[18px]" data-testid="event-card-phone" data-event={ev.id}>
@@ -131,14 +132,11 @@ export default function EventCardPhone({ ev, variant = ev?.status, on = {}, lock
         </button>
       )}
 
-      {/* Confirmed and the day is over: suggest Mark done */}
-      {variant === 'confirmed' && allOver && on.markDone && (
-        <div className="mb-3.5 flex items-center gap-2.5 rounded-xl bg-emerald-50 px-3 py-2" data-testid="day-over">
-          <span className="flex-1 text-[14px] font-semibold text-emerald-800">The event day is over</span>
-          <button onClick={on.markDone} className="min-h-[40px] px-3 rounded-xl bg-emerald-600 text-white font-semibold text-[14px] inline-flex items-center gap-1.5 cursor-pointer">
-            {React.createElement(LockOr(CheckCircle2), { size: 17 })}Mark done
-          </button>
-        </div>
+      {/* Confirmed and the day is over: Mark as done becomes the main button */}
+      {dayOver && (
+        <p className="mb-2.5 flex items-center gap-1.5 text-[13.5px] font-semibold text-emerald-800" data-testid="day-over">
+          <CheckCircle2 size={16} className="shrink-0" />The event day is over — mark it done to move it to Completed
+        </p>
       )}
 
       {/* One action row */}
@@ -148,7 +146,11 @@ export default function EventCardPhone({ ev, variant = ev?.status, on = {}, lock
           <RowButton icon={FileText} onClick={on.quote} testId="btn-quote">Quote</RowButton>
           {phone && <IconButton as="a" href={telLink(phone)} icon={Phone} label="Call" tone="green" />}
         </>}
-        {(variant === 'confirmed' || variant === 'home') && <>
+        {dayOver && <>
+          <RowButton kind="success" wide icon={LockOr(CheckCircle2)} onClick={on.markDone} testId="btn-done">Mark as done</RowButton>
+          <RowButton icon={on.bill ? Receipt : FileText} onClick={on.bill || on.quote} testId={on.bill ? 'btn-bill' : 'btn-quote'}>{on.bill ? 'Bill' : 'Quote'}</RowButton>
+        </>}
+        {!dayOver && (variant === 'confirmed' || variant === 'home') && <>
           <RowButton icon={FileText} onClick={on.quote} testId="btn-quote" compact={variant === 'confirmed' && !!phone}>Quote</RowButton>
           {variant === 'confirmed' && <RowButton icon={Receipt} onClick={on.bill} testId="btn-bill" compact={!!phone}>Bill</RowButton>}
           {phone && <IconButton as="a" href={telLink(phone)} icon={Phone} label="Call" tone="green" />}
@@ -258,7 +260,7 @@ function DateBlockMini({ date }) {
 // ============================================================
 
 /**
- * @param on  { edit, addItems, setPrices, contract, move, markDone, delete } (missing = hidden)
+ * @param on  { edit, addItems, setPrices, quote, bill, contract, move, markDone, delete } (missing = hidden)
  * @param contractTag  e.g. a PlanTag when contracts aren't on the plan
  */
 export function EventMoreSheet({ ev, onClose, on = {}, locked = false, contractTag = null }) {
@@ -272,9 +274,10 @@ export function EventMoreSheet({ ev, onClose, on = {}, locked = false, contractT
         {on.addItems && <MenuRow icon={L(Plus)} title="Add items" sub="Pick from your services" onClick={on.addItems} testId="more-add" />}
         {on.setPrices && <MenuRow icon={L(Tag)} title="Set prices" sub="Rates for every item" onClick={on.setPrices} testId="more-prices" />}
         {on.quote && <MenuRow icon={FileText} title="Quotation" sub="Open the quote" onClick={on.quote} testId="more-quote" />}
+        {on.bill && <MenuRow icon={Receipt} title="Bill" sub="Invoice for this event" onClick={on.bill} testId="more-bill" />}
         {on.contract && <MenuRow icon={FileSignature} title={<>Contract {contractTag}</>} sub="Service agreement PDF" onClick={on.contract} testId="more-contract" />}
         {on.move && <MenuRow icon={L(ArrowLeftRight)} title="Move to…" sub={ev.status === 'completed' ? 'Back to Confirmed or Drafts' : 'Back to Drafts'} onClick={on.move} testId="more-move" />}
-        {on.markDone && <MenuRow icon={L(CheckCircle2)} title="Mark done" sub="Move to Completed" tone="green" onClick={on.markDone} testId="more-done" />}
+        {on.markDone && <MenuRow icon={L(CheckCircle2)} title="Mark as done" sub="Move to Completed" tone="green" onClick={on.markDone} testId="more-done" />}
       </div>
       {on.delete && (
         <div className="mt-4 pt-1 border-t-4 border-gray-100">

@@ -60,6 +60,7 @@ import {
   formatCurrency, formatDateReadable, calcGST, waLink,
   buildLineEntries, flattenLineEntries, computeSectionTotal,
   functionDays, functionEnd, functionDateText, itemDays, lineAmount, usesDays, parseDiscount, formatRupees,
+  stableJson,
 } from '../utils/helpers';
 import {
   Printer, MessageSquare, X, Plus, Save, Package,
@@ -454,17 +455,31 @@ export default function QuotationGenerator() {
     return data;
   };
 
-  /** Writes the quote and shows a toast. `manual` = Save button ("Quotation saved"); auto-save says "✓ Saved". */
+  /**
+   * What "saved" compares: only the quote's own fields (items per event,
+   * prices, groups, terms, versions) with keys sorted. The rest of the event
+   * comes back from Firestore after each save, sometimes with keys in another
+   * order — comparing all of it made a just-saved quote look "not saved yet"
+   * and save again.
+   */
+  const quoteSnap = (data) => (data ? stableJson({
+    itemPrices: data.itemPrices, bundles: data.bundles, hidePrices: data.hidePrices, finalAmounts: data.finalAmounts,
+    quoteDetails: data.quoteDetails, quoteRevisions: data.quoteRevisions,
+    items: data.mainEvent ? [data.mainEvent.items, ...(data.subEvents || []).map(x => x.items)] : data.items,
+  }) : null);
+
+  /** Writes the quote. `manual` = Save button (toast "Quotation saved"); quiet auto-saves toast "✓ Saved" on laptops and only update the bar on phones. */
   const saveQuote = async (manual) => {
     clearTimeout(autoSaveTimer.current);
     const data = buildUpdateData();
-    const snap = JSON.stringify(data);
+    const snap = quoteSnap(data);
     setSaveState('saving');
     const result = await updateEvent(eventId, data);
     if (result.success) {
       lastSavedRef.current = snap;
-      setSaveState(JSON.stringify(latestDataRef.current) === snap ? 'saved' : 'unsaved');
-      showToast(manual ? 'Quotation saved' : '✓ Saved');
+      setSaveState(quoteSnap(latestDataRef.current) === snap ? 'saved' : 'unsaved');
+      // Phones show quiet saves in the bottom bar only ("✓ Saved"), so a toast and the bar never disagree
+      if (manual) showToast('Quotation saved'); else if (!isPhone) showToast('✓ Saved');
     } else {
       setSaveState('error');
       showToast(result.error || 'Couldn’t save the quotation — tap Save to try again', 'error');
@@ -474,7 +489,7 @@ export default function QuotationGenerator() {
 
   // Latest data, so a save that finishes can tell whether more edits came in meanwhile
   const currentData = buildUpdateData();
-  const currentSnap = currentData ? JSON.stringify(currentData) : null;
+  const currentSnap = quoteSnap(currentData);
   const latestDataRef = useRef(null);
   latestDataRef.current = currentData;
 
@@ -576,6 +591,22 @@ export default function QuotationGenerator() {
     const reordered = arrayMove(entries, oldIndex, newIndex);
     const newNames = flattenLineEntries(reordered, sectionId);
     setSectionItems(s => ({ ...s, [sectionId]: newNames }));
+  };
+
+  /** Phones: an item dragged to a new place inside its group (the group's order and the event's item order both follow) */
+  const handleMemberDragEnd = (sectionId, bundleId) => ({ active, over }) => {
+    if (!over || active.id === over.id) return;
+    const b = bundles.find(x => x.id === bundleId);
+    if (!b) return;
+    const from = b.itemKeys.indexOf(active.id), to = b.itemKeys.indexOf(over.id);
+    if (from === -1 || to === -1) return;
+    const keys = arrayMove(b.itemKeys, from, to);
+    setBundles(bs => bs.map(x => (x.id === bundleId ? { ...x, itemKeys: keys } : x)));
+    // The same names, in their new order, fill the places the group's items held in this event
+    const order = keys.filter(k => k.startsWith(`${sectionId}::`)).map(k => k.slice(sectionId.length + 2));
+    const inGroup = new Set(order);
+    let n = 0;
+    setSectionItems(si => ({ ...si, [sectionId]: (si[sectionId] || []).map(name => (inGroup.has(name) ? order[n++] : name)) }));
   };
 
   // ------------------------------------------------------------
@@ -1252,7 +1283,7 @@ export default function QuotationGenerator() {
               setDiscountText, setValidityDays, setGstEnabled, setGstRate, setHidePrices,
               toggleSelectForGroup, toggleSelectBundle, toggleSelectBundleMember,
               onGroup: handleGroupClick, onUngroup: handleUngroupSelected,
-              onDragEnd: handleDragEnd,
+              onDragEnd: handleDragEnd, onMemberDragEnd: handleMemberDragEnd,
               openItemMenu: setItemMenu, openGroupMenu: setGroupMenu,
               openAddItem: (sec) => { setAddItemSection(sec); setAddItemText(''); },
               openCategories: setCategoryModalSection,
@@ -1263,11 +1294,11 @@ export default function QuotationGenerator() {
             }} />
           )}
           {anyTicked ? (
-            <ActionBar dark testId="select-bar" label={`${tickedItems().length} selected`} value={formatRupees(tickedValue())}>
-              <button onClick={endSelect} className="min-h-[44px] px-3 rounded-xl text-white/80 font-semibold cursor-pointer">Clear</button>
-              <button onClick={askRemoveTicked} disabled={!tickedItems().length} className="min-h-[44px] px-3.5 rounded-xl bg-white text-red-600 font-semibold cursor-pointer disabled:opacity-40">Remove</button>
+            <ActionBar testId="select-bar" label={`${tickedItems().length} selected`} value={formatRupees(tickedValue())}>
+              <button onClick={endSelect} className="min-h-[44px] px-2.5 rounded-xl text-gray-600 font-semibold cursor-pointer">Clear</button>
+              <IconButton icon={Trash2} label="Remove ticked items" tone="red" onClick={askRemoveTicked} disabled={!tickedItems().length} data-testid="remove-ticked" />
               {canUngroup && !canGroup
-                ? <button onClick={() => { handleUngroupSelected(); }} className="min-h-[44px] px-3.5 rounded-xl bg-bb-accent text-white font-semibold cursor-pointer">Ungroup</button>
+                ? <button onClick={() => { handleUngroupSelected(); }} data-testid="ungroup-ticked" className="min-h-[44px] px-3.5 rounded-xl bg-bb-accent text-white font-semibold cursor-pointer">Ungroup</button>
                 : <button onClick={handleGroupClick} disabled={!canGroup} data-testid="make-group" className="min-h-[44px] px-3.5 rounded-xl bg-bb-accent text-white font-semibold cursor-pointer disabled:opacity-40">{canMergeIntoExisting ? 'Add to group' : 'Make a group'}</button>}
             </ActionBar>
           ) : (
@@ -1682,7 +1713,8 @@ export default function QuotationGenerator() {
       )}
       {sheet === 'revisions' && (
         <QuoteRevisionsSheet revisions={revisions} currentTotal={afterDiscount} revisedLabel={revisedLabel} onToggleRevised={setRevisedLabel}
-          onRestore={restoreRevision} onClose={() => setSheet(null)} locked={isSuspended} />
+          onRestore={restoreRevision} onClose={() => setSheet(null)} locked={isSuspended}
+          sections={printGroups.map(g => ({ id: g.id, name: g.name }))} current={{ itemPrices, bundles }} />
       )}
       {itemMenu && (() => {
         const inGroup = bundles.find(b => b.id === itemMenu.bundleId);

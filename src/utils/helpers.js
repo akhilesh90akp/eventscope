@@ -673,3 +673,14 @@ export const resizeImageFile = (file, maxWidth = 400) => new Promise((resolve, r
   };
   reader.readAsDataURL(file);
 });
+
+/**
+ * JSON with object keys sorted, so two copies of the same data compare equal
+ * even when Firestore hands the keys back in a different order (used by the
+ * quote's "saved / not saved yet" check).
+ */
+export const stableJson = (value) => JSON.stringify(value, (_k, v) => (
+  v && typeof v === 'object' && !Array.isArray(v)
+    ? Object.keys(v).sort().reduce((o, k) => { o[k] = v[k]; return o; }, {})
+    : v
+));

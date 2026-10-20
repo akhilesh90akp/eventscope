@@ -45,14 +45,14 @@ function Sortable({ id, children }) {
 }
 
 /** Start of a line: tick box on top (group / remove), ⋮⋮ drag handle under it */
-function Lead({ checked, onCheck, handle, label, noDrag = false }) {
+function Lead({ checked, onCheck, handle, label }) {
   return (
     <div className="flex flex-col items-center gap-1.5 shrink-0 w-7">
       <button onClick={onCheck} role="checkbox" aria-checked={checked} aria-label={`Select ${label}`}
         className={`w-6 h-6 rounded-md border-2 flex items-center justify-center cursor-pointer ${checked ? 'bg-bb-accent border-bb-accent text-white' : 'bg-white border-gray-300'}`}>
         {checked && <Check size={15} strokeWidth={3} />}
       </button>
-      {!noDrag && (
+      {(
         <button {...handle} aria-label={`Drag ${label}`} title="Hold and drag to move"
           className="w-7 h-8 flex items-center justify-center text-gray-400 touch-none cursor-grab active:cursor-grabbing">
           <GripVertical size={18} />
@@ -71,7 +71,7 @@ function ItemRow({ q, sectionId, name, keyId, bundle, handle, last }) {
   const set = (field, value) => (inBundle ? q.updateBundleMemberPrice(bundle, keyId, field, value) : q.setItemPrice(keyId, field, value));
   return (
     <div className={`flex items-start gap-2.5 py-3.5 ${last ? '' : 'border-b border-bb-border'} ${checked ? 'bg-violet-50 -mx-2.5 px-2.5 rounded-xl' : ''}`} data-testid="quote-item" data-item={name}>
-      <Lead checked={checked} handle={handle} label={name} noDrag={inBundle}
+      <Lead checked={checked} handle={handle} label={name}
         onCheck={() => (inBundle ? q.toggleSelectBundleMember(keyId) : q.toggleSelectForGroup(sectionId, name))} />
       <div className="flex-1 min-w-0">
       <div className="flex items-start gap-2.5">
@@ -95,33 +95,45 @@ function ItemRow({ q, sectionId, name, keyId, bundle, handle, last }) {
   );
 }
 
-/** A group: open, purple border, group price box, members inside */
+/**
+ * A group, top to bottom:
+ *   1. tick box + ⋮⋮ · group name, "Group · 3 items" · ⋮
+ *   2. Group price ₹ (one box, full width)
+ *   3. its items — each with a tick box and its own ⋮⋮ to reorder inside the group
+ */
 function GroupBlock({ q, sectionId, bundle, handle }) {
   const checked = q.selectedBundles.has(bundle.id);
   const members = bundle.itemKeys.filter(k => k.startsWith(`${sectionId}::`));
   return (
     <div className={`my-2 rounded-2xl border-[1.5px] ${checked ? 'border-bb-accent bg-violet-100/60' : 'border-violet-300 bg-violet-50/60'} px-3.5 pt-3`} data-testid="quote-group" data-group={bundle.name}>
-      <div className="flex items-center gap-2.5 pb-3 border-b border-violet-200">
-        <Lead checked={checked} handle={handle} label={bundle.name} onCheck={() => q.toggleSelectBundle(bundle.id)} />
-        <div className="flex-1 min-w-0">
-          <p className="text-[16px] font-extrabold text-bb-accent-hover break-words">{bundle.name}</p>
-          <p className="text-[13px] text-gray-600">Group · {members.length} items</p>
+      <div className="pb-3 border-b border-violet-200">
+        <div className="flex items-start gap-2.5">
+          <Lead checked={checked} handle={handle} label={bundle.name} onCheck={() => q.toggleSelectBundle(bundle.id)} />
+          <div className="flex-1 min-w-0 pt-0.5">
+            <p className="text-[16px] font-extrabold text-bb-accent-hover break-words leading-snug">{bundle.name}</p>
+            <p className="text-[13px] text-gray-600 mt-0.5">Group · {members.length} items · one price</p>
+          </div>
+          <IconButton icon={MoreVertical} label={`Options for group ${bundle.name}`} tone="quiet" size={36} iconSize={18} className="-mr-2 -mt-1"
+            onClick={() => q.openGroupMenu(bundle)} />
         </div>
         {!q.hidePrices && (
-          <label className="block w-[112px] shrink-0">
-            <span className="block text-[11.5px] text-gray-600 mb-1 ml-0.5">Group price ₹</span>
-            <input type="number" inputMode="decimal" min="0" value={bundle.amount || ''} aria-label={`${bundle.name} group price`}
+          <label className="flex items-center gap-3 mt-2.5 ml-[38px]">
+            <span className="text-[13.5px] font-semibold text-gray-700 shrink-0">Group price ₹</span>
+            <input type="number" inputMode="decimal" min="0" value={bundle.amount || ''} placeholder="0" aria-label={`${bundle.name} group price`} data-testid="group-price"
               onChange={e => q.setBundleAmount(bundle.id, Number(e.target.value) || 0)}
-              className="w-full min-h-[44px] rounded-xl border border-bb-border bg-white px-2.5 text-[15px] font-extrabold tabular-nums focus:outline-none focus:ring-2 focus:ring-bb-accent/40" />
+              className="flex-1 min-w-0 min-h-[46px] rounded-xl border border-bb-border bg-white px-3 text-[16px] font-extrabold tabular-nums text-right focus:outline-none focus:ring-2 focus:ring-bb-accent/40" />
           </label>
         )}
-        <IconButton icon={MoreVertical} label={`Options for group ${bundle.name}`} tone="quiet" size={36} iconSize={18} className="-mr-2"
-          onClick={() => q.openGroupMenu(bundle)} />
       </div>
-      {members.map((k, i) => (
-        <ItemRow key={k} q={q} sectionId={sectionId} name={k.slice(sectionId.length + 2)} keyId={k} bundle={bundle}
-          handle={{}} last={i === members.length - 1} />
-      ))}
+      <DndContext sensors={q.dndSensors} collisionDetection={closestCenter} onDragEnd={q.onMemberDragEnd(sectionId, bundle.id)}>
+        <SortableContext items={members} strategy={verticalListSortingStrategy}>
+          {members.map((k, i) => (
+            <Sortable key={k} id={k}>
+              {(h) => <ItemRow q={q} sectionId={sectionId} name={k.slice(sectionId.length + 2)} keyId={k} bundle={bundle} handle={h} last={i === members.length - 1} />}
+            </Sortable>
+          ))}
+        </SortableContext>
+      </DndContext>
     </div>
   );
 }
@@ -149,7 +161,7 @@ export default function QuotePhoneEditor({ q }) {
           <button key={t.id} onClick={t.onClick} disabled={t.disabled} data-testid={`tool-${t.id}`} aria-pressed={t.on}
             className={`shrink-0 min-h-[42px] px-3.5 rounded-xl border font-semibold text-[14px] inline-flex items-center gap-2 cursor-pointer whitespace-nowrap
               disabled:text-gray-400 disabled:border-gray-200 disabled:bg-gray-50 disabled:cursor-default
-              ${t.tone === 'main' ? 'bg-bb-accent border-bb-accent text-white' : t.tone === 'done' ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+              ${t.tone === 'main' ? 'bg-white border-bb-accent text-bb-accent-hover' : t.tone === 'done' ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
                 : t.tone === 'green' ? 'bg-white border-emerald-200 text-emerald-700' : t.on ? 'bg-violet-100 border-violet-300 text-bb-accent-hover' : 'bg-white border-gray-300 text-bb-text'}`}>
             <t.icon size={17} />{t.label}
           </button>

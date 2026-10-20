@@ -557,6 +557,7 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
             edit: fromMore(guard(() => navigate(`/edit/${moreEv.id}`))),
             addItems: fromMore(guard(() => { setAddItemModal(moreEv.id); setAddItemTarget('main'); })),
             setPrices: fromMore(guard(() => openPriceModal(moreEv))),
+            quote: fromMore(() => navigate(`/quotation/${moreEv.id}`)),
             contract: fromMore(() => navigate(`/contract/${moreEv.id}`)),
             move: getMoveOptions(moreEv.status).length ? fromMore(() => setMoveId(moreEv.id)) : undefined,
             markDone: moreEv.status === 'confirmed' ? fromMore(guard(() => markDone(moreEv.id))) : undefined,
