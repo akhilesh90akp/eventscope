@@ -3,7 +3,7 @@
  *
  * Fit to budget (and Restore) keep the prices from before as a revision on
  * the event (event.quoteRevisions — see utils/quoteFit.js). This lists them,
- * newest first. View opens a version's items and prices (with today's price
+ * newest first. Tapping a version (or its ⌄) opens its items and prices (with today's price
  * beside any line that has changed since); Restore puts it back and keeps
  * today's prices as a version too, so nothing is lost. Also holds the
  * "Revised quotation" PDF switch.
@@ -112,18 +112,18 @@ export default function QuoteRevisionsSheet({ revisions = [], currentTotal, revi
           return (
             <div key={r.id} data-testid="revision-row">
               <div className="flex items-center gap-2.5 py-3.5">
-                <button onClick={() => setOpenId(open ? null : r.id)} className="flex-1 min-w-0 text-left cursor-pointer" aria-expanded={open}>
+                <button onClick={() => setOpenId(open ? null : r.id)} className="flex-1 min-w-0 text-left cursor-pointer" aria-expanded={open} data-testid="revision-view-btn">
                   <p className="font-bold text-[16px]">Revision {revisions.length - i}</p>
                   <p className="text-[13px] text-gray-600">{r.label} · <b className="text-bb-text">{formatRupees(r.total)}</b></p>
                   <p className="text-[12.5px] text-gray-500">{when(r.at)}</p>
                 </button>
-                <button onClick={() => setOpenId(open ? null : r.id)} data-testid="revision-view-btn" aria-expanded={open}
-                  className="min-h-[42px] px-3 rounded-xl border border-gray-300 bg-white font-semibold text-[14px] inline-flex items-center gap-1 cursor-pointer">
-                  {open ? <>Hide<ChevronUp size={16} /></> : <>View<ChevronDown size={16} /></>}
-                </button>
                 <button onClick={() => onRestore(r)} disabled={locked} data-testid="revision-restore"
                   className="min-h-[42px] px-3 rounded-xl border border-gray-300 bg-white font-semibold text-[14px] inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-40">
                   <RotateCcw size={16} />Restore
+                </button>
+                <button onClick={() => setOpenId(open ? null : r.id)} aria-expanded={open} aria-label={open ? 'Hide this version' : 'Show this version'}
+                  className="w-10 h-10 -mr-1.5 rounded-xl flex items-center justify-center text-bb-muted hover:bg-gray-100 cursor-pointer">
+                  {open ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
                 </button>
               </div>
               {open && <RevisionView rev={r} sections={sections} current={current} />}

@@ -97,34 +97,39 @@ function ItemRow({ q, sectionId, name, keyId, bundle, handle, last }) {
 
 /**
  * A group, top to bottom:
- *   1. tick box + ⋮⋮ · group name, "Group · 3 items" · ⋮
- *   2. Group price ₹ (one box, full width)
+ *   1. a tinted header band: tick box + ⋮⋮ · "GROUP · 3 ITEMS" label, the
+ *      group name · ⋮, then Group price ₹ (one wide box)
  *   3. its items — each with a tick box and its own ⋮⋮ to reorder inside the group
  */
 function GroupBlock({ q, sectionId, bundle, handle }) {
   const checked = q.selectedBundles.has(bundle.id);
   const members = bundle.itemKeys.filter(k => k.startsWith(`${sectionId}::`));
   return (
-    <div className={`my-2 rounded-2xl border-[1.5px] ${checked ? 'border-bb-accent bg-violet-100/60' : 'border-violet-300 bg-violet-50/60'} px-3.5 pt-3`} data-testid="quote-group" data-group={bundle.name}>
-      <div className="pb-3 border-b border-violet-200">
+    <div className={`my-3 rounded-2xl border-[1.5px] overflow-hidden bg-white ${checked ? 'border-bb-accent' : 'border-violet-300'}`} data-testid="quote-group" data-group={bundle.name}>
+      {/* Header band — tinted, with a GROUP label, so it never reads as an item */}
+      <div className={`px-3.5 pt-3 pb-3.5 ${checked ? 'bg-violet-200/70' : 'bg-violet-100'}`} data-testid="group-header">
         <div className="flex items-start gap-2.5">
           <Lead checked={checked} handle={handle} label={bundle.name} onCheck={() => q.toggleSelectBundle(bundle.id)} />
-          <div className="flex-1 min-w-0 pt-0.5">
-            <p className="text-[16px] font-extrabold text-bb-accent-hover break-words leading-snug">{bundle.name}</p>
-            <p className="text-[13px] text-gray-600 mt-0.5">Group · {members.length} items · one price</p>
+          <div className="flex-1 min-w-0">
+            <p className="flex items-center gap-1.5 text-[11.5px] font-bold uppercase tracking-wider text-bb-accent-hover">
+              <Layers size={14} />Group · {members.length} items
+            </p>
+            <p className="text-[17px] font-extrabold text-bb-text break-words leading-snug mt-0.5">{bundle.name}</p>
           </div>
           <IconButton icon={MoreVertical} label={`Options for group ${bundle.name}`} tone="quiet" size={36} iconSize={18} className="-mr-2 -mt-1"
             onClick={() => q.openGroupMenu(bundle)} />
         </div>
         {!q.hidePrices && (
-          <label className="flex items-center gap-3 mt-2.5 ml-[38px]">
+          <label className="flex items-center gap-3 mt-3 ml-[38px]">
             <span className="text-[13.5px] font-semibold text-gray-700 shrink-0">Group price ₹</span>
             <input type="number" inputMode="decimal" min="0" value={bundle.amount || ''} placeholder="0" aria-label={`${bundle.name} group price`} data-testid="group-price"
               onChange={e => q.setBundleAmount(bundle.id, Number(e.target.value) || 0)}
-              className="flex-1 min-w-0 min-h-[46px] rounded-xl border border-bb-border bg-white px-3 text-[16px] font-extrabold tabular-nums text-right focus:outline-none focus:ring-2 focus:ring-bb-accent/40" />
+              className="flex-1 min-w-0 min-h-[46px] rounded-xl border border-violet-300 bg-white px-3 text-[16px] font-extrabold tabular-nums text-right focus:outline-none focus:ring-2 focus:ring-bb-accent/40" />
           </label>
         )}
       </div>
+      {/* Items in the group — each reorders with its own ⋮⋮ */}
+      <div className="px-3.5">
       <DndContext sensors={q.dndSensors} collisionDetection={closestCenter} onDragEnd={q.onMemberDragEnd(sectionId, bundle.id)}>
         <SortableContext items={members} strategy={verticalListSortingStrategy}>
           {members.map((k, i) => (
@@ -134,6 +139,7 @@ function GroupBlock({ q, sectionId, bundle, handle }) {
           ))}
         </SortableContext>
       </DndContext>
+      </div>
     </div>
   );
 }

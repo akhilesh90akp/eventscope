@@ -44,7 +44,7 @@ const Chip = ({ className, children, testId }) => (
 );
 
 /** Square text button of the action row (Quote / Bill / Job Log / Confirm…) */
-function RowButton({ icon: Icon, children, onClick, kind = 'secondary', testId, compact = false, wide = false }) {
+function RowButton({ icon: Icon, children, onClick, kind = 'secondary', testId, compact = false }) {
   const look = {
     primary: 'bg-bb-accent text-white border-transparent hover:bg-bb-accent-hover',
     success: 'bg-emerald-600 text-white border-transparent hover:bg-emerald-700',
@@ -52,7 +52,7 @@ function RowButton({ icon: Icon, children, onClick, kind = 'secondary', testId, 
   }[kind];
   return (
     <button onClick={onClick} data-testid={testId}
-      className={`${wide ? 'flex-[1.8]' : 'flex-1'} min-w-0 min-h-[44px] px-2.5 rounded-xl border inline-flex items-center justify-center gap-1.5 font-semibold text-[15px] cursor-pointer whitespace-nowrap ${look}`}>
+      className={`flex-1 min-w-0 min-h-[44px] px-2.5 rounded-xl border inline-flex items-center justify-center gap-1.5 font-semibold text-[15px] cursor-pointer whitespace-nowrap ${look}`}>
       {Icon && <Icon size={18} className={`shrink-0 ${compact ? 'max-[400px]:hidden' : ''}`} />}<span className="truncate">{children}</span>
     </button>
   );
@@ -132,11 +132,14 @@ export default function EventCardPhone({ ev, variant = ev?.status, on = {}, lock
         </button>
       )}
 
-      {/* Confirmed and the day is over: Mark as done becomes the main button */}
+      {/* Confirmed and the day is over: a green strip with Mark as done */}
       {dayOver && (
-        <p className="mb-2.5 flex items-center gap-1.5 text-[13.5px] font-semibold text-emerald-800" data-testid="day-over">
-          <CheckCircle2 size={16} className="shrink-0" />The event day is over — mark it done to move it to Completed
-        </p>
+        <div className="mb-3.5 flex items-center gap-2.5 rounded-xl bg-emerald-50 px-3 py-2" data-testid="day-over">
+          <span className="flex-1 text-[14px] font-semibold text-emerald-800">The event day is over</span>
+          <button onClick={on.markDone} data-testid="btn-done" className="min-h-[40px] px-3 rounded-xl bg-emerald-600 text-white font-semibold text-[14px] inline-flex items-center gap-1.5 cursor-pointer">
+            {React.createElement(LockOr(CheckCircle2), { size: 17 })}Mark as done
+          </button>
+        </div>
       )}
 
       {/* One action row */}
@@ -146,11 +149,7 @@ export default function EventCardPhone({ ev, variant = ev?.status, on = {}, lock
           <RowButton icon={FileText} onClick={on.quote} testId="btn-quote">Quote</RowButton>
           {phone && <IconButton as="a" href={telLink(phone)} icon={Phone} label="Call" tone="green" />}
         </>}
-        {dayOver && <>
-          <RowButton kind="success" wide icon={LockOr(CheckCircle2)} onClick={on.markDone} testId="btn-done">Mark as done</RowButton>
-          <RowButton icon={on.bill ? Receipt : FileText} onClick={on.bill || on.quote} testId={on.bill ? 'btn-bill' : 'btn-quote'}>{on.bill ? 'Bill' : 'Quote'}</RowButton>
-        </>}
-        {!dayOver && (variant === 'confirmed' || variant === 'home') && <>
+        {(variant === 'confirmed' || variant === 'home') && <>
           <RowButton icon={FileText} onClick={on.quote} testId="btn-quote" compact={variant === 'confirmed' && !!phone}>Quote</RowButton>
           {variant === 'confirmed' && <RowButton icon={Receipt} onClick={on.bill} testId="btn-bill" compact={!!phone}>Bill</RowButton>}
           {phone && <IconButton as="a" href={telLink(phone)} icon={Phone} label="Call" tone="green" />}
