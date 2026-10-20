@@ -28,7 +28,7 @@ import { HeaderTextButton } from '../components/PhoneHeader';
 import ActionBar from '../components/ActionBar';
 import { useApp } from '../context/AppContext';
 import Card from '../components/Card';
-import PageHeader from '../components/PageHeader';
+import StickyBar from '../components/StickyBar';
 import Button from '../components/Button';
 import Input from '../components/Input';
 import Modal from '../components/Modal';
@@ -305,29 +305,28 @@ export default function Settings() {
   }
 
   return (
-    <div className="space-y-4 pb-8 lg:max-w-[1080px]">
-      {/* Laptop: title + Save, with the section tabs — pinned while scrolling */}
-      {!isPhone && (
-        <PageHeader sticky title="Settings"
-          actions={savable && <Button icon={Save} onClick={handleSave} disabled={saving} data-testid="settings-save-top">{saving ? 'Saving…' : 'Save changes'}</Button>}>
-          <div className="flex gap-1.5 overflow-x-auto pb-0.5">
-            {tabs.map(t => (
-              <button
-                key={t.key}
-                onClick={() => setTab(t.key)}
-                className={`flex items-center gap-1.5 px-3 min-h-[38px] text-sm font-semibold rounded-lg whitespace-nowrap transition-colors cursor-pointer ${
-                  tab === t.key
-                    ? 'bg-bb-accent text-white'
-                    : 'bg-bb-card border border-bb-border text-bb-muted hover:text-bb-text'
-                }`}
-              >
-                <t.icon size={16} />
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </PageHeader>
-      )}
+    <div className="space-y-4 pb-8">
+      {!isPhone && <h1 className="text-xl font-bold text-bb-text">Settings</h1>}
+
+      {/* Tab Buttons — stay pinned while scrolling (laptops; phones open one section at a time) */}
+      {!isPhone && <StickyBar>
+        <div className="flex gap-1.5 overflow-x-auto pb-1">
+          {tabs.map(t => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-colors cursor-pointer ${
+                tab === t.key
+                  ? 'bg-bb-accent text-white'
+                  : 'bg-bb-card border border-bb-border text-bb-muted hover:text-bb-text'
+              }`}
+            >
+              <t.icon size={16} />
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </StickyBar>}
 
       {/* What this tab is for */}
       <p className="text-sm text-bb-muted -mt-1" data-testid="tab-help">{TAB_HELP[tab]}</p>

@@ -22,7 +22,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import PageHeader from '../components/PageHeader';
+import BackButton from '../components/BackButton';
 import Button from '../components/Button';
 import PdfButton from '../components/PdfButton';
 import Input from '../components/Input';
@@ -310,40 +310,38 @@ export default function BillGenerator() {
   return (
     <div className="space-y-4 pb-8">
       {/* === LAPTOP: controls (hidden in print) === */}
-      {!isPhone && <div data-no-print className="space-y-5">
-        {/* Title row with the document actions, pinned while you scroll the preview */}
-        <PageHeader sticky title="Invoice" sub={headerSub} onBack={() => (((window.history.state?.idx ?? 0) > 0) ? navigate(-1) : navigate('/completed'))}
-          actions={<>
-            <Button variant="secondary" icon={MessageSquare} onClick={handleWhatsApp} className="!text-emerald-700">WhatsApp</Button>
-            <Button icon={Printer} variant="secondary" onClick={handlePrint}>Print</Button>
-            <Button icon={Save} variant="secondary" onClick={handleManualSave} disabled={autoSaving}>{autoSaving ? 'Saving…' : 'Save'}</Button>
-            <PdfButton docRef={pdfRef} fileName={`${docTitle()}.pdf`} />
-          </>} />
+      {!isPhone && <div data-no-print className="space-y-4">
+        <div className="flex items-center gap-3">
+          <BackButton />
+          <h1 className="text-xl font-bold text-bb-text">Invoice</h1>
+        </div>
 
-        {/* Invoice details, grouped like the phone */}
-        <div className="grid grid-cols-3 gap-5 items-start">
-          <Card className="space-y-4">
-            <SectionLabel>Invoice</SectionLabel>
+        {/* Invoice configuration form */}
+        <Card>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <Input label="Invoice No" value={invoiceNo} onChange={e => setInvoiceNo(e.target.value)} />
             <Input label="Invoice Date" type="date" value={invoiceDate} onChange={e => setInvoiceDate(e.target.value)} />
-          </Card>
-          <Card className="space-y-4">
-            <SectionLabel>Bill to</SectionLabel>
             <Input label="Bill To (Name)" value={billToName} onChange={e => setBillToName(e.target.value)} />
             <Input label="Bill To (Address)" value={billToAddress} onChange={e => setBillToAddress(e.target.value)} />
-          </Card>
-          <Card className="space-y-4">
-            <SectionLabel>Payment &amp; GST</SectionLabel>
-            <div className="grid grid-cols-2 gap-3">
-              <Input label="Discount (₹)" type="number" value={discount} onChange={e => setDiscount(e.target.value)} />
-              <Input label="Advance Paid (₹)" type="number" value={advance} onChange={e => setAdvance(e.target.value)} />
-            </div>
-            <div className="flex items-end gap-4 flex-wrap">
-              <Toggle label="GST" checked={gstEnabled} onChange={e => setGstEnabled(e.target.checked)} />
-              {gstEnabled && <Select label="GST Rate" options={['5', '12', '18', '28']} value={gstRate} onChange={e => setGstRate(e.target.value)} className="w-24" />}
-            </div>
-            {gstEnabled && <Toggle label="Inter-State (IGST)" checked={interState} onChange={e => setInterState(e.target.checked)} />}
-          </Card>
+            <Input label="Discount (₹)" type="number" value={discount} onChange={e => setDiscount(e.target.value)} />
+            <Input label="Advance Paid (₹)" type="number" value={advance} onChange={e => setAdvance(e.target.value)} />
+            <Select label="GST Rate" options={['5', '12', '18', '28']} value={gstRate} onChange={e => setGstRate(e.target.value)} />
+          </div>
+          <div className="flex items-center gap-6 mt-4">
+            <Toggle label="GST" checked={gstEnabled} onChange={e => setGstEnabled(e.target.checked)} />
+            <Toggle label="Inter-State (IGST)" checked={interState} onChange={e => setInterState(e.target.checked)} />
+          </div>
+        </Card>
+
+        {/* Action buttons */}
+        <div data-no-print className="flex gap-2 flex-wrap">
+          <Button icon={Save} variant={hasUnsavedChanges ? 'secondary' : 'outline'} onClick={handleManualSave} disabled={autoSaving}>
+            {autoSaving ? 'Saving...' : 'Save'}
+          </Button>
+          <PdfButton docRef={pdfRef} fileName={`${docTitle()}.pdf`} />
+          <span className="hidden md:contents"><Button icon={Printer} variant="secondary" onClick={handlePrint}>Print</Button></span>
+          <Button icon={MessageSquare} variant="success" onClick={handleWhatsApp}>Share via WhatsApp</Button>
+          <Button variant="secondary" onClick={() => navigate(-1)}>Back</Button>
         </div>
       </div>}
 

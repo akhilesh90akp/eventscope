@@ -25,10 +25,10 @@ import { usePhoneHeader } from '../components/phoneScreens';
 import ActionBar from '../components/ActionBar';
 import DocFit from '../components/DocFit';
 import StickyBar from '../components/StickyBar';
-import { SegmentedTabs, SwitchRow, DateField, TextField, SectionLabel } from '../components/PhoneUI';
+import { SegmentedTabs, SwitchRow, DateField, TextField } from '../components/PhoneUI';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import PageHeader from '../components/PageHeader';
+import BackButton from '../components/BackButton';
 import Button from '../components/Button';
 import PdfButton from '../components/PdfButton';
 import Card from '../components/Card';
@@ -170,24 +170,15 @@ export default function ContractGenerator() {
   return (
     <div className="space-y-4 pb-8">
       {/* === LAPTOP: controls (hidden in print) === */}
-      {!isPhone && <div data-no-print className="space-y-5">
-        {/* Title row with the document actions, pinned while you scroll the preview */}
-        <PageHeader sticky title="Contract" sub={headerSub} onBack={() => (((window.history.state?.idx ?? 0) > 0) ? navigate(-1) : navigate('/confirmed'))}
-          actions={<>
-            <Button icon={Printer} variant="secondary" onClick={handlePrint}>Print</Button>
-            <PdfButton docRef={docRef} fileName={`${docTitle}.pdf`} variant="secondary" />
-            {canEditEvents && (
-              <Button icon={Save} variant={unsaved ? 'primary' : 'secondary'} onClick={handleSave} disabled={saving}>
-                {saving ? 'Saving…' : unsaved ? 'Save' : '✓ Saved'}
-              </Button>
-            )}
-          </>} />
-
-        <div className="grid grid-cols-2 gap-5 items-start">
+      {!isPhone && <div data-no-print className="space-y-4">
+        <div className="flex items-center gap-3">
+          <BackButton />
+          <h1 className="text-xl font-bold text-bb-text">Contract</h1>
+        </div>
 
         {/* Client */}
         <Card>
-          <SectionLabel className="mb-4">Client</SectionLabel>
+          <h2 className="text-sm font-semibold text-bb-text mb-3">Client</h2>
           <fieldset disabled={!canEditEvents} className="grid grid-cols-1 md:grid-cols-2 gap-3 min-w-0">
             <Input label="Client name (as it should appear)" value={form.clientName} onChange={set('clientName')} />
             <Input label="Phone" value={form.clientPhone} onChange={set('clientPhone')} />
@@ -197,8 +188,8 @@ export default function ContractGenerator() {
 
         {/* Payment */}
         <Card>
-          <SectionLabel className="mb-4">Payment</SectionLabel>
-          <fieldset disabled={!canEditEvents} className="grid grid-cols-1 md:grid-cols-2 gap-3 min-w-0">
+          <h2 className="text-sm font-semibold text-bb-text mb-3">Payment</h2>
+          <fieldset disabled={!canEditEvents} className="grid grid-cols-1 md:grid-cols-3 gap-3 min-w-0">
             <Input label={`Contract amount (₹) — quote total ${formatRupees(c.quoteTotal)}`} type="number" value={form.amount} placeholder={String(c.quoteTotal)} onChange={set('amount')} />
             <Input label="Advance received (₹)" type="number" value={form.advance} onChange={set('advance')} />
             <Input label="Advance received on" type="date" value={form.advanceDate} onChange={set('advanceDate')} />
@@ -214,8 +205,8 @@ export default function ContractGenerator() {
 
         {/* Agreement */}
         <Card>
-          <SectionLabel className="mb-4">Agreement</SectionLabel>
-          <fieldset disabled={!canEditEvents} className="grid grid-cols-1 md:grid-cols-2 gap-3 min-w-0">
+          <h2 className="text-sm font-semibold text-bb-text mb-3">Agreement</h2>
+          <fieldset disabled={!canEditEvents} className="grid grid-cols-1 md:grid-cols-3 gap-3 min-w-0">
             <Input label="Agreement no." value={form.agreementNo} onChange={set('agreementNo')} />
             <Input label="Date" type="date" value={form.agreementDate} onChange={set('agreementDate')} />
             <Input label="Place signed" value={form.place} placeholder="e.g. Kochi" onChange={set('place')} />
@@ -238,6 +229,16 @@ export default function ContractGenerator() {
           )}
         </Card>
 
+        {/* Actions */}
+        <div className="flex gap-2 flex-wrap">
+          {canEditEvents && (
+            <Button icon={Save} variant={unsaved ? 'primary' : 'outline'} onClick={handleSave} disabled={saving}>
+              {saving ? 'Saving…' : unsaved ? 'Save' : 'Saved'}
+            </Button>
+          )}
+          <PdfButton docRef={docRef} fileName={`${docTitle}.pdf`} variant="secondary" />
+          <span className="hidden md:contents"><Button icon={Printer} variant="secondary" onClick={handlePrint}>Print</Button></span>
+          <Button variant="secondary" onClick={() => navigate(-1)}>Back</Button>
         </div>
         <p className="text-xs text-bb-muted">
           This is a standard agreement. Have your advocate read it once before first use. Stamp paper value depends on the contract amount — ask your stamp vendor.
