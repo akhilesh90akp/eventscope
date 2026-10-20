@@ -116,7 +116,7 @@ export function StatRow({ items, testId = 'stat-row' }) {
   return (
     <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }} data-testid={testId}>
       {items.map(s => (
-        <div key={s.label} className="bg-white border border-bb-border rounded-xl px-4 py-3 min-w-0" data-testid={s.testId}>
+        <div key={s.key || s.label} className="bg-white border border-bb-border rounded-xl px-4 py-3 min-w-0" data-testid={s.testId}>
           <p className="text-[12px] font-semibold text-bb-muted flex items-center gap-1.5">
             <span data-testid={s.testId ? `${s.testId}-label` : undefined}>{s.label}</span>
             {s.info && <span title={s.info} aria-label={s.info} className="text-gray-300 hover:text-gray-500 cursor-help"><Info size={13} /></span>}

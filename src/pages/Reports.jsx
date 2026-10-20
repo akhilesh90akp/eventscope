@@ -12,6 +12,8 @@
  * Purchases (tenants/{id}/purchases) in the same period give "Spent on
  * purchases" and "Profit after purchases"; they never change an event's profit.
  * The All time tab groups the list by financial year (Apr–Mar).
+ * Laptops: title row (Print · PDF · Job Log), one filter strip, a row of five
+ * quiet number cards (StatRow) and a table with a title and a Total row.
  * Read-only: this page doesn't write anything back.
  */
 
@@ -21,13 +23,11 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import Card from '../components/Card';
-import Button from '../components/Button';
-import Input from '../components/Input';
 import Badge from '../components/Badge';
 import PdfButton from '../components/PdfButton';
 import { formatCurrency, formatRupees, formatDateReadable, formatDateRange, functionEnd, getActiveDate, getEventRevenue, computeEventFinancials, openJobLog } from '../utils/helpers';
 import { fyStart, fyLabel, purchasesBetween, purchaseTotal } from '../utils/purchases';
-import { Printer, Calendar, BarChart3, ExternalLink, Lock } from 'lucide-react';
+import { Printer, BarChart3, Lock, Table2 } from 'lucide-react';
 import UpgradeCard from '../components/UpgradeCard';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -35,6 +35,7 @@ import { useIsPhone } from '../components/useIsPhone';
 import { usePhoneHeader } from '../components/phoneScreens';
 import StickyBar from '../components/StickyBar';
 import { SegmentedTabs, SectionLabel, IconButton, DateField } from '../components/PhoneUI';
+import { PageHeader, HeaderIcon, StatRow, Seg, Switch } from '../components/LaptopUI';
 
 // ============================================================
 // HELPERS
@@ -307,13 +308,15 @@ export default function Reports() {
   // ------------------------------------------------------------
   // RENDER — PHONE
   // ------------------------------------------------------------
+  // ‹ month / year › stepper (phone and laptop)
+  const shift = (n) => {
+    if (filter === 'monthly') { const [y, m] = month.split('-').map(Number); const d = new Date(y, m - 1 + n, 1); setMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`); }
+    if (filter === 'yearly') setYear(String(Number(year) + n));
+  };
+  const periodLabel = filter === 'monthly' ? new Date(`${month}-01T00:00:00`).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }) : year;
+  const groups = yearGroups || [{ fy: null, label: '', events: filteredEvents, revenue: stats.revenue }];
+
   if (isPhone) {
-    const shift = (n) => {
-      if (filter === 'monthly') { const [y, m] = month.split('-').map(Number); const d = new Date(y, m - 1 + n, 1); setMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`); }
-      if (filter === 'yearly') setYear(String(Number(year) + n));
-    };
-    const periodLabel = filter === 'monthly' ? new Date(`${month}-01T00:00:00`).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }) : year;
-    const groups = yearGroups || [{ fy: null, label: '', events: filteredEvents, revenue: stats.revenue }];
     return (
       <div data-testid="reports-phone">
         <div data-no-print className="space-y-4">
@@ -419,171 +422,116 @@ export default function Reports() {
   // ------------------------------------------------------------
   // RENDER — LAPTOP
   // ------------------------------------------------------------
+  const tableTitle = filter === 'all' ? 'All events' : filter === 'custom'
+    ? (dateFrom || dateTo ? `Events ${dateFrom ? `from ${formatDateReadable(dateFrom)}` : ''} ${dateTo ? `to ${formatDateReadable(dateTo)}` : ''}`.replace(/\s+/g, ' ').trim() : 'Events')
+    : `Events in ${periodLabel}`;
+  const showStatus = statusFilter === 'all';
+  const th = 'py-2.5 px-3 text-[11px] font-bold uppercase tracking-[0.06em] text-bb-muted';
   return (
     <div>
       {/* Screen UI - hidden during print */}
-      <div data-no-print className="space-y-4">
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-bb-text">Reports</h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <PdfButton docRef={reportRef} fileName={`${reportTitle}.pdf`} label={`Download PDF · ${filterTabs.find(t => t.key === filter)?.label}`} variant="secondary" />
-            <span className="hidden md:contents"><Button icon={Printer} variant="secondary" onClick={handlePrint}>Print</Button></span>
-            {/* Job Log is a wide grid — laptop/tablet only (md and up) */}
-            <span className="hidden md:contents"><Button icon={ExternalLink} onClick={openJobLog}>Open Job Log</Button></span>
-          </div>
-        </div>
-        <p className="text-sm text-bb-muted -mt-1">
-          How the business is doing — all time, or any month, year or dates you pick: number of events, revenue, profit and what you spent on purchases. Download it as a PDF for your accountant or partners.
-        </p>
+      <div data-no-print className="space-y-4" data-testid="reports-laptop">
+        <PageHeader title="Reports" sub="How the business is doing, for any period"
+          actions={<>
+            <HeaderIcon icon={Printer} label="Print" onClick={handlePrint} data-testid="hdr-print" />
+            <PdfButton docRef={reportRef} fileName={`${reportTitle}.pdf`} variant="laptop" />
+            <HeaderIcon icon={Table2} label="Open Job Log" tone="primary" onClick={openJobLog} data-testid="hdr-joblog" />
+          </>} />
 
-        {/* Filter Tabs */}
-      <div className="flex gap-2">
-        {filterTabs.map(t => (
-          <button
-            key={t.key}
-            onClick={() => setFilter(t.key)}
-            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors cursor-pointer ${
-              filter === t.key
-                ? 'bg-bb-accent text-white'
-                : 'bg-bb-card border border-bb-border text-bb-muted hover:text-bb-text'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Date Inputs - changes based on active filter tab (none for All time) */}
-      {filter !== 'all' && <Card>
-        <div className="flex flex-wrap gap-3 items-end">
-          {filter === 'monthly' && (
-            <Input label="Month" type="month" value={month} onChange={e => setMonth(e.target.value)} icon={Calendar} />
-          )}
-          {filter === 'yearly' && (
-            <Input label="Year" type="number" value={year} onChange={e => setYear(e.target.value)} icon={Calendar} className="w-32" />
+        {/* Filter strip: period tabs · ‹ month › · Completed | All events · Without GST */}
+        <div className="flex items-center gap-3 flex-wrap bg-white border border-bb-border rounded-2xl px-3 py-2" data-testid="report-filters">
+          <Seg label="Period" value={filter} onChange={setFilter} testId="report-period"
+            options={[{ value: 'all', label: 'All time' }, { value: 'monthly', label: 'Month' }, { value: 'yearly', label: 'Year' }, { value: 'custom', label: 'Custom' }]} />
+          {(filter === 'monthly' || filter === 'yearly') && (
+            <span className="flex items-center gap-1">
+              <IconButton icon={ChevronLeft} label={filter === 'monthly' ? 'Previous month' : 'Previous year'} tone="quiet" size={32} iconSize={17} onClick={() => shift(-1)} />
+              <b className="min-w-[132px] text-center text-[14px]" data-testid="report-period-label">{periodLabel}</b>
+              <IconButton icon={ChevronRight} label={filter === 'monthly' ? 'Next month' : 'Next year'} tone="quiet" size={32} iconSize={17} onClick={() => shift(1)} />
+            </span>
           )}
           {filter === 'custom' && (
-            <>
-              <Input label="From" type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} icon={Calendar} />
-              <Input label="To" type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} icon={Calendar} />
-            </>
+            <span className="flex items-center gap-2 text-[13px] text-bb-muted">
+              <input type="date" aria-label="From" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="h-[34px] rounded-lg border border-bb-border bg-bb-input px-2 text-[13px] text-bb-text" />
+              to
+              <input type="date" aria-label="To" value={dateTo} onChange={e => setDateTo(e.target.value)} className="h-[34px] rounded-lg border border-bb-border bg-bb-input px-2 text-[13px] text-bb-text" />
+            </span>
           )}
+          <span className="flex-1" />
+          <Seg label="Which events" value={statusFilter} onChange={setStatusFilter} testId="report-status"
+            options={[{ value: 'completed', label: 'Completed' }, { value: 'all', label: 'All events' }]} />
+          <span className="w-px h-6 bg-bb-border" />
+          <Switch checked={excludeGST} onChange={setExcludeGST} label="Without GST" testId="exclude-gst" />
         </div>
-      </Card>}
 
-      {/* Status Filter + GST Toggle */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex gap-1">
-          {[{key: 'completed', label: 'Completed'}, {key: 'all', label: 'All'}].map(s => (
-            <button key={s.key} onClick={() => setStatusFilter(s.key)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-lg cursor-pointer transition-colors ${
-                statusFilter === s.key ? 'bg-bb-accent text-white' : 'bg-bb-card border border-bb-border text-bb-muted'
-              }`}>{s.label}</button>
-          ))}
-        </div>
-        <label className="flex items-center gap-2 text-xs text-bb-muted cursor-pointer">
-          <input type="checkbox" checked={excludeGST} onChange={e => setExcludeGST(e.target.checked)} className="rounded" />
-          Exclude GST from amounts
-        </label>
-      </div>
+        {/* One row of quiet number cards */}
+        <StatRow items={[
+          { label: 'Revenue', value: formatRupees(stats.revenue), tone: 'accent', hint: 'After discount, before GST', info: 'What your clients pay you for these events (after discount, before GST)', testId: 'rep-revenue' },
+          { label: <span data-testid="profit-label">Profit</span>, key: 'profit', value: formatRupees(stats.profit), tone: stats.profit >= 0 ? 'green' : 'red',
+            hint: stats.missingCosts > 0
+              ? <span data-testid="missing-costs">Based on {stats.profitEvents} of {stats.completed} events · <button onClick={() => navigate('/completed')} className="font-semibold text-bb-accent-hover hover:underline cursor-pointer">add expenses</button></span>
+              : `Expenses added for all ${stats.completed} events`,
+            hintTone: stats.missingCosts > 0 ? 'amber' : '', info: 'Revenue minus the expenses you entered in the Job Log, without purchases' },
+          { label: 'Profit after purchases', value: stats.enoughCosts ? formatRupees(stats.afterPurchases) : <span data-testid="after-hidden">—</span>,
+            tone: !stats.enoughCosts ? 'muted' : stats.afterPurchases >= 0 ? 'green' : 'red',
+            hint: stats.enoughCosts ? 'Profit − purchases' : 'Shows once most events have expenses', info: 'Profit, minus what you spent on purchases in this period' },
+          { label: 'Events', value: stats.total, hint: statusFilter === 'all' ? `${stats.completed} completed` : 'Completed', testId: 'rep-events' },
+          { label: 'Spent on purchases', value: `${stats.spent ? '− ' : ''}${formatRupees(stats.spent)}`, tone: 'red', hint: 'This period', info: 'Things you bought for the business — chairs, lights, equipment' },
+        ]} />
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
-        <Card>
-          <p className="text-xs text-bb-muted">Total</p>
-          <p className="text-xl font-bold text-bb-text">{stats.total}</p>
-        </Card>
-        <Card>
-          <p className="text-xs text-bb-muted">Completed</p>
-          <p className="text-xl font-bold text-blue-400">{stats.completed}</p>
-        </Card>
-        <Card>
-          <p className="text-xs text-bb-muted">Revenue</p>
-          <p className="text-lg font-bold text-bb-gold">{formatRupees(stats.revenue)}</p>
-          <p className="text-[10px] text-bb-muted">What your clients pay you for these events (after discount, before GST)</p>
-        </Card>
-        <Card>
-          <p className="text-xs text-bb-muted" data-testid="profit-label">Profit without purchases</p>
-          <p className={`text-lg font-bold ${stats.profit >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>{formatRupees(stats.profit)}</p>
-          {stats.missingCosts > 0 ? (
-            <p className="text-[11px] leading-snug text-amber-800" data-testid="missing-costs">
-              Based on {stats.profitEvents} event{stats.profitEvents === 1 ? '' : 's'} only. Add expenses for the other {stats.missingCosts} to see your real profit.
-            </p>
-          ) : <p className="text-[10px] text-bb-muted">Expenses added for all {stats.completed} completed events</p>}
-        </Card>
-        <Card>
-          <p className="text-xs text-bb-muted">Profit after purchases</p>
-          {stats.enoughCosts ? (
-            <>
-              <p className={`text-lg font-bold ${stats.afterPurchases >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>{formatRupees(stats.afterPurchases)}</p>
-              <p className="text-[10px] text-bb-muted">Profit, minus what you spent on purchases</p>
-            </>
-          ) : (
-            <>
-              <p className="text-lg font-bold text-bb-muted" data-testid="after-hidden">—</p>
-              <p className="text-[10px] text-bb-muted">Profit, minus what you spent on purchases. Shows up once most events have expenses added.</p>
-            </>
-          )}
-        </Card>
-        <Card>
-          <p className="text-xs text-bb-muted">Spent on purchases</p>
-          <p className="text-lg font-bold text-rose-600">{stats.spent ? '− ' : ''}{formatRupees(stats.spent)}</p>
-          <p className="text-[10px] text-bb-muted">Things you bought for the business — chairs, lights, equipment</p>
-        </Card>
-      </div>
-
-      {/* Events Table */}
-      <Card>
-        {filteredEvents.length === 0 ? (
-          <div className="text-center py-8">
-            <BarChart3 size={40} className="mx-auto text-bb-muted mb-3" />
-            <p className="text-bb-muted">No events in this period</p>
+        {/* The events */}
+        <div className="bg-white border border-bb-border rounded-2xl overflow-hidden" data-testid="report-table">
+          <div className="flex items-center gap-2.5 px-5 py-3.5">
+            <h2 className="text-[15px] font-bold text-bb-text">{tableTitle}</h2>
+            <span className="inline-flex items-center justify-center min-w-[1.6rem] h-[22px] px-2 rounded-full bg-violet-100 text-violet-700 text-xs font-bold tabular-nums">{filteredEvents.length}</span>
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          {filteredEvents.length === 0 ? (
+            <div className="text-center py-10 border-t border-bb-border">
+              <BarChart3 size={36} className="mx-auto text-bb-muted mb-2" />
+              <p className="text-bb-muted text-[14px]">No events in this period</p>
+            </div>
+          ) : (
+            <table className="w-full text-[13.5px]">
               <thead>
-                <tr className="border-b border-bb-border">
-                  <th className="py-2 px-2 text-left text-bb-muted font-medium">#</th>
-                  <th className="py-2 px-2 text-left text-bb-muted font-medium">Client</th>
-                  <th className="py-2 px-2 text-left text-bb-muted font-medium hidden sm:table-cell">Type</th>
-                  <th className="py-2 px-2 text-left text-bb-muted font-medium">Date</th>
-                  <th className="py-2 px-2 text-left text-bb-muted font-medium">Status</th>
-                  <th className="py-2 px-2 text-right text-bb-muted font-medium">Amount</th>
+                <tr className="bg-bb-bg/70 border-y border-bb-border text-left">
+                  <th className={`${th} w-12`}>#</th><th className={th}>Client</th><th className={th}>Type</th><th className={th}>Date</th>
+                  {showStatus && <th className={th}>Status</th>}
+                  <th className={`${th} text-right`}>Amount</th>
                 </tr>
               </thead>
               <tbody>
-                {(yearGroups || [{ fy: null, events: filteredEvents }]).map(g => (
+                {groups.map(g => (
                 <React.Fragment key={g.fy ?? 'list'}>
                 {yearGroups && (
-                  <tr className="bg-bb-accent/5 border-b border-bb-border" data-testid="year-heading">
-                    <td colSpan="3" className="py-2 px-2 font-bold text-bb-accent sm:hidden">{g.label} · {g.events.length}</td>
-                    <td colSpan="4" className="py-2 px-2 font-bold text-bb-accent hidden sm:table-cell">{g.label} · {g.events.length} event{g.events.length === 1 ? '' : 's'}</td>
-                    <td colSpan="2" className="py-2 px-2 text-right font-bold text-bb-text">{formatRupees(g.revenue)}</td>
+                  <tr className="bg-violet-50/60 border-b border-bb-border" data-testid="year-heading">
+                    <td colSpan={showStatus ? 5 : 4} className="py-2 px-3 font-bold text-bb-accent-hover">{g.label} · {g.events.length} event{g.events.length === 1 ? '' : 's'}</td>
+                    <td className="py-2 px-3 text-right font-bold tabular-nums">{formatRupees(g.revenue)}</td>
                   </tr>
                 )}
                 {g.events.map((e, i) => (
-                  <tr key={e.id} className="border-b border-bb-border/50">
-                    <td className="py-2 px-2 text-bb-muted">{i + 1}</td>
-                    <td className="py-2 px-2 text-bb-text font-medium truncate max-w-[120px]">{e.clientName}</td>
-                    <td className="py-2 px-2 text-bb-muted hidden sm:table-cell">{e.eventType}</td>
-                    <td className="py-2 px-2 text-bb-muted">{formatDateRange(e.mainEvent?.date || e.date, e.mainEvent ? functionEnd(e.mainEvent) : '')}</td>
-                    <td className="py-2 px-2"><Badge variant={e.status}>{e.status}</Badge></td>
-                    <td className="py-2 px-2 text-right text-bb-text">{formatRupees(getEventRevenue(e))}</td>
+                  <tr key={e.id} className="border-b border-gray-100 hover:bg-bb-bg/60 cursor-pointer" data-testid="report-row"
+                    onClick={() => navigate(`/${e.status === 'draft' ? 'drafts' : e.status}`, { state: { expandId: e.id } })}>
+                    <td className="py-2.5 px-3 text-bb-muted tabular-nums">{i + 1}</td>
+                    <td className="py-2.5 px-3 font-semibold text-bb-text">{e.clientName}</td>
+                    <td className="py-2.5 px-3 text-gray-600">{e.eventType}</td>
+                    <td className="py-2.5 px-3 text-gray-600 whitespace-nowrap">{formatDateRange(e.mainEvent?.date || e.date, e.mainEvent ? functionEnd(e.mainEvent) : '')}</td>
+                    {showStatus && <td className="py-2.5 px-3"><Badge variant={e.status}>{e.status}</Badge></td>}
+                    <td className="py-2.5 px-3 text-right font-semibold tabular-nums">{formatRupees(getEventRevenue(e))}</td>
                   </tr>
                 ))}
                 </React.Fragment>
                 ))}
+                <tr className="bg-bb-bg/70 font-bold" data-testid="report-total">
+                  <td colSpan={showStatus ? 5 : 4} className="py-3 px-3">Total · {filteredEvents.length} event{filteredEvents.length === 1 ? '' : 's'}</td>
+                  <td className="py-3 px-3 text-right text-bb-accent-hover tabular-nums">{formatRupees(stats.revenue)}</td>
+                </tr>
               </tbody>
             </table>
-          </div>
-        )}
-      </Card>
+          )}
+        </div>
       </div>
 
       {printable}
     </div>
   );
 }
+
