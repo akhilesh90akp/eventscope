@@ -25,15 +25,13 @@ import { IconButton, FunctionRow, MenuRow } from './PhoneUI';
 import {
   formatRupees, formatDateRange, eventCountdown, telLink, waLink, getEventSections, getAllEventDates,
   buildLineEntries, computeSectionTotal, lineAmount, itemDays, getEventBill, functionEnd, eventFunctions, eventItemCount,
+  countdownText, countdownTone,
 } from '../utils/helpers';
 
 // ============================================================
 // HELPERS
 // ============================================================
 
-/** "5 days" / "Today" / "Tomorrow" / "2 days ago" */
-const countdownText = (d) => (d < 0 ? `${Math.abs(d)} day${d === -1 ? '' : 's'} ago` : d === 0 ? 'Today' : d === 1 ? 'Tomorrow' : `${d} days`);
-const countdownTone = (d) => (d < 0 ? 'bg-gray-100 text-gray-700' : d <= 3 ? 'bg-red-100 text-red-700' : d <= 7 ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800');
 
 // ============================================================
 // SUB-COMPONENTS

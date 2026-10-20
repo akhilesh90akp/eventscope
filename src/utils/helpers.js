@@ -684,3 +684,9 @@ export const stableJson = (value) => JSON.stringify(value, (_k, v) => (
     ? Object.keys(v).sort().reduce((o, k) => { o[k] = v[k]; return o; }, {})
     : v
 ));
+
+/** Card chip text for days until an event: "5 days" / "Today" / "Tomorrow" / "2 days ago" */
+export const countdownText = (d) => (d < 0 ? `${Math.abs(d)} day${d === -1 ? '' : 's'} ago` : d === 0 ? 'Today' : d === 1 ? 'Tomorrow' : `${d} days`);
+
+/** Chip colours for countdownText: grey once past, red ≤ 3 days, amber ≤ 7, green otherwise */
+export const countdownTone = (d) => (d < 0 ? 'bg-gray-100 text-gray-700' : d <= 3 ? 'bg-red-100 text-red-700' : d <= 7 ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800');

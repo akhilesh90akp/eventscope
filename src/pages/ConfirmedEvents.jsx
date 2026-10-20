@@ -6,7 +6,8 @@
  * set per-item pricing, mark events as done, and navigate to generators.
  * Backward compatible with old event format.
  * Phones get EventCardPhone (one action row + ⋯ sheet + items sheet);
- * laptops (1024px+) keep the fold-open cards.
+ * laptops (1024px+) get EventCardLaptop: long cards, one per row, with a ⋯
+ * menu and a ⌄ fold-out (notes, addresses, costs).
  *
  * All updateEvent/deleteEvent calls await the Firestore result before
  * showing a success toast — see CODE_STRUCTURE.md §3-4.
@@ -24,29 +25,13 @@ import Button from '../components/Button';
 import Input from '../components/Input';
 import Modal from '../components/Modal';
 import { useConfirm } from '../components/useConfirm';
-import CostsPanel from '../components/CostsPanel';
-import EventSummary from '../components/EventSummary';
+import EventCardLaptop, { EventDetails } from '../components/EventCardLaptop';
+import { PageHeader, HeaderText } from '../components/LaptopUI';
 import EventCardPhone, { EventItemsSheet, EventMoreSheet } from '../components/EventCardPhone';
 import { useIsPhone } from '../components/useIsPhone';
-import { telLink, waLink, sortByActiveDate, openJobLog, functionDays, itemDays, lineAmount, getAllEventDates } from '../utils/helpers';
-import {
-  Search, Phone, MessageSquare, FileText, CheckCircle2,
-  MapPin, PackageOpen, Plus, Receipt, Edit3,
-  ChevronDown, ChevronUp, Home, Navigation, Trash2, MoreVertical,
-  ArrowLeftRight, ExternalLink, FileSignature,
-  Lock,
-} from 'lucide-react';
+import { sortByActiveDate, openJobLog, functionDays, itemDays, lineAmount, getAllEventDates } from '../utils/helpers';
+import { Search, PackageOpen, ArrowLeftRight, ExternalLink } from 'lucide-react';
 import { PlanTag } from '../components/UpgradeCard';
-
-// ============================================================
-// CONSTANTS
-// ============================================================
-
-/**
- * One group of buttons on an event card. Groups are set apart by extra space
- * (not divider lines, which end up dangling at the start of a wrapped row).
- */
-const ACTION_GROUP = 'flex flex-wrap items-center gap-2';
 
 // ============================================================
 // HELPERS
@@ -81,7 +66,6 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
   const { events, categories, updateEvent, deleteEvent, showToast, isOwner, isSuspended, askUnlock, canUse } = useApp();
   // Read-only (plan ended / paused): these buttons show a lock and explain why
   const guard = (fn) => (...args) => (isSuspended ? askUnlock() : fn(...args));
-  const lk = (icon) => (isSuspended ? Lock : icon);
   const confirm = useConfirm();
   const navigate = useNavigate();
   const location = useLocation();
@@ -306,14 +290,11 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
   // ------------------------------------------------------------
   return (
     <div className="space-y-4">
-      <div className="hidden lg:flex items-center gap-3">
-        <h1 className="text-xl font-bold text-bb-text">{pageLabel} Events<span className="inline-flex items-center justify-center align-middle min-w-[1.75rem] h-7 px-2 ml-2 rounded-full bg-violet-100 text-violet-700 text-sm font-bold tabular-nums" data-testid="title-count">{events.filter(e => e.status === statusFilter).length}</span></h1>
-        <span className="flex-1" />
-        {/* Job Log is a wide grid — laptop/tablet only (md and up) */}
-        {status === 'completed' && isOwner && (
-          <span className="hidden md:inline-flex"><Button size="sm" icon={ExternalLink} onClick={openJobLog}>Open Job Log</Button></span>
-        )}
-      </div>
+      {/* Laptop: title + count; Completed adds the Job Log */}
+      {!isPhone && (
+        <PageHeader title={`${pageLabel} events`} count={events.filter(e => e.status === statusFilter).length}
+          actions={status === 'completed' && isOwner && <HeaderText icon={ExternalLink} primary onClick={openJobLog}>Open Job Log</HeaderText>} />
+      )}
 
       {/* Search — stays pinned while scrolling */}
       <StickyBar>
@@ -326,7 +307,7 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
       </StickyBar>
 
       {/* === PHONE: quick filters (Confirmed) === */}
-      {isPhone && status === 'confirmed' && confirmedEvents.length > 0 && (
+      {status === 'confirmed' && confirmedEvents.length > 0 && (
         <div className="flex gap-2 overflow-x-auto -mt-1" data-testid="range-chips">
           {[['all', `All ${confirmedEvents.length}`], ['month', 'This month'], ['next30', 'Next 30 days']].map(([k, label]) => (
             <button key={k} onClick={() => setRange(k)}
@@ -366,185 +347,27 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
           </div>
         </Card>
       ) : (
-        !isPhone && <div className="space-y-3">
-          {confirmedEvents.map(ev => {
-            const allItems = getAllItems(ev);
-            const isExpanded = expandedId === ev.id;
-            return (
-              <Card key={ev.id}>
-                <div className="space-y-3">
-                  {/* Collapsed Header - Clickable */}
-                  <div className="cursor-pointer" onClick={() => toggleExpand(ev.id)}>
-                    <EventSummary
-                      ev={ev}
-                      right={isExpanded
-                        ? <ChevronUp size={18} className="text-bb-muted" />
-                        : <ChevronDown size={18} className="text-bb-muted" />}
-                    />
-                  </div>
-
-                  {/* Expanded Content */}
-                  {isExpanded && (
-                    <div className="space-y-3 pt-2 border-t border-bb-border">
-                      {/* Items with Prices */}
-                      {allItems.length > 0 && (
-                        <div>
-                          <p className="text-xs font-semibold text-bb-muted uppercase mb-1.5">Items</p>
-                          <div className="space-y-1">
-                            {(() => {
-                              const stored = ev.itemPrices || {};
-                              // Build keyed items for display grouped by event
-                              const keyedItems = [];
-                              if (ev.mainEvent) {
-                                (ev.mainEvent.items || []).forEach(item => {
-                                  keyedItems.push({ key: `main::${item}`, item, group: ev.mainEvent.name || ev.eventType || 'Main Event' });
-                                });
-                                (ev.subEvents || []).forEach(s => {
-                                  (s.items || []).forEach(item => {
-                                    keyedItems.push({ key: `${s.id}::${item}`, item, group: s.name || 'Sub Event' });
-                                  });
-                                });
-                              } else {
-                                allItems.forEach(item => {
-                                  keyedItems.push({ key: `main::${item}`, item, group: 'Event' });
-                                });
-                              }
-                              const hasMultipleGroups = ev.mainEvent && (ev.subEvents || []).length > 0;
-                              return keyedItems.map(({ key, item, group }) => {
-                                const price = stored[key] || stored[item];
-                                return (
-                                  <div key={key} className="flex items-center justify-between text-sm px-2 py-1 rounded bg-bb-input">
-                                    <span className="text-bb-text">
-                                      {hasMultipleGroups && <span className="text-bb-muted text-xs mr-1">({group})</span>}
-                                      {item}
-                                    </span>
-                                    {price && price.rate > 0 && (
-                                      <span className="text-bb-muted text-xs">
-                                        {price.qty} × ₹{price.rate.toLocaleString('en-IN')}{itemDays(price) > 1 ? ` × ${itemDays(price)} days` : ''} = ₹{lineAmount(price).toLocaleString('en-IN')}
-                                      </span>
-                                    )}
-                                  </div>
-                                );
-                              });
-                            })()}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Notes */}
-                      {ev.notes && (
-                        <div>
-                          <p className="text-xs font-semibold text-bb-muted uppercase mb-1">Notes</p>
-                          <p className="text-sm text-bb-muted bg-bb-input rounded-lg px-3 py-2">{ev.notes}</p>
-                        </div>
-                      )}
-
-                      {/* Location Details */}
-                      <div className="space-y-2">
-                        {ev.clientAddress && (
-                          <div className="flex items-start gap-2 text-sm text-bb-muted">
-                            <Home size={14} className="flex-shrink-0 mt-0.5" />
-                            <span>Client Address: <span className="text-bb-text">{ev.clientAddress}</span></span>
-                          </div>
-                        )}
-                        {(ev.mainEvent?.location || ev.eventLocation) && (
-                          <div className="flex items-start gap-2 text-sm text-bb-muted">
-                            <MapPin size={14} className="flex-shrink-0 mt-0.5" />
-                            <span>Event Location: <span className="text-bb-text">{ev.mainEvent?.location || ev.eventLocation}</span></span>
-                          </div>
-                        )}
-                        {ev.houseLocation && (
-                          <div className="flex items-start gap-2 text-sm text-bb-muted">
-                            <Navigation size={14} className="flex-shrink-0 mt-0.5" />
-                            <span>House Location: <span className="text-bb-text">{ev.houseLocation}</span></span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Costs & income — completed events only (same data as the Job Log) */}
-                      {ev.status === 'completed' && canUse('jobLog') && <CostsPanel event={ev} />}
-
-                      {/* Action Buttons */}
-                      <div className="flex flex-wrap gap-2 pt-2 border-t border-bb-border">
-                        {ev.clientPhone && (
-                          <a href={telLink(ev.clientPhone)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-emerald-600 text-emerald-600 hover:bg-emerald-50 transition-colors">
-                            <Phone size={14} /> Call
-                          </a>
-                        )}
-                        {(ev.clientWhatsapp || ev.clientPhone) && (
-                          <a href={waLink(ev.clientWhatsapp || ev.clientPhone)} target="_blank" rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-emerald-600 text-emerald-600 hover:bg-emerald-50 transition-colors">
-                            <MessageSquare size={14} /> WhatsApp
-                          </a>
-                        )}
-                        <Button size="sm" variant="secondary" icon={lk(Edit3)} onClick={guard(() => navigate(`/edit/${ev.id}`))}>Edit</Button>
-                        <Button size="sm" variant="secondary" icon={lk(Plus)} onClick={guard(() => { setAddItemModal(ev.id); setAddItemTarget('main'); })}>Add Item</Button>
-                        <Button icon={isSuspended ? Lock : undefined} size="sm" variant="secondary" onClick={guard(() => openPriceModal(ev))}>Set Prices</Button>
-                        <Button size="sm" variant="secondary" icon={FileText} onClick={() => navigate(`/quotation/${ev.id}`)}>Quote</Button>
-                        <Button size="sm" variant="secondary" icon={Receipt} onClick={() => navigate(`/bill/${ev.id}`)}>Bill</Button>
-                        <Button size="sm" variant="secondary" icon={FileSignature} onClick={() => navigate(`/contract/${ev.id}`)} >Contract{!canUse('contracts') && <PlanTag feature="contracts" />}</Button>
-                        {ev.status === 'confirmed' && (
-                          <Button size="sm" variant="success" icon={lk(CheckCircle2)} onClick={guard(() => markDone(ev.id))}>Mark Done</Button>
-                        )}
-                        <Button size="sm" variant="outline" icon={lk(Trash2)} className="border-red-500 text-red-500 hover:bg-red-50" onClick={guard(() => handleDelete(ev))}>Delete</Button>
-                        {getMoveOptions(ev.status).length > 0 && (
-                          <Button size="sm" variant="ghost" icon={MoreVertical} onClick={() => setMoveId(ev.id)} title="Move to..." />
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Action Buttons - Always visible in collapsed view. Grouped: contact ·
-                      edit/delete · items/prices · documents · status, with extra space between
-                      groups; rows wrap cleanly on any screen. */}
-                  {!isExpanded && (
-                    <div className="flex flex-wrap items-center gap-x-5 gap-y-2 pt-2 border-t border-bb-border">
-                      {(ev.clientPhone || ev.clientWhatsapp) && (
-                        <div className={ACTION_GROUP}>
-                          {ev.clientPhone && (
-                            <a href={telLink(ev.clientPhone)}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-emerald-600 text-emerald-600 hover:bg-emerald-50 transition-colors">
-                              <Phone size={14} /> Call
-                            </a>
-                          )}
-                          <a href={waLink(ev.clientWhatsapp || ev.clientPhone)} target="_blank" rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-emerald-600 text-emerald-600 hover:bg-emerald-50 transition-colors">
-                            <MessageSquare size={14} /> WhatsApp
-                          </a>
-                        </div>
-                      )}
-                      <div className={ACTION_GROUP}>
-                        <Button size="sm" variant="secondary" icon={lk(Edit3)} onClick={guard(() => navigate(`/edit/${ev.id}`))}>Edit</Button>
-                        <Button size="sm" variant="outline" icon={lk(Trash2)} className="border-red-500 text-red-500 hover:bg-red-50" onClick={guard(() => handleDelete(ev))}>Delete</Button>
-                      </div>
-                      <div className={ACTION_GROUP}>
-                        <Button size="sm" variant="secondary" icon={lk(Plus)} onClick={guard(() => { setAddItemModal(ev.id); setAddItemTarget('main'); })}>Add Item</Button>
-                        <Button icon={isSuspended ? Lock : undefined} size="sm" variant="secondary" onClick={guard(() => openPriceModal(ev))}>Set Prices</Button>
-                      </div>
-                      <div className={ACTION_GROUP}>
-                        <Button size="sm" variant="secondary" icon={FileText} onClick={() => navigate(`/quotation/${ev.id}`)}>Quote</Button>
-                        <Button size="sm" variant="secondary" icon={Receipt} onClick={() => navigate(`/bill/${ev.id}`)}>Bill</Button>
-                        <Button size="sm" variant="secondary" icon={FileSignature} onClick={() => navigate(`/contract/${ev.id}`)} >Contract{!canUse('contracts') && <PlanTag feature="contracts" />}</Button>
-                        {/* Completed has no "Mark Done", so "Move to…" sits with the documents */}
-                        {ev.status !== 'confirmed' && getMoveOptions(ev.status).length > 0 && (
-                          <Button size="sm" variant="ghost" icon={MoreVertical} onClick={() => setMoveId(ev.id)} title="Move to..." aria-label="Move to" />
-                        )}
-                      </div>
-                      {ev.status === 'confirmed' && (
-                        <div className={ACTION_GROUP}>
-                          <Button size="sm" variant="success" icon={lk(CheckCircle2)} onClick={guard(() => markDone(ev.id))}>Mark Done</Button>
-                          {getMoveOptions(ev.status).length > 0 && (
-                            <Button size="sm" variant="ghost" icon={MoreVertical} onClick={() => setMoveId(ev.id)} title="Move to..." aria-label="Move to" />
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </Card>
-            );
-          })}
+        /* === LAPTOP: long cards, one per row === */
+        !isPhone && <div className="space-y-3.5" data-testid="laptop-list">
+          {phoneEvents.length === 0 && <p className="text-center text-gray-600 py-8">No events in this range.</p>}
+          {phoneEvents.map(ev => (
+            <EventCardLaptop key={ev.id} ev={ev} variant={status} locked={isSuspended}
+              open={expandedId === ev.id} onToggle={() => toggleExpand(ev.id)} highlight={location.state?.expandId === ev.id}
+              details={<EventDetails ev={ev} showCosts={ev.status === 'completed' && canUse('jobLog')} />}
+              on={{
+                quote: () => navigate(`/quotation/${ev.id}`),
+                bill: () => navigate(`/bill/${ev.id}`),
+                contract: () => navigate(`/contract/${ev.id}`),
+                jobLog: status === 'completed' && isOwner && canUse('jobLog') ? () => navigate(`/job/${ev.id}`) : undefined,
+                markDone: status === 'confirmed' ? guard(() => markDone(ev.id)) : undefined,
+                items: () => setItemsId(ev.id),
+                edit: guard(() => navigate(`/edit/${ev.id}`)),
+                addItems: guard(() => { setAddItemModal(ev.id); setAddItemTarget('main'); }),
+                setPrices: guard(() => openPriceModal(ev)),
+                move: getMoveOptions(ev.status).length ? () => setMoveId(ev.id) : undefined,
+                delete: guard(() => handleDelete(ev)),
+              }} />
+          ))}
         </div>
       )}
 

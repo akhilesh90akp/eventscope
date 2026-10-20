@@ -31,6 +31,7 @@ const ICON_TONES = {
   green: 'text-emerald-600 border-emerald-200 bg-white hover:bg-emerald-50',
   red: 'text-red-600 border-red-200 bg-white hover:bg-red-50',
   quiet: 'text-bb-muted border-transparent bg-transparent hover:bg-gray-100',
+  primary: 'text-white border-bb-accent bg-bb-accent hover:bg-bb-accent-hover',   // laptop page headers: the one main action
 };
 
 /** 44×44 icon-only button. Always give a `label` (read aloud, shown on hover). */
