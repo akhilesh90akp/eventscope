@@ -10,6 +10,8 @@
  *   FunctionRow    an event or sub event: date block, name (+ Main tag), venue
  *   SwitchRow      a full-width on/off row ("Add GST", "Hide item prices")
  *   NumberBox      a labelled number field (Qty / Rate ₹ / Days)
+ *   DateField      a date you can't misread ("Sat, 12 Sep 2026"); tap → phone's picker
+ *   TextField      a labelled text field with the phone look (48px)
  * Pure UI: no data access here.
  */
 
@@ -17,8 +19,8 @@
 // IMPORTS
 // ============================================================
 import React from 'react';
-import { ChevronRight } from 'lucide-react';
-import { formatDateReadable, functionDays } from '../utils/helpers';
+import { ChevronRight, CalendarDays } from 'lucide-react';
+import { formatDateReadable, formatDateWithDay, functionDays } from '../utils/helpers';
 
 // ============================================================
 // BUTTONS
@@ -100,6 +102,39 @@ export function NumberBox({ label, value, onChange, placeholder, highlight = fal
       <input type="number" inputMode="decimal" value={value} placeholder={placeholder} onChange={onChange} {...rest}
         className={`w-full min-h-[44px] rounded-xl border px-2.5 text-[15px] tabular-nums text-bb-text focus:outline-none focus:ring-2 focus:ring-bb-accent/40
           ${highlight ? 'border-bb-accent bg-violet-50 font-semibold' : 'border-bb-border bg-bb-input'} ${align === 'right' ? 'text-right' : ''}`} />
+    </label>
+  );
+}
+
+/**
+ * Date shown in words over an invisible native date input, so tapping opens
+ * the phone's own date picker and nobody misreads 09/12 as 12 Sept.
+ */
+export function DateField({ label, value, onChange, required, id, placeholder = 'Pick a date', min, max, testId }) {
+  const text = formatDateWithDay(value);
+  return (
+    <label className="block" htmlFor={id}>
+      {label && <span className="block text-[13.5px] font-semibold text-gray-700 mb-2">{label}{required && <span className="text-red-500"> *</span>}</span>}
+      <span className="relative flex items-center gap-2.5 min-h-[48px] rounded-xl border border-bb-border bg-bb-input px-3.5 focus-within:ring-2 focus-within:ring-bb-accent/40">
+        <CalendarDays size={18} className="text-gray-500 shrink-0" />
+        <span className={`flex-1 text-[16px] ${text ? 'font-bold text-bb-text' : 'text-gray-400'}`} data-testid={testId ? `${testId}-text` : undefined}>{text || placeholder}</span>
+        <span className="text-[13px] text-gray-500">{text ? 'Change' : ''}</span>
+        <input id={id} type="date" value={value || ''} min={min} max={max} onChange={e => onChange(e.target.value)} data-testid={testId}
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" aria-label={label || 'Date'} />
+      </span>
+    </label>
+  );
+}
+
+/** Labelled text field with the phone look */
+export function TextField({ label, required, hint, as = 'input', className = '', ...rest }) {
+  const Tag = as;
+  return (
+    <label className={`block ${className}`}>
+      {label && <span className="block text-[13.5px] font-semibold text-gray-700 mb-2">{label}{required && <span className="text-red-500"> *</span>}</span>}
+      <Tag {...rest}
+        className={`w-full ${as === 'textarea' ? 'min-h-[88px] py-3' : 'min-h-[48px]'} rounded-xl border border-bb-border bg-bb-input px-3.5 text-[16px] text-bb-text placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-bb-accent/40`} />
+      {hint && <span className="block text-[12.5px] text-gray-600 mt-1.5">{hint}</span>}
     </label>
   );
 }

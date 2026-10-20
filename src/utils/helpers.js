@@ -24,6 +24,17 @@ export const formatCurrency = (amt) => {
 /** Whole rupees for phone cards and totals: "₹2,26,250" (paise rounded away) */
 export const formatRupees = (amt) => `₹${Math.round(Number(amt) || 0).toLocaleString('en-IN')}`;
 
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** "Sat, 12 Sep 2026" — the phone date fields (nobody misreads 09/12). '' for no / bad date. */
+export const formatDateWithDay = (iso) => {
+  if (!iso) return '';
+  const d = new Date(`${String(iso).slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${WEEKDAYS[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+};
+
 /**
  * Formats a date in a human-readable format (e.g., "15 Jan 2025").
  * @param {string} d - ISO date string

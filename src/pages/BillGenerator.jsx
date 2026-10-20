@@ -7,6 +7,10 @@
  * Includes an in-app PDF (preview → share/save), laptop printing and a
  * WhatsApp text summary.
  *
+ * Phones (below 1024px): Details | Preview tabs — the inputs grouped into
+ * Invoice / Bill to / Money cards with a live summary, and a bar pinned to the
+ * bottom with the balance due, WhatsApp and PDF. Laptops keep the form below.
+ *
  * Bill details (invoice no/date, bill-to, discount, advance, GST settings)
  * auto-save to the event 1s after the user stops editing, and a manual
  * Save button is also available — see CODE_STRUCTURE.md §3-4.
@@ -26,10 +30,15 @@ import Select from '../components/Select';
 import Toggle from '../components/Toggle';
 import Card from '../components/Card';
 import DaysCell from '../components/DaysCell';
-import { formatCurrency, formatDateReadable, calcGST, roundOff, nextInvoiceNo, waLink, buildLineEntries, computeSectionTotal, getEventSections, functionDateText, itemDays, lineAmount, usesDays, getEventBill } from '../utils/helpers';
+import { formatRupees, formatCurrency, formatDateReadable, calcGST, roundOff, nextInvoiceNo, waLink, buildLineEntries, computeSectionTotal, getEventSections, functionDateText, itemDays, lineAmount, usesDays, getEventBill } from '../utils/helpers';
 import { DEFAULT_SAC_CODE } from '../constants/data';
 import { Printer, MessageSquare, Save } from 'lucide-react';
 import { docBrandColor, showsEventScopeMark } from '../utils/billing';
+import { useIsPhone } from '../components/useIsPhone';
+import { usePhoneHeader } from '../components/phoneScreens';
+import ActionBar from '../components/ActionBar';
+import DocFit from '../components/DocFit';
+import { SegmentedTabs, SectionLabel, SwitchRow, DateField, TextField, IconButton } from '../components/PhoneUI';
 
 // ============================================================
 // BillGenerator — MAIN COMPONENT
@@ -83,6 +92,10 @@ export default function BillGenerator() {
 
   // Ref for printable section
   const pdfRef = useRef(null);
+
+  // Phones: Details | Preview
+  const isPhone = useIsPhone();
+  const [tab, setTab] = useState('details');
 
   // ------------------------------------------------------------
   // DATA LOADING / EFFECTS — BILL DETAILS AUTO-SAVE
@@ -207,6 +220,10 @@ export default function BillGenerator() {
   const gstData = useMemo(() => calcGST(afterDiscount, gstEnabled ? Number(gstRate) : 0, interState), [afterDiscount, gstEnabled, gstRate, interState]);
   const rounded = useMemo(() => roundOff(gstData.total), [gstData.total]);
 
+  // Phones: client · event · date under the title
+  const headerSub = event ? [event.clientName, event.eventType, (event.mainEvent?.date || event.date) && formatDateReadable(event.mainEvent?.date || event.date)].filter(Boolean).join(' · ') : '';
+  usePhoneHeader({ sub: headerSub }, [headerSub]);
+
   if (!event) {
     return (
       <div className="text-center py-12">
@@ -291,8 +308,8 @@ export default function BillGenerator() {
 
   return (
     <div className="space-y-4 pb-8">
-      {/* Controls - hidden in print */}
-      <div data-no-print className="space-y-4">
+      {/* === LAPTOP: controls (hidden in print) === */}
+      {!isPhone && <div data-no-print className="space-y-4">
         <div className="flex items-center gap-3">
           <BackButton />
           <h1 className="text-xl font-bold text-bb-text">Invoice</h1>
@@ -325,10 +342,77 @@ export default function BillGenerator() {
           <Button icon={MessageSquare} variant="success" onClick={handleWhatsApp}>Share via WhatsApp</Button>
           <Button variant="secondary" onClick={() => navigate(-1)}>Back</Button>
         </div>
-      </div>
+      </div>}
 
-      {/* === Invoice Preview - printable document === */}
-      <div className="doc-scroll">{/* scrolls sideways on phones */}
+      {/* === PHONE: Details (every input, in groups) | Preview === */}
+      {isPhone && (
+        <div data-no-print className="space-y-5">
+          <SegmentedTabs value={tab} onChange={(t) => { setTab(t); window.scrollTo(0, 0); }} testId="bill-tabs"
+            options={[{ value: 'details', label: 'Details' }, { value: 'preview', label: 'Preview' }]} />
+          {tab === 'details' && (
+            <div className="space-y-5" data-testid="bill-phone">
+              <SectionLabel>Invoice</SectionLabel>
+              <div className="bg-white border border-bb-border rounded-2xl p-[18px] space-y-4">
+                <TextField label="Invoice no." value={invoiceNo} onChange={e => setInvoiceNo(e.target.value)} />
+                <DateField label="Invoice date" id="bill-date" value={invoiceDate} onChange={setInvoiceDate} testId="bill-date" />
+              </div>
+
+              <SectionLabel>Bill to</SectionLabel>
+              <div className="bg-white border border-bb-border rounded-2xl p-[18px] space-y-4">
+                <TextField label="Name" value={billToName} onChange={e => setBillToName(e.target.value)} />
+                <TextField label="Address" value={billToAddress} onChange={e => setBillToAddress(e.target.value)} placeholder="Client address" />
+              </div>
+
+              <SectionLabel>Money</SectionLabel>
+              <div className="bg-white border border-bb-border rounded-2xl px-[18px] pt-[18px] pb-2">
+                <div className="grid grid-cols-2 gap-3 pb-3">
+                  <TextField label="Discount ₹" type="number" inputMode="decimal" value={discount} onChange={e => setDiscount(e.target.value)} />
+                  <TextField label="Advance paid ₹" type="number" inputMode="decimal" value={advance} onChange={e => setAdvance(e.target.value)} />
+                </div>
+                <div className="border-t border-bb-border">
+                  <SwitchRow title="Add GST" checked={gstEnabled} onChange={setGstEnabled} testId="bill-gst" />
+                  {gstEnabled && (
+                    <div className="flex gap-2 pb-3" role="radiogroup" aria-label="GST rate">
+                      {['5', '12', '18', '28'].map(r => (
+                        <button key={r} role="radio" aria-checked={String(gstRate) === r} onClick={() => setGstRate(r)}
+                          className={`min-h-[38px] px-3.5 rounded-full border text-[14px] font-semibold cursor-pointer ${String(gstRate) === r ? 'bg-bb-accent border-bb-accent text-white' : 'bg-white border-gray-300'}`}>{r}%</button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {gstEnabled && (
+                  <div className="border-t border-bb-border">
+                    <SwitchRow title="Client is in another state (IGST)" checked={interState} onChange={setInterState} />
+                  </div>
+                )}
+              </div>
+
+              <SectionLabel>Summary</SectionLabel>
+              <div className="bg-white border border-bb-border rounded-2xl px-[18px] py-3 text-[15px]" data-testid="bill-summary">
+                <div className="flex justify-between py-2"><span>Subtotal · {eventGroups.reduce((n, g) => n + g.items.length, 0)} items</span><b className="tabular-nums">{formatRupees(subtotal)}</b></div>
+                {Number(discount) > 0 && <div className="flex justify-between py-2"><span>Discount</span><b className="tabular-nums text-emerald-700">− {formatRupees(discount)}</b></div>}
+                {gstEnabled && (interState
+                  ? <div className="flex justify-between py-2"><span>IGST {gstRate}%</span><b className="tabular-nums">{formatRupees(gstData.igst)}</b></div>
+                  : <>
+                    <div className="flex justify-between py-2"><span>CGST {Number(gstRate) / 2}%</span><b className="tabular-nums">{formatRupees(gstData.cgst)}</b></div>
+                    <div className="flex justify-between py-2"><span>SGST {Number(gstRate) / 2}%</span><b className="tabular-nums">{formatRupees(gstData.sgst)}</b></div>
+                  </>)}
+                <div className="flex justify-between py-2 border-t border-bb-border font-bold"><span>Grand total</span><b className="tabular-nums">{formatRupees(rounded.rounded)}</b></div>
+                {Number(advance) > 0 && <div className="flex justify-between py-2"><span>Advance paid</span><b className="tabular-nums">− {formatRupees(advance)}</b></div>}
+                <div className="flex justify-between my-1 rounded-xl bg-violet-50 px-3 py-3 font-extrabold text-[16px]"><span>Balance due</span><span className="tabular-nums" data-testid="bill-balance">{formatRupees(Math.max(0, rounded.rounded - (Number(advance) || 0)))}</span></div>
+              </div>
+            </div>
+          )}
+          <ActionBar label={autoSaving ? 'Balance due · saving…' : hasUnsavedChanges ? 'Balance due · not saved yet' : 'Balance due'} status={!autoSaving && !hasUnsavedChanges ? '✓ Saved' : null}
+            value={formatRupees(Math.max(0, rounded.rounded - (Number(advance) || 0)))}>
+            {(event.clientWhatsapp || event.clientPhone) && <IconButton icon={MessageSquare} label="Share on WhatsApp" tone="green" onClick={handleWhatsApp} />}
+            <PdfButton docRef={pdfRef} fileName={`${docTitle()}.pdf`} />
+          </ActionBar>
+        </div>
+      )}
+
+      {/* === Invoice Preview - printable document (phones: fitted, Preview tab) === */}
+      <DocFit hidden={isPhone && tab === 'details'}>
       <div ref={pdfRef} className="print-doc" style={{backgroundColor: 'white', color: '#1f2937', fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif', maxWidth: '800px', margin: '0 auto', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'}}>
         <table style={{width: '100%', borderCollapse: 'collapse', padding: '0', margin: '0'}}>
           <tbody>
@@ -672,7 +756,7 @@ export default function BillGenerator() {
           </tbody>
         </table>
       </div>
-      </div>
+      </DocFit>
     </div>
   );
 }
