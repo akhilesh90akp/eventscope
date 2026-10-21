@@ -191,7 +191,19 @@ function AddRow({ q, group }) {
       seen.add(item); chips.push(item);
     }));
   }
-  const add = () => { if (trimmed && !dup) q.addItem(group.id); };
+  // After adding, scroll to the new line and put the cursor in its Rate box
+  const justAdded = useRef(null);
+  useEffect(() => {
+    const name = justAdded.current;
+    if (!name || !group.items.includes(name)) return;
+    justAdded.current = null;
+    const sec = document.querySelector(`[data-section="${group.id}"]`);
+    const row = Array.from(sec?.querySelectorAll('[data-item]') || []).find(el => el.dataset.item === name);
+    if (!row) return;
+    row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    row.querySelector('input[data-qf][aria-label$="rate"]')?.focus({ preventScroll: true });
+  }, [group.items, group.id]);
+  const add = () => { if (trimmed && !dup) { justAdded.current = trimmed; q.addItem(group.id); } };
   return (
     <div className="sticky z-20 -mx-3 px-3 py-2.5 bg-white top-[calc(var(--phone-head,4rem)+var(--qs,0px))]" data-testid="add-row">
       <div className="flex gap-2">
@@ -206,7 +218,7 @@ function AddRow({ q, group }) {
       {chips.length > 0 && (
         <div className="flex gap-2 overflow-x-auto no-scrollbar pt-2 -mx-3 px-3" data-testid="add-suggestions">
           {chips.map(item => (
-            <button key={item} onClick={() => { q.addFromCategory(group.id, item); q.setNewItemName(group.id, ''); }}
+            <button key={item} onClick={() => { justAdded.current = item; q.addFromCategory(group.id, item); q.setNewItemName(group.id, ''); }}
               className="shrink-0 min-h-[36px] px-3.5 rounded-full border border-gray-300 bg-white text-[14px] font-semibold cursor-pointer whitespace-nowrap">{item}</button>
           ))}
         </div>
