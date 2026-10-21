@@ -195,13 +195,20 @@ function AddRow({ q, group }) {
   const justAdded = useRef(null);
   useEffect(() => {
     const name = justAdded.current;
-    if (!name || !group.items.includes(name)) return;
+    if (!name || !group.items.includes(name)) return undefined;
     justAdded.current = null;
     const sec = document.querySelector(`[data-section="${group.id}"]`);
     const row = Array.from(sec?.querySelectorAll('[data-item]') || []).find(el => el.dataset.item === name);
-    if (!row) return;
-    row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    if (!row) return undefined;
+    // Phone keyboards resize the screen while they open and close, which can undo a single scroll: repeat it while that settles
+    const go = () => {
+      const vh = window.visualViewport?.height || window.innerHeight;
+      const r = row.getBoundingClientRect();
+      window.scrollBy({ top: r.top + r.height / 2 - vh / 2, behavior: 'auto' });
+    };
+    go();
     row.querySelector('input[data-qf][aria-label$="rate"]')?.focus({ preventScroll: true });
+    [120, 350, 700].forEach(ms => setTimeout(go, ms));   // (not cleared: the page re-renders often and would cancel them)
   }, [group.items, group.id]);
   const add = () => { if (trimmed && !dup) { justAdded.current = trimmed; q.addItem(group.id); } };
   return (
