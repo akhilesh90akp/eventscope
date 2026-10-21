@@ -58,6 +58,23 @@ const toDate = (s) => (s ? new Date(`${s}T00:00:00`) : null);
 // SUB-COMPONENTS
 // ============================================================
 
+/** How much of the bottom of the screen the on-screen keyboard covers (0 when closed) — bars pinned to the bottom ride on top of it */
+function useKeyboardInset() {
+  const [inset, setInset] = useState(0);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return undefined;
+    const update = () => setInset(Math.max(0, Math.round(document.documentElement.clientHeight - vv.height - vv.offsetTop)));
+    update();
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    return () => { vv.removeEventListener('resize', update); vv.removeEventListener('scroll', update); };
+  }, []);
+  return inset;
+}
+
+const isTouch = () => typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches;
+
 /** A draggable line (item or group); `children(handleProps)` draws it */
 function Sortable({ id, children }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
@@ -210,11 +227,20 @@ function AddRow({ q, group }) {
     row.querySelector('input[data-qf][aria-label$="rate"]')?.focus({ preventScroll: true });
     [120, 350, 700].forEach(ms => setTimeout(go, ms));   // (not cleared: the page re-renders often and would cancel them)
   }, [group.items, group.id]);
+  const [focused, setFocused] = useState(false);
+  const inset = useKeyboardInset();
+  const aboveKeyboard = focused && isTouch();   // on phones the chips ride just above the keyboard
+  const chipButtons = chips.map(item => (
+    <button key={item} onMouseDown={e => e.preventDefault()}
+      onClick={() => { justAdded.current = item; q.addFromCategory(group.id, item); q.setNewItemName(group.id, ''); }}
+      className="shrink-0 min-h-[40px] px-3.5 rounded-full border border-gray-300 bg-white text-[14px] font-semibold cursor-pointer whitespace-nowrap">{item}</button>
+  ));
   const add = () => { if (trimmed && !dup) { justAdded.current = trimmed; q.addItem(group.id); } };
   return (
     <div className="sticky z-20 -mx-3 px-3 py-2.5 bg-white top-[calc(var(--phone-head,4rem)+var(--qs,0px))]" data-testid="add-row">
       <div className="flex gap-2">
         <input value={text} onChange={e => q.setNewItemName(group.id, e.target.value)} onKeyDown={e => e.key === 'Enter' && add()}
+          onFocus={() => setFocused(true)} onBlur={() => setTimeout(() => setFocused(false), 150)}
           placeholder={`Add an item to ${group.name}…`} aria-label={`Add an item to ${group.name}`} enterKeyHint="done" data-testid="add-input"
           className="flex-1 min-w-0 min-h-[44px] rounded-xl border border-bb-border bg-bb-input px-3 text-[16px] focus:outline-none focus:ring-2 focus:ring-bb-accent/40" />
         <button onClick={add} disabled={!trimmed || dup} data-testid="add-item"
@@ -222,13 +248,13 @@ function AddRow({ q, group }) {
         <IconButton icon={ListPlus} label="Add from services" tone="violet" onClick={() => q.openCategories(group.id)} />
       </div>
       {dup && <p className="text-[12.5px] text-amber-800 mt-1.5">Already in this event</p>}
-      {chips.length > 0 && (
-        <div className="flex gap-2 overflow-x-auto no-scrollbar pt-2 -mx-3 px-3" data-testid="add-suggestions">
-          {chips.map(item => (
-            <button key={item} onClick={() => { justAdded.current = item; q.addFromCategory(group.id, item); q.setNewItemName(group.id, ''); }}
-              className="shrink-0 min-h-[36px] px-3.5 rounded-full border border-gray-300 bg-white text-[14px] font-semibold cursor-pointer whitespace-nowrap">{item}</button>
-          ))}
-        </div>
+      {chips.length > 0 && !aboveKeyboard && (
+        <div className="flex gap-2 overflow-x-auto no-scrollbar pt-2 -mx-3 px-3" data-testid="add-suggestions">{chipButtons}</div>
+      )}
+      {chips.length > 0 && aboveKeyboard && createPortal(
+        <div className="fixed left-0 right-0 z-[60] bg-white border-t border-bb-border px-3 py-2 flex gap-2 overflow-x-auto no-scrollbar shadow-[0_-8px_20px_-14px_rgba(0,0,0,0.4)]"
+          style={{ bottom: inset }} data-testid="add-suggestions-kb">{chipButtons}</div>,
+        document.body,
       )}
     </div>
   );
@@ -237,6 +263,7 @@ function AddRow({ q, group }) {
 /** Touch screens: while a Qty / Rate / Days box is focused, a slim bar above the keyboard with that line's total, Next and Done */
 function KeyboardBar({ q, rootRef }) {
   const [key, setKey] = useState(null);
+  const inset = useKeyboardInset();
   useEffect(() => {
     const root = rootRef.current;
     if (!root || typeof window === 'undefined' || !window.matchMedia('(pointer: coarse)').matches) return undefined;
@@ -261,7 +288,7 @@ function KeyboardBar({ q, rootRef }) {
     if (i >= 0 && all[i + 1]) all[i + 1].focus(); else document.activeElement?.blur();
   };
   return createPortal(
-    <div className="lg:hidden fixed left-0 right-0 bottom-0 z-[60] bg-white border-t border-bb-border shadow-[0_-8px_20px_-14px_rgba(0,0,0,0.4)] px-3 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] flex items-center gap-2.5" data-testid="keyboard-bar">
+    <div className="lg:hidden fixed left-0 right-0 z-[60] bg-white border-t border-bb-border shadow-[0_-8px_20px_-14px_rgba(0,0,0,0.4)] px-3 py-2 flex items-center gap-2.5" style={{ bottom: inset }} data-testid="keyboard-bar">
       <div className="flex-1 min-w-0 leading-snug">
         <p className="text-[13.5px] font-bold truncate">{name}</p>
         <p className="text-[12.5px] text-gray-600 truncate">{Number(p.qty) || 1} × {formatRupees(Number(p.rate) || 0)}{days > 1 ? ` × ${days} days` : ''} = <b className="text-bb-text">{formatRupees(lineAmount(p))}</b></p>
@@ -352,7 +379,7 @@ export default function QuotePhoneEditor({ q }) {
     <div ref={rootRef} className="space-y-5" data-testid="quote-phone" data-quote-phone>
       <p className="text-[12.5px] text-gray-600">Tick items to group or remove them · hold ⋮⋮ to move. Groups stay inside one event.</p>
 
-      {(missingCount > 0 || many) && (
+      {(missingCount > 0 || sections.length > 0) && (
         <div className="flex items-center justify-between gap-3 -mt-2">
           {missingCount > 0
             ? <button onClick={jumpToUnpriced} data-testid="no-price-chip"
@@ -360,7 +387,7 @@ export default function QuotePhoneEditor({ q }) {
               <TriangleAlert size={15} />{missingCount === 1 ? '1 item has no price' : `${missingCount} items have no price`}
             </button>
             : <span />}
-          {many && (
+          {sections.length > 0 && (
             <button onClick={() => setFolded(allFolded ? new Set() : new Set(sections.map(g => g.id)))} data-testid="fold-all"
               className="inline-flex items-center gap-1.5 min-h-[34px] text-[13.5px] font-bold text-bb-accent-hover cursor-pointer">
               {allFolded ? <ChevronsUpDown size={16} /> : <ChevronsDownUp size={16} />}{allFolded ? 'Open all' : 'Fold all'}
