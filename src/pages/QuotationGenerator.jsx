@@ -81,7 +81,7 @@ import FitBudgetSheet from '../components/FitBudgetSheet';
 import QuoteRevisionsSheet from '../components/QuoteRevisionsSheet';
 import { fitUnits, applyFit, makeRevision, addRevision } from '../utils/quoteFit';
 import {
-  MoreVertical, Wand2, History, EyeOff, FileSignature, Copy, Type, FolderInput, FolderOutput, Trash2, Undo2, Pencil,
+  MoreVertical, Wand2, History, EyeOff, FileSignature, FileDown, Copy, Type, FolderInput, FolderOutput, Trash2, Undo2, Pencil,
 } from 'lucide-react';
 
 // ============================================================
@@ -205,6 +205,7 @@ export default function QuotationGenerator() {
 
   // Ref for printable section (must be before early return)
   const pdfRef = useRef(null);
+  const pdfOpenRef = useRef(null);                        // starts the PDF from the phone's ⋮ menu
 
   // `saving` disables the Save button while the Firestore write is in flight.
   const [saving, setSaving] = useState(false);
@@ -551,6 +552,21 @@ export default function QuotationGenerator() {
     });
   };
 
+  /** Phone: ticking a group's heading ticks (or clears) all its items with it */
+  const toggleSelectBundleAll = (bundleId) => {
+    const b = bundles.find(x => x.id === bundleId);
+    if (!b) return;
+    const on = !selectedBundles.has(bundleId);
+    setSelectedBundles(prev => { const n = new Set(prev); if (on) n.add(bundleId); else n.delete(bundleId); return n; });
+    setSelectedBundleMembers(prev => { const n = new Set(prev); b.itemKeys.forEach(k => { if (on) n.add(k); else n.delete(k); }); return n; });
+  };
+
+  /** Phone: ticking an item inside a group; un-ticking one also clears the group's own tick */
+  const toggleSelectMemberOfGroup = (bundleId, key) => {
+    setSelectedBundleMembers(prev => { const n = new Set(prev); if (n.has(key)) n.delete(key); else n.add(key); return n; });
+    setSelectedBundles(prev => { if (!prev.has(bundleId)) return prev; const n = new Set(prev); n.delete(bundleId); return n; });
+  };
+
   /** Opens the "Create Group" popup for whichever section currently has 2+ standalone items selected. */
   /** Sum of the selected items' prices (qty × rate × days) in a section */
   const selectedSum = (sectionId) => Array.from(selectedForGroup[sectionId] || [])
@@ -584,6 +600,7 @@ export default function QuotationGenerator() {
         : b));
       setSelectedForGroup(prev => ({ ...prev, [sectionId]: new Set() }));
       setSelectedBundles(new Set());
+      setSelectedBundleMembers(new Set());
       showToast(`Added ${namesToAdd.length} item${namesToAdd.length > 1 ? 's' : ''} to "${mergeTargetBundle.name}"`);
     } else if (canCreateNewGroup) {
       openGroupModal(groupSectionId);
@@ -931,7 +948,8 @@ export default function QuotationGenerator() {
     setBundleAmount: (id, amt) => setBundles(bs => bs.map(x => (x.id === id ? { ...x, amount: amt } : x))),
     setFinalAmount: (sec, v) => setFinalAmounts(f => ({ ...f, [sec]: v })),
     setDiscountText, setValidityDays, setGstEnabled, setGstRate, setHidePrices: setHidePricesAndShow,
-    toggleSelectForGroup, toggleSelectBundle, toggleSelectBundleMember,
+    toggleSelectForGroup, toggleSelectBundle, toggleSelectBundleMember, toggleSelectBundleAll, toggleSelectMemberOfGroup,
+    categories, addFromCategory: handleAddFromCategory,
     onGroup: handleGroupClick, onUngroup: handleUngroupSelected,
     onDragEnd: handleDragEnd, onMemberDragEnd: handleMemberDragEnd,
     openItemMenu: setItemMenu, openGroupMenu: setGroupMenu,
@@ -983,13 +1001,13 @@ export default function QuotationGenerator() {
           {tab === 'details' && (
             <QuotePhoneEditor q={editorQ} />
           )}
+          <PdfButton docRef={pdfRef} fileName={`${docTitle()}.pdf`} variant="none" openRef={pdfOpenRef} />
           {anyTicked ? (
             <ActionBar testId="select-bar" label={`${tickedItems().length} selected`} value={formatRupees(tickedValue())}>
               <button onClick={endSelect} className="min-h-[44px] px-2.5 rounded-xl text-gray-600 font-semibold cursor-pointer">Clear</button>
               <IconButton icon={Trash2} label="Remove ticked items" tone="red" onClick={askRemoveTicked} disabled={!tickedItems().length} data-testid="remove-ticked" />
-              {canUngroup && !canGroup
-                ? <button onClick={() => { handleUngroupSelected(); }} data-testid="ungroup-ticked" className="min-h-[44px] px-3.5 rounded-xl bg-bb-accent text-white font-semibold cursor-pointer">Ungroup</button>
-                : <button onClick={handleGroupClick} disabled={!canGroup} data-testid="make-group" className="min-h-[44px] px-3.5 rounded-xl bg-bb-accent text-white font-semibold cursor-pointer disabled:opacity-40">{canMergeIntoExisting ? 'Add to group' : 'Make a group'}</button>}
+              <IconButton icon={Ungroup} label="Ungroup ticked" tone="violet" onClick={handleUngroupSelected} disabled={!canUngroup} data-testid="ungroup-ticked" />
+              <IconButton icon={Layers} label={canMergeIntoExisting ? 'Add to group' : 'Make a group'} tone="violet" onClick={handleGroupClick} disabled={!canGroup} data-testid="make-group" />
             </ActionBar>
           ) : (
             <ActionBar label={saveState === 'saved' ? 'Total' : saveState === 'saving' ? 'Total · saving…' : saveState === 'error' ? 'Total · not saved' : 'Total · not saved yet'}
@@ -1394,6 +1412,7 @@ export default function QuotationGenerator() {
           {(event.clientWhatsapp || event.clientPhone) && <MenuRow icon={MessageSquare} title="Share on WhatsApp" sub="Message with the prices" onClick={() => { setSheet(null); handleWhatsApp(); }} />}
           <MenuRow icon={Wand2} title="Fit to budget" sub="Bring the total to the client’s number" onClick={() => setSheet('fit')} testId="opt-fit" />
           <MenuRow icon={History} title="Versions" sub={revisions.length ? `${revisions.length} earlier version${revisions.length > 1 ? 's' : ''}` : 'Fit to budget keeps the old prices here'} onClick={() => setSheet('revisions')} testId="opt-versions" />
+          <MenuRow icon={FileDown} title="Download PDF" sub="Check it, then share or save" onClick={() => { setSheet(null); setTimeout(() => pdfOpenRef.current?.(), 50); }} testId="opt-pdf" />
           <MenuRow icon={FileSignature} title="Make contract" sub="Uses this quote" onClick={() => navigate(`/contract/${event.id}`)} />
         </BottomSheet>
       )}
