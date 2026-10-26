@@ -620,7 +620,7 @@ function JobLogGrid() {
                     <td className="sticky left-12 z-[5] bg-white border-b border-r border-bb-border/60 px-3 py-2.5 align-middle">
                       <div className="leading-tight w-[340px]">
                         <div className="flex items-center gap-2">
-                          <b className="text-bb-text text-[14.5px] truncate flex-1 min-w-0" title={row.client}>{row.client}</b>
+                          <b className="text-bb-accent-hover text-[14.5px] truncate flex-1 min-w-0" title={row.client}>{row.client}</b>
                           {loss && <span className="shrink-0 whitespace-nowrap text-[10px] font-bold uppercase text-red-700 bg-red-100 rounded-full px-2 py-0.5" data-testid="loss-tag">Loss</span>}
                           {!row.calc.hasAny && <span className="shrink-0 whitespace-nowrap text-[10px] font-bold uppercase text-amber-800 bg-amber-100 rounded-full px-2 py-0.5" data-testid="nocost-tag">No costs</span>}
                         </div>
