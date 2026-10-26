@@ -176,7 +176,7 @@ export default function DraftsList() {
         <div className="space-y-3.5" data-testid="laptop-list">
           {drafts.map(ev => (
             <EventCardLaptop key={ev.id} ev={ev} variant="draft" locked={isSuspended}
-              open={expandedId === ev.id} onToggle={() => toggleExpand(ev.id)} details={<EventDetails ev={ev} />}
+              open={expandedId === ev.id} onToggle={() => toggleExpand(ev.id)} details={<EventDetails ev={ev} onEdit={() => navigate(`/edit/${ev.id}`)} />}
               on={{
                 confirm: guard(() => confirmEvent(ev.id)),
                 quote: () => navigate(`/quotation/${ev.id}`),

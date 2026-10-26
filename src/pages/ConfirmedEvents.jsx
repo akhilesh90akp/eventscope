@@ -336,7 +336,7 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
           {phoneEvents.map(ev => (
             <EventCardLaptop key={ev.id} ev={ev} variant={status} locked={isSuspended}
               open={expandedId === ev.id} onToggle={() => toggleExpand(ev.id)} highlight={location.state?.expandId === ev.id}
-              details={<EventDetails ev={ev} showCosts={ev.status === 'completed' && canUse('jobLog')} />}
+              details={<EventDetails ev={ev} onEdit={isSuspended ? undefined : () => navigate(`/edit/${ev.id}`)} />}
               on={{
                 quote: () => navigate(`/quotation/${ev.id}`),
                 bill: () => navigate(`/bill/${ev.id}`),

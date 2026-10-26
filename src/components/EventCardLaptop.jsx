@@ -11,9 +11,8 @@
  *      the main one), Call · WhatsApp · ✎ · ⋯ on the right. Once the event
  *      day is over: "Event day is over · Mark as done" in the same row.
  * ⋯ opens a small menu under the button (Add items, Set prices, Move to…,
- * Delete last in red). ⌄ folds out `details` (notes, addresses, costs).
- * EventDetails is that fold-out: notes, client address, venue, house location,
- * and on completed events the costs (same data as the Job Log).
+ * Delete last in red). ⌄ folds out `details` (client contact, address, notes).
+ * EventDetails is that fold-out: three tiles — client contact, client address, notes;
  * Pure UI: the page passes the handlers and does the saving.
  */
 
@@ -23,12 +22,11 @@
 import React from 'react';
 import {
   FileText, Receipt, FileSignature, Phone, MessageSquare, Edit3, ClipboardList, ChevronRight, ChevronDown, ChevronUp,
-  CheckCircle2, Plus, Tag, ArrowLeftRight, Trash2, Lock, Table2, Home, MapPin, Navigation, StickyNote,
+  CheckCircle2, Plus, Tag, ArrowLeftRight, Trash2, Lock, Table2, Home, Navigation, StickyNote,
 } from 'lucide-react';
 import Badge from './Badge';
 import { IconButton } from './PhoneUI';
 import { MorePopover, PopItem } from './LaptopUI';
-import CostsPanel from './CostsPanel';
 import {
   formatRupees, formatDateRange, functionEnd, eventFunctions, eventCountdown, eventItemCount, getEventBill,
   telLink, waLink, countdownText, countdownTone,
@@ -205,22 +203,34 @@ export default function EventCardLaptop({ ev, variant = ev?.status, on = {}, loc
 // EventDetails — the ⌄ fold-out under a laptop card
 // ============================================================
 
-export function EventDetails({ ev, showCosts = false }) {
-  const venue = ev.mainEvent?.location || ev.eventLocation;
-  const Line = ({ icon: Icon, label, value }) => (value ? (
-    <p className="flex items-start gap-2 text-[13.5px] text-bb-muted"><Icon size={15} className="shrink-0 mt-0.5" /><span>{label}: <span className="text-bb-text">{value}</span></span></p>
-  ) : null);
-  const nothing = !ev.notes && !ev.clientAddress && !venue && !ev.houseLocation;
-  return (
-    <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-6">
-      <div className="space-y-2">
-        {ev.notes && <p className="flex items-start gap-2 text-[13.5px] text-bb-text whitespace-pre-line"><StickyNote size={15} className="shrink-0 mt-0.5 text-bb-muted" />{ev.notes}</p>}
-        <Line icon={Home} label="Client address" value={ev.clientAddress} />
-        <Line icon={MapPin} label="Venue" value={venue} />
-        <Line icon={Navigation} label="House location" value={ev.houseLocation} />
-        {nothing && <p className="text-[13.5px] text-bb-muted">No notes or addresses yet.</p>}
+export function EventDetails({ ev, onEdit }) {
+  const phone = ev.clientPhone || ev.clientWhatsapp;
+  const Tile = ({ icon: Icon, label, children, testId }) => (
+    <div className="flex items-start gap-3 bg-white border border-bb-border rounded-xl px-3.5 py-3 min-w-0" data-testid={testId}>
+      <span className="w-[34px] h-[34px] rounded-[10px] bg-violet-50 text-bb-accent-hover grid place-items-center shrink-0"><Icon size={16} /></span>
+      <div className="min-w-0">
+        <p className="text-[11.5px] text-bb-muted">{label}</p>
+        {children}
       </div>
-      {showCosts && <div className="min-w-0"><CostsPanel event={ev} /></div>}
+    </div>
+  );
+  return (
+    <div className="grid grid-cols-3 gap-3" data-testid="event-details">
+      <Tile icon={Phone} label="Client contact" testId="detail-contact">
+        <b className="block text-[14px] font-semibold text-bb-text mt-px break-words">{ev.clientName}</b>
+        {phone && <span className="block text-[12.5px] text-gray-600 mt-0.5">{phone}</span>}
+      </Tile>
+      <Tile icon={Home} label="Client address" testId="detail-address">
+        {ev.clientAddress
+          ? <b className="block text-[13.5px] font-medium leading-snug text-bb-text mt-px break-words">{ev.clientAddress}</b>
+          : onEdit ? <button onClick={onEdit} className="text-[12.5px] font-semibold text-bb-accent-hover cursor-pointer hover:underline">Add an address</button> : <span className="text-[13px] text-bb-muted">—</span>}
+        {ev.houseLocation && <span className="flex items-center gap-1 text-[12.5px] text-gray-600 mt-1"><Navigation size={12} className="shrink-0" />{ev.houseLocation}</span>}
+      </Tile>
+      <Tile icon={StickyNote} label="Notes" testId="detail-notes">
+        {ev.notes
+          ? <b className="block text-[13.5px] font-medium leading-snug text-bb-text mt-px whitespace-pre-line break-words">{ev.notes}</b>
+          : onEdit ? <button onClick={onEdit} className="text-[12.5px] font-semibold text-bb-accent-hover cursor-pointer hover:underline">Add a note</button> : <span className="text-[13px] text-bb-muted">—</span>}
+      </Tile>
     </div>
   );
 }
