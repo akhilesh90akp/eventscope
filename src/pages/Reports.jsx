@@ -64,13 +64,12 @@ const periodRange = (filter, month, year, dateFrom, dateTo) => {
  * the year's amount and profit on the right, folding its event cards.
  * Without a year (Month / Year / Custom) it just shows the cards.
  */
-function FoldGroup({ g, showHeader, profitText, groupProfit, children }) {
-  const [open, setOpen] = useState(true);
+function FoldGroup({ g, showHeader, profitText, groupProfit, open, onToggle, children }) {
   if (!showHeader) return <div className="space-y-2.5">{children}</div>;
   const pr = groupProfit(g.events);
   return (
     <div className="space-y-2.5" data-testid="year-heading">
-      <button onClick={() => setOpen(o => !o)} aria-expanded={open}
+      <button onClick={onToggle} aria-expanded={open}
         className="w-full flex items-center gap-2.5 bg-violet-50 border border-violet-200 rounded-2xl px-4 py-3 text-left cursor-pointer">
         <ChevronDown size={18} className={`text-bb-muted shrink-0 transition-transform ${open ? '' : '-rotate-90'}`} />
         <span className="flex-1 min-w-0">
@@ -98,7 +97,8 @@ export default function Reports() {
   const reportRef = useRef(null);   // the printable report — what the PDF is made from
   const [statusFilter, setStatusFilter] = useState('completed'); // all | completed | confirmed
   const [excludeGST, setExcludeGST] = useState(false);
-  const [closedFy, setClosedFy] = useState(() => new Set());   // laptop: financial years folded shut in All time
+  const [closedFy, setClosedFy] = useState(() => new Set());   // financial years folded shut in All time (phone and laptop)
+  const toggleFy = (fy) => setClosedFy(c => { const n = new Set(c); if (n.has(fy)) n.delete(fy); else n.add(fy); return n; });
   const isPhone = useIsPhone();
   const navigate = useNavigate();
 
@@ -431,9 +431,13 @@ export default function Reports() {
             <div className="bg-white border border-bb-border rounded-2xl text-center py-10 text-gray-600"><BarChart3 size={36} className="mx-auto mb-2 text-bb-muted" />No events in this period</div>
           ) : (
             <>
-              <SectionLabel>{filter === 'all' ? 'All events' : filter === 'monthly' ? `Events in ${periodLabel}` : filter === 'yearly' ? `Events in ${periodLabel}` : 'Events'} · {filteredEvents.length}</SectionLabel>
+              <SectionLabel right={yearGroups && yearGroups.length > 1 && (
+                <button onClick={() => setClosedFy(closedFy.size >= yearGroups.length ? new Set() : new Set(yearGroups.map(y => y.fy)))} className="text-[13.5px] font-semibold normal-case tracking-normal text-bb-accent-hover cursor-pointer" data-testid="fold-all">
+                  {closedFy.size >= yearGroups.length ? 'Open all' : 'Fold all'}
+                </button>)}>{filter === 'all' ? 'All events' : filter === 'monthly' ? `Events in ${periodLabel}` : filter === 'yearly' ? `Events in ${periodLabel}` : 'Events'} · {filteredEvents.length}</SectionLabel>
               {groups.map(g => (
-                <FoldGroup key={g.fy ?? 'list'} g={g} showHeader={!!g.fy} profitText={profitText} groupProfit={groupProfit}>
+                <FoldGroup key={g.fy ?? 'list'} g={g} showHeader={!!g.fy} profitText={profitText} groupProfit={groupProfit}
+                  open={!closedFy.has(g.fy)} onToggle={() => toggleFy(g.fy)}>
                   {g.events.map(e => {
                     const pr = profitOf(e);
                     return (
@@ -555,7 +559,7 @@ export default function Reports() {
                 <React.Fragment key={g.fy ?? 'list'}>
                 {yearGroups && (
                   <tr className="bg-violet-50/60 border-b border-bb-border cursor-pointer select-none" data-testid="year-heading" aria-expanded={!closedFy.has(g.fy)}
-                    onClick={() => setClosedFy(c => { const n = new Set(c); if (n.has(g.fy)) n.delete(g.fy); else n.add(g.fy); return n; })}>
+                    onClick={() => toggleFy(g.fy)}>
                     <td colSpan={showStatus ? 5 : 4} className="py-2 px-3 font-bold text-bb-accent-hover">
                       <span className="inline-flex items-center gap-1.5"><ChevronDown size={16} className={`transition-transform ${closedFy.has(g.fy) ? '-rotate-90' : ''}`} />{g.label} · {g.events.length} event{g.events.length === 1 ? '' : 's'}</span>
                     </td>
