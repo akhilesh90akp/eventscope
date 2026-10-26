@@ -84,7 +84,11 @@ function sendRemindersNow(todayOverride) {
     var events = listDocuments(tenantPath, 'events').filter(function (d) { return d.fields; }).map(function (d) {
       return { id: d.name.split('/').pop(), data: fromFields(d.fields) };
     });
-    var messages = reminderMessages(events, today, inTwo);
+    // this company's own lead time (Settings → Calendar), 1–7 days, default 2
+    var cfg = listDocuments(tenantPath, 'config').filter(function (d) { return d.fields && /\/settings$/.test(d.name); })[0];
+    var lead = cfg ? Number(fromFields(cfg.fields).reminderDaysBefore) : DAYS_BEFORE;
+    if (!(lead >= 1 && lead <= 7)) lead = DAYS_BEFORE;
+    var messages = reminderMessages(events, today, shiftDate(today, lead), lead);
     if (!messages.length) return;
     companies++;
 
@@ -115,14 +119,15 @@ function sendRemindersNow(todayOverride) {
  * One message per confirmed function starting today or in DAYS_BEFORE days,
  * plus "Day N today" for each later day of a multi-day function.
  */
-function reminderMessages(events, today, inTwo) {
+function reminderMessages(events, today, inTwo, lead) {
+  lead = lead || DAYS_BEFORE;
   var out = [];
   events.forEach(function (ev) {
     var e = ev.data;
     if (e.status !== 'confirmed') return;
     functionsOf(e).forEach(function (f) {
       var dayN = f.days > 1 && f.date < today && f.endDate >= today ? daysBetween(f.date, today) + 1 : 0;
-      var when = f.date === today ? 'Today' : f.date === inTwo ? 'In ' + DAYS_BEFORE + ' days' : dayN ? 'Day ' + dayN + ' today' : null;
+      var when = f.date === today ? 'Today' : f.date === inTwo ? 'In ' + lead + ' days' : dayN ? 'Day ' + dayN + ' today' : null;
       if (!when) return;
       var dates = f.days > 1 ? prettyDate(f.date) + ' – ' + prettyDate(f.endDate) + ' (' + f.days + ' days)' : prettyDate(f.date);
       var bits = [dates + (f.time ? ', ' + time12(f.time) : ''), f.location].filter(Boolean);

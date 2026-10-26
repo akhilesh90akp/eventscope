@@ -356,7 +356,7 @@ export default function Calendar() {
   const lanes = useMemo(() => assignLanes(shown), [shown]);
   const weeks = useMemo(() => monthGrid(month.y, month.m), [month]);
   const usedTypes = useMemo(() => [...new Set(allFns.map(f => f.eventType).filter(Boolean))].sort((a, b) => EVENT_TYPES.indexOf(a) - EVENT_TYPES.indexOf(b)), [allFns]);
-  const reminders = useMemo(() => (isOwner ? upcomingReminders(allFns, today, 14) : []), [isOwner, allFns, today]);
+  const reminders = useMemo(() => (isOwner ? upcomingReminders(allFns, today, 14, Number(settings.reminderDaysBefore) || undefined) : []), [isOwner, allFns, today, settings.reminderDaysBefore]);
 
   const loadOf = (date) => dayLoad(dayCount(allByDate[date]), max);
   const selFns = shownByDate[selected] || [];

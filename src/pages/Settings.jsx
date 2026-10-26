@@ -35,7 +35,8 @@ import Modal from '../components/Modal';
 import JobLogColumnsEditor from '../components/JobLogColumnsEditor';
 import { resizeImageFile } from '../utils/helpers';
 import { lastStartupText } from '../utils/startupTiming';
-import { PageHeader, HeaderIcon } from '../components/LaptopUI';
+import { PageHeader, HeaderText } from '../components/LaptopUI';
+import { suggestServiceEmoji } from '../utils/serviceEmoji';
 import { Save, Plus, Trash2, Edit2, X, Building2, Landmark, FileText, Layers, Users, Table2, UserPlus, DatabaseBackup, Download, FileSignature, CalendarDays, Bell } from 'lucide-react';
 import Toggle from '../components/Toggle';
 import ReminderSwitch from '../components/ReminderSwitch';
@@ -136,6 +137,11 @@ export default function Settings() {
   /** Saves the current form state to global settings. Awaits the write; uses the app's toast, not a blocking alert(). */
   const handleSave = async () => {
     if (saving) return;
+    if (form.reminderDaysBefore !== undefined && !(Math.round(Number(form.reminderDaysBefore)) >= 1 && Math.round(Number(form.reminderDaysBefore)) <= 7)) {
+      setTab('calendar');
+      showToast('Reminder days: enter a number from 1 to 7', 'error');
+      return;
+    }
     const maxPerDay = Math.round(Number(form.maxEventsPerDay));
     if (form.maxEventsPerDay !== undefined && !(maxPerDay >= 1 && maxPerDay <= 50)) {
       setTab('calendar');
@@ -308,7 +314,7 @@ export default function Settings() {
   return (
     <div className="space-y-4 pb-8">
       {!isPhone && <PageHeader title="Settings"
-        actions={savable && <HeaderIcon icon={Save} label={saving ? 'Saving…' : 'Save settings'} tone="primary" onClick={handleSave} disabled={saving} data-testid="hdr-save" />} />}
+        actions={savable && <HeaderText icon={Save} primary onClick={handleSave} disabled={saving} data-testid="hdr-save">{saving ? 'Saving…' : 'Save'}</HeaderText>} />}
 
       {/* Tab Buttons — stay pinned while scrolling (laptops; phones open one section at a time) */}
       {!isPhone && <StickyBar>
@@ -343,7 +349,8 @@ export default function Settings() {
       )}
 
       {/* Editable tabs — disabled as a block when the user can't edit settings */}
-      <fieldset disabled={!canEditSettings} className="space-y-4 min-w-0">
+      <fieldset disabled={!canEditSettings} className="space-y-4 min-w-0
+        lg:[&_input]:h-[38px] lg:[&_input]:py-0 lg:[&_input]:rounded-[10px] lg:[&_label]:text-xs lg:[&_label]:font-bold">
 
       {/* Company Tab */}
       {tab === 'company' && (
@@ -505,8 +512,15 @@ export default function Settings() {
             <Card>
               <div className="space-y-3">
                 <h2 className="text-base font-semibold text-bb-text flex items-center gap-1.5"><Bell size={16} /> Event reminders</h2>
+                <Input
+                  label="Remind me this many days before"
+                  type="number" min="1" max="7"
+                  value={form.reminderDaysBefore ?? 2}
+                  onChange={e => set('reminderDaysBefore', e.target.value === '' ? '' : Number(e.target.value))}
+                  className="max-w-xs"
+                />
                 <p className="text-xs text-bb-muted">
-                  A notification on this phone or laptop 2 days before each confirmed event, and again on the day, at 9 am, even when
+                  A notification on this phone or laptop {form.reminderDaysBefore || 2} days before each confirmed event, and again on the day, at 9 am, even when
                   the app is closed. Turn it on separately on each device you use.
                 </p>
                 <ReminderSwitch />
@@ -545,7 +559,12 @@ export default function Settings() {
             <h3 className="text-sm font-semibold text-bb-muted uppercase mb-3">Add Category</h3>
             <div className="flex gap-2">
               <Input placeholder="Icon (emoji)" value={newCatIcon} onChange={e => setNewCatIcon(e.target.value)} className="w-20" />
-              <Input placeholder="Category name" value={newCatName} onChange={e => setNewCatName(e.target.value)} className="flex-1"
+              <Input placeholder="Category name" value={newCatName}
+                onChange={e => {
+                  setNewCatName(e.target.value);
+                  // suggest an emoji until the user picks their own
+                  if (!newCatIcon || newCatIcon === '📦' || newCatIcon === suggestServiceEmoji(newCatName)) setNewCatIcon(suggestServiceEmoji(e.target.value));
+                }} className="flex-1"
                 onKeyDown={e => e.key === 'Enter' && handleAddCategory()}
               />
               <Button icon={Plus} onClick={handleAddCategory}>Add</Button>

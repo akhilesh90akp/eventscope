@@ -83,7 +83,7 @@ export default function ReminderSwitch() {
       </Button>
       <p className="text-[11px] text-bb-muted flex items-start gap-1">
         <BellOff size={12} className="mt-0.5 shrink-0" />
-        A notification 2 days before each confirmed event and on the day, at 9 am — even when the app is closed.
+        A notification before each confirmed event (days set in Settings → Calendar) and on the day, at 9 am — even when the app is closed.
       </p>
     </div>
   );

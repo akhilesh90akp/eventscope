@@ -189,9 +189,9 @@ const REMINDER_DAYS_BEFORE = 2;
  * the day its "in 2 days" reminder goes out (multi-day functions also get a
  * "Day 2 today" alert on each extra day — see tools/drive-backup/Reminders.gs).
  */
-export function upcomingReminders(fns, today, days = 14) {
+export function upcomingReminders(fns, today, days = 14, leadDays = REMINDER_DAYS_BEFORE) {
   const until = addDays(today, days);
   return fns
     .filter(f => f.status === 'confirmed' && f.date >= today && f.date <= until)
-    .map(f => ({ ...f, remindOn: addDays(f.date, -REMINDER_DAYS_BEFORE) }));
+    .map(f => ({ ...f, remindOn: addDays(f.date, -leadDays) }));
 }
