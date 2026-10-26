@@ -23,7 +23,8 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { getEventBill, computeEventFinancials, parseMoneyExpr, validateMoneyInput, formatDateRange, functionEnd } from '../utils/helpers';
 import { exportJobLogToExcel, readJobLogFromExcel } from '../utils/jobLogExcel';
-import { Download, Upload, Loader2, AlertTriangle, MapPin } from 'lucide-react';
+import { Download, Upload, Loader2, AlertTriangle, MapPin, ArrowLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useIsPhone } from '../components/useIsPhone';
 import { Switch } from '../components/LaptopUI';
 import { useConfirm } from '../components/useConfirm';
@@ -112,6 +113,7 @@ export default function JobLog() {
 }
 
 function JobLogGrid() {
+  const navigate = useNavigate();
   const {
     events, loaded, financials, financialsLoaded, jobLogColumns, saveFinancials,
     settings, tenant, isOwner, canEditEvents, showToast, canUse,
@@ -497,7 +499,10 @@ function JobLogGrid() {
     <div className="min-h-[100dvh] bg-bb-bg flex flex-col">
       {/* === TOP BAR === */}
       <header className="bg-bb-sidebar text-white flex items-center gap-3 sm:gap-4 px-3 sm:px-5 py-3 sticky top-0 z-30">
-        <img src={import.meta.env.BASE_URL + 'eventscope-logo-horizontal.svg'} alt="EventScope" className="hidden sm:block h-[18px]" />
+        <button onClick={() => navigate('/')} data-testid="back-to-app" className="inline-flex items-center gap-1.5 text-sm font-semibold border border-bb-sidebar-border rounded-lg px-3 py-1.5 hover:bg-white/10 cursor-pointer shrink-0">
+          <ArrowLeft size={15} /> Back to app
+        </button>
+        <img src={import.meta.env.BASE_URL + 'eventscope-logo-horizontal.svg'} alt="EventScope" className="hidden lg:block h-[18px]" />
         <div className="font-bold sm:pl-4 sm:border-l border-bb-sidebar-border">
           Job Log <span className="text-xs font-medium text-bb-sidebar-muted">· {companyName}</span>
         </div>

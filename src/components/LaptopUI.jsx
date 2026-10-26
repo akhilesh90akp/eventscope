@@ -22,7 +22,8 @@
 // IMPORTS
 // ============================================================
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, MoreHorizontal, Info, ChevronDown } from 'lucide-react';
+import { ArrowLeft, MoreHorizontal, Info, ChevronDown, Plus } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { IconButton } from './PhoneUI';
 
 // ============================================================
@@ -31,6 +32,10 @@ import { IconButton } from './PhoneUI';
 
 /** Title row of a laptop page */
 export function PageHeader({ title, count, sub, onBack, actions = null, testId = 'page-header' }) {
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+  // A "New event" button sits at the far right of the main list pages
+  const showNew = NEW_EVENT_PAGES.some(p => pathname === p || (p !== '/' && pathname.startsWith(p + '/')));
   return (
     <div className="flex items-center gap-3 min-h-[44px]" data-testid={testId}>
       {onBack && <IconButton icon={ArrowLeft} label="Back" tone="quiet" size={38} iconSize={19} className="-ml-2" onClick={onBack} />}
@@ -43,10 +48,18 @@ export function PageHeader({ title, count, sub, onBack, actions = null, testId =
         </h1>
         {sub && <p className="text-[14px] text-gray-600 mt-0.5 truncate" data-testid="page-sub">{sub}</p>}
       </div>
-      {actions && <div className="ml-auto shrink-0 flex items-center gap-2">{actions}</div>}
+      {(actions || showNew) && (
+        <div className="ml-auto shrink-0 flex items-center gap-2">
+          {actions}
+          {showNew && <HeaderText icon={Plus} primary onClick={() => navigate('/new')} data-testid="hdr-new-event">New event</HeaderText>}
+        </div>
+      )}
     </div>
   );
 }
+
+/** Pages whose header carries the "New event" button */
+const NEW_EVENT_PAGES = ['/', '/drafts', '/confirmed', '/completed', '/calendar', '/reports', '/purchases', '/settings'];
 
 /** 38×38 icon button for the page header (tone="primary" for the one main action) */
 export function HeaderIcon({ icon, label, tone = 'neutral', ...rest }) {
