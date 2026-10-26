@@ -32,6 +32,8 @@ import { useIsPhone } from '../components/useIsPhone';
 import { sortByActiveDate, openJobLog, functionDays, itemDays, lineAmount, getAllEventDates } from '../utils/helpers';
 import { Search, PackageOpen, ArrowLeftRight, ExternalLink } from 'lucide-react';
 import { PlanTag } from '../components/UpgradeCard';
+import AddItemPhoneSheet from '../components/AddItemPhoneSheet';
+import SetPricesSheet from '../components/SetPricesSheet';
 
 // ============================================================
 // HELPERS
@@ -127,7 +129,7 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
   // ------------------------------------------------------------
 
   /** Adds a new item to an event (choosing target: main or sub-event). Awaits the write and surfaces failures. */
-  const handleAddItem = async (eventId, item) => {
+  const handleAddItem = async (eventId, item, target = addItemTarget) => {
     if (!item.trim()) return;
     const ev = events.find(e => e.id === eventId);
     if (!ev) return;
@@ -135,7 +137,7 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
     let result;
     if (ev.mainEvent) {
       // New format: add to specified target
-      if (addItemTarget === 'main') {
+      if (target === 'main') {
         const mainItems = [...(ev.mainEvent.items || [])];
         if (!mainItems.includes(item.trim())) {
           mainItems.push(item.trim());
@@ -146,7 +148,7 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
       } else {
         // Add to a sub-event
         const subEvents = (ev.subEvents || []).map(s => {
-          if (s.id === addItemTarget) {
+          if (s.id === target) {
             const subItems = [...(s.items || [])];
             if (!subItems.includes(item.trim())) {
               subItems.push(item.trim());
@@ -156,8 +158,8 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
           return s;
         });
         // Also add keyed price entry
-        const target = (ev.subEvents || []).find(s => s.id === addItemTarget);
-        const newPrices = { ...(ev.itemPrices || {}), [`${addItemTarget}::${item.trim()}`]: { qty: 1, rate: 0, days: functionDays(target) } };
+        const target = (ev.subEvents || []).find(s => s.id === target);
+        const newPrices = { ...(ev.itemPrices || {}), [`${target}::${item.trim()}`]: { qty: 1, rate: 0, days: functionDays(target) } };
         result = await updateEvent(eventId, { subEvents, itemPrices: newPrices });
       }
     } else {
@@ -388,8 +390,29 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
           }} />
       )}
 
+      {/* === PHONE: Add item and Set prices sheets (laptops use the pop-ups below) === */}
+      {isPhone && addItemModal && (() => {
+        const ev = events.find(e => e.id === addItemModal);
+        if (!ev) return null;
+        const sub = addItemTarget === 'main' ? null : (ev.subEvents || []).find(x => x.id === addItemTarget);
+        const added = ev.mainEvent ? (sub ? sub.items : ev.mainEvent.items) || [] : ev.items || [];
+        return <AddItemPhoneSheet title={`${ev.clientName || ''}${ev.eventType ? ` · ${ev.eventType}` : ''}`} targets={getTargetOptions(ev)} target={addItemTarget} onTarget={setAddItemTarget}
+          added={added} categories={categories} onAdd={(name, target) => handleAddItem(ev.id, name, target)} onClose={() => setAddItemModal(null)} />;
+      })()}
+      {isPhone && priceModal && (() => {
+        const ev = events.find(e => e.id === priceModal);
+        const multi = Object.keys(prices).length > 1 && ev?.mainEvent && (ev.subEvents || []).length > 0;
+        const rows = Object.keys(prices).map(key => {
+          const name = key.includes('::') ? key.split('::').slice(1).join('::') : key;
+          const prefix = key.includes('::') ? key.split('::')[0] : 'main';
+          const group = multi ? (prefix === 'main' ? (ev.mainEvent?.name || ev.eventType || 'Main Event') : ((ev.subEvents || []).find(x => x.id === prefix)?.name || 'Sub Event')) : '';
+          return { key, name, group };
+        });
+        return <SetPricesSheet title={`${ev?.clientName || ''}${ev?.eventType ? ` · ${ev.eventType}` : ''}`} rows={rows} prices={prices}
+          onChange={(key, patch) => setPrices(p => ({ ...p, [key]: { ...p[key], ...patch } }))} onSave={savePrices} onClose={() => setPriceModal(null)} />;
+      })()}
       {/* Add Item Modal */}
-      <Modal isOpen={!!addItemModal} onClose={() => setAddItemModal(null)} title="Add Item" size="md">
+      <Modal isOpen={!isPhone && !!addItemModal} onClose={() => setAddItemModal(null)} title="Add Item" size="md">
         <div className="space-y-3 max-h-[60vh] overflow-y-auto">
           {/* Target selector: which event to add item to */}
           {(() => {
@@ -456,7 +479,7 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
       </Modal>
 
       {/* Set Prices Modal */}
-      <Modal isOpen={!!priceModal} onClose={() => setPriceModal(null)} title="Set Prices" size="lg">
+      <Modal isOpen={!isPhone && !!priceModal} onClose={() => setPriceModal(null)} title="Set Prices" size="lg">
         <div className="space-y-3 max-h-[60vh] overflow-y-auto">
           {Object.entries(prices).map(([key, val]) => {
             const itemName = key.includes('::') ? key.split('::').slice(1).join('::') : key;

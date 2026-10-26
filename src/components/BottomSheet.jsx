@@ -80,7 +80,8 @@ export default function BottomSheet({ open, onClose, title, sub, children, foote
     const onFocus = (e) => {
       const t = e.target;
       if (!t.matches?.('input, textarea, select')) return;
-      setTimeout(() => t.scrollIntoView({ block: 'center', behavior: 'smooth' }), 300);   // after the keyboard has opened
+      t.style.scrollMarginTop = '20px'; t.style.scrollMarginBottom = '20px';   // breathing room above and below the field
+      setTimeout(() => t.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 300);   // after the keyboard has opened
     };
     el.addEventListener('focusin', onFocus);
     return () => el.removeEventListener('focusin', onFocus);
@@ -104,7 +105,7 @@ export default function BottomSheet({ open, onClose, title, sub, children, foote
             </button>
           </div>
         )}
-        <div ref={body} className="px-5 pb-4 overflow-y-auto overscroll-contain min-h-0">{children}</div>
+        <div ref={body} className="px-5 pt-2 pb-4 [&_input]:scroll-mt-5 [&_input]:scroll-mb-5 overflow-y-auto overscroll-contain min-h-0">{children}</div>
         {footer && <div className={`px-5 pt-2 border-t border-bb-border shrink-0 ${kb ? 'pb-3' : 'pb-[calc(1rem+env(safe-area-inset-bottom))]'}`}>{footer}</div>}
         {!footer && !kb && <div className="h-[env(safe-area-inset-bottom)] shrink-0" />}
       </div>

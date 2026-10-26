@@ -37,7 +37,7 @@ src/
         phone width, "Actual size" switch), PhoneUI (IconButton, SectionLabel, SegmentedTabs,
         MenuRow, SwitchRow, UnderlineTabs (tabs attached to the purple bar), NumberBox, DateField "Sat, 12 Sep 2026", TextField, DateBlock, FunctionRow),
       EventCardPhone (+ EventItemsSheet, EventMoreSheet — Home/Drafts/Confirmed/Completed cards),
-      QuotePhoneEditor (quote Details tab), AddItemsSheet (phone quote: pick an event, add many item names, save), FitBudgetSheet + QuoteRevisionsSheet (Fit to budget,
+      QuotePhoneEditor (quote Details tab), AddItemsSheet (phone quote: pick an event, add many item names, save), AddItemPhoneSheet + SetPricesSheet (phone Add item / Set prices on Confirmed and Completed), FitBudgetSheet + QuoteRevisionsSheet (Fit to budget,
         versions — also on laptops), EventFormPhone (New/Edit event in 3 steps) + VenueInput
         (saved venues first, then OpenStreetMap, then "use as typed"),
     LAPTOP DESIGN (1024px and up — same design system, phone code untouched):
