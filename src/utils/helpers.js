@@ -82,6 +82,18 @@ export const parseMoneyExpr = (raw) => {
   return { value, formula: parts.length > 1 ? text.replace(/^\+/, '') : null };
 };
 
+/**
+ * Checks what was typed in a Job Log money cell and says why when it is wrong.
+ * Returns { ok: true, value, formula } or { ok: false, message }.
+ */
+export const validateMoneyInput = (raw) => {
+  const parsed = parseMoneyExpr(raw);
+  if (!parsed) return { ok: false, message: 'Numbers only, e.g. 12000 or 12000+3500' };
+  if (parsed.value !== null && parsed.value < 0) return { ok: false, message: 'An amount can’t be negative' };
+  if (parsed.value !== null && parsed.value > 100000000) return { ok: false, message: 'That’s a very large amount — check the zeros' };
+  return { ok: true, ...parsed };
+};
+
 // ============================================================
 // CALCULATIONS
 // ============================================================

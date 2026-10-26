@@ -21,9 +21,11 @@
 // ============================================================
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { getEventBill, computeEventFinancials, parseMoneyExpr, formatDateRange, functionEnd } from '../utils/helpers';
+import { getEventBill, computeEventFinancials, parseMoneyExpr, validateMoneyInput, formatDateRange, functionEnd } from '../utils/helpers';
 import { exportJobLogToExcel, readJobLogFromExcel } from '../utils/jobLogExcel';
-import { Download, Upload, Loader2 } from 'lucide-react';
+import { Download, Upload, Loader2, AlertTriangle } from 'lucide-react';
+import { useIsPhone } from '../components/useIsPhone';
+import { Switch } from '../components/LaptopUI';
 import { useConfirm } from '../components/useConfirm';
 import UpgradeCard from '../components/UpgradeCard';
 
@@ -127,6 +129,11 @@ function JobLogGrid() {
   const [busy, setBusy] = useState(null);           // 'download' | 'upload' | null
   const fileRef = useRef(null);
   const skipCommit = useRef(null);                  // cell key whose edit was cancelled with Esc
+  const lap = !useIsPhone();                        // laptop layout from 1024px; tablets keep the classic grid
+  const [moreCols, setMoreCols] = useState(() => { try { return localStorage.getItem('jobLogMore') === '1'; } catch { return false; } });
+  const [focusRows, setFocusRows] = useState(null); // laptop: 'loss' | 'empty' | null
+  const [errors, setErrors] = useState({});         // laptop: { 'eventId|colId': why the typed value is wrong }
+  const lastChanges = useRef([]);                   // for Retry after a failed save
 
   const companyName = settings.companyName || tenant?.name || '';
 
@@ -156,7 +163,7 @@ function JobLogGrid() {
   const months = useMemo(() => [...new Set(completed.map(e => monthKey(eventDate(e))).filter(Boolean))].sort().reverse(), [completed]);
   const types = useMemo(() => [...new Set(completed.map(e => e.eventType).filter(Boolean))].sort(), [completed]);
 
-  const rows = useMemo(() => completed
+  const allRows = useMemo(() => completed
     .filter(e => period === 'all' || monthKey(eventDate(e)) === period)
     .filter(e => typeFilter === 'all' || e.eventType === typeFilter)
     .map(e => {
@@ -179,6 +186,12 @@ function JobLogGrid() {
         calc: computeEventFinancials(bill.revenue, values, jobLogColumns),
       };
     }), [completed, period, typeFilter, financials, jobLogColumns]);
+
+  // Laptop warnings: events making a loss, and events with no costs yet
+  const lossCount = useMemo(() => allRows.filter(r => r.calc.hasAny && r.calc.profit < 0).length, [allRows]);
+  const emptyCount = useMemo(() => allRows.filter(r => !r.calc.hasAny).length, [allRows]);
+  const rows = useMemo(() => !lap || !focusRows ? allRows
+    : allRows.filter(r => focusRows === 'loss' ? (r.calc.hasAny && r.calc.profit < 0) : !r.calc.hasAny), [allRows, lap, focusRows]);
 
   const totals = useMemo(() => {
     const t = { revenue: 0, gst: 0, billTotal: 0, advance: 0, balance: 0, cost: 0, income: 0, profit: 0, byCol: {} };
@@ -204,6 +217,7 @@ function JobLogGrid() {
   /** Saves a list of { eventId, columnId, value } and tracks the saved indicator */
   const save = async (changes) => {
     if (!changes.length) return true;
+    lastChanges.current = changes;
     setPending(p => p + 1);
     setLastError(null);
     const result = await saveFinancials(changes);
@@ -220,6 +234,11 @@ function JobLogGrid() {
     if (skipCommit.current === key) { skipCommit.current = null; return; }
     if (!(key in drafts)) return;
     const text = drafts[key];
+    // laptop: a wrong value stays in the box, red, with the reason — nothing is saved until it is right
+    if (lap && col.type !== 'text') {
+      const check = validateMoneyInput(text);
+      if (!check.ok) { setErrors(er => ({ ...er, [key]: check.message })); return; }
+    }
     setDrafts(d => { const n = { ...d }; delete n[key]; return n; });
     if (col.type === 'text') {
       const value = text.trim() || null;
@@ -261,6 +280,7 @@ function JobLogGrid() {
       const key = draftKey(row.id, col.id);
       setDrafts(d => { const n = { ...d }; delete n[key]; return n; });
       skipCommit.current = key;
+      setErrors(er => { const n = { ...er }; delete n[key]; return n; });
       e.currentTarget.blur();
     }
   };
@@ -396,6 +416,12 @@ function JobLogGrid() {
   const ro = 'bg-[#f9fafb] text-gray-600 border-b border-r border-gray-100';  // read-only cell
   const foot = 'sticky bottom-0 z-10 bg-bb-sidebar';                         // totals row cell
   const stickyBg = 'bg-[#f9fafb]';
+  // Laptop: columns that come from the event & bill (the rest wait behind "More columns")
+  const lapInfo = [
+    ...(moreCols ? [{ key: 'phone', label: 'Contact', text: true }, { key: 'location', label: 'Location', text: true }, { key: 'type', label: 'Type', text: true }, { key: 'invoiceNo', label: 'Invoice #', text: true }] : []),
+    { key: 'revenue', label: 'Revenue', num: true },
+    ...(moreCols ? [{ key: 'gst', label: 'GST', num: true }, { key: 'billTotal', label: 'Bill total', num: true }, { key: 'advance', label: 'Received', num: true }, { key: 'balance', label: 'Balance due', num: true }] : []),
+  ];
 
   // ------------------------------------------------------------
   // RENDER — EDITABLE CELL
@@ -408,6 +434,35 @@ function JobLogGrid() {
     const formula = isText ? null : row.formulas[col.id] || null;
     const shown = key in drafts ? drafts[key] : (isText ? (stored || '') : rupees(stored));
     const bg = col.type === 'income' ? 'bg-emerald-50/60' : isText ? 'bg-slate-50/60' : 'bg-white';
+    if (lap) {
+      const err = errors[key];
+      const box = err ? 'border-red-400 bg-red-50 text-red-700'
+        : col.type === 'income' ? 'border-emerald-300 bg-white' : 'border-bb-border bg-white';
+      return (
+        <td key={col.id} className="border-b border-bb-border/60 px-2 py-2.5 align-top bg-white">
+          <input
+            data-r={r}
+            data-c={c}
+            inputMode={isText ? 'text' : 'decimal'}
+            disabled={readOnly}
+            value={shown}
+            placeholder="—"
+            aria-invalid={!!err}
+            title={isText ? (stored || '') : formula ? `${formula.replace(/([-+])/g, ' $1 ')} = ${rupees(stored)}` : undefined}
+            onFocus={e => {
+              setDrafts(d => key in d ? d : { ...d, [key]: formula || (stored === null || stored === undefined ? '' : String(stored)) });
+              requestAnimationFrame(() => e.target.select());
+            }}
+            onChange={e => { setDrafts(d => ({ ...d, [key]: e.target.value })); setErrors(er => { if (!(key in er)) return er; const n = { ...er }; delete n[key]; return n; }); }}
+            onBlur={() => commitCell(row, col)}
+            onKeyDown={e => handleKeyDown(e, r, c, row, col)}
+            onPaste={e => handlePaste(e, r, c)}
+            className={`w-full h-9 px-2.5 rounded-lg border outline-none placeholder:text-gray-300 focus:ring-2 focus:ring-bb-accent focus:border-transparent ${box} ${isText ? 'min-w-[240px] text-left' : 'min-w-[104px] text-right tabular-nums'}`}
+          />
+          {err && <p className="text-[11px] text-red-600 mt-1 leading-tight max-w-[180px]" data-testid="cell-error">{err}</p>}
+        </td>
+      );
+    }
     return (
       <td key={col.id} className={`border-b border-r border-gray-100 p-0 ${bg}`}>
         <input
@@ -448,6 +503,7 @@ function JobLogGrid() {
         <div className={`flex items-center gap-1.5 text-xs ${lastError ? 'text-red-300' : 'text-emerald-200'}`}>
           <span className={`w-2 h-2 rounded-full ${lastError ? 'bg-red-400' : pending ? 'bg-amber-300 animate-pulse' : 'bg-emerald-400'}`} />
           {savedLabel}
+          {lastError && <button onClick={() => save(lastChanges.current)} className="ml-1 underline font-semibold cursor-pointer" data-testid="retry-save">Retry</button>}
         </div>
         <button onClick={handleDownload} disabled={busy} className="hidden sm:inline-flex items-center gap-1.5 text-sm font-semibold border border-bb-sidebar-border rounded-lg px-3 py-1.5 hover:bg-white/10 cursor-pointer disabled:opacity-50">
           <Download size={15} /> {busy === 'download' ? 'Preparing…' : 'Download Excel'}
@@ -465,7 +521,7 @@ function JobLogGrid() {
       )}
 
       {/* === FILTERS === */}
-      <div className="flex flex-wrap items-center gap-2 px-3 sm:px-5 py-3">
+      {!lap && <div className="flex flex-wrap items-center gap-2 px-3 sm:px-5 py-3">
         <select value={period} onChange={e => setPeriod(e.target.value)} className="text-sm border border-bb-border rounded-lg px-2.5 py-2 bg-white">
           <option value="all">All time</option>
           {months.map(m => <option key={m} value={m}>{monthLabel(m)}</option>)}
@@ -479,10 +535,37 @@ function JobLogGrid() {
         <span className="hidden md:inline text-xs text-bb-muted ml-1">
           Click a cell and type · sums work too: 12000+3500 · Tab → next column · Enter ↓ next row · Paste a block copied from Excel
         </span>
-      </div>
+      </div>}
+      {lap && (
+        <div className="flex flex-wrap items-center gap-3 px-5 py-4" data-testid="joblog-filters">
+          <select value={period} onChange={e => setPeriod(e.target.value)} className="h-9 text-sm font-medium border border-bb-border rounded-lg px-3 bg-white">
+            <option value="all">All time</option>
+            {months.map(m => <option key={m} value={m}>{monthLabel(m)}</option>)}
+          </select>
+          <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className="h-9 text-sm font-medium border border-bb-border rounded-lg px-3 bg-white">
+            <option value="all">All event types</option>
+            {types.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+          <Switch label="More columns" testId="more-columns" checked={moreCols}
+            onChange={v => { setMoreCols(v); try { localStorage.setItem('jobLogMore', v ? '1' : '0'); } catch { /* private mode */ } }} />
+          {lossCount > 0 && (
+            <button onClick={() => setFocusRows(f => f === 'loss' ? null : 'loss')} data-testid="chip-loss"
+              className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-bold cursor-pointer bg-red-100 text-red-700 ${focusRows === 'loss' ? 'ring-2 ring-red-400' : ''}`}>
+              <AlertTriangle size={13} /> {lossCount} making a loss
+            </button>
+          )}
+          {emptyCount > 0 && (
+            <button onClick={() => setFocusRows(f => f === 'empty' ? null : 'empty')} data-testid="chip-empty"
+              className={`inline-flex items-center h-8 px-3 rounded-full text-xs font-bold cursor-pointer bg-amber-100 text-amber-800 ${focusRows === 'empty' ? 'ring-2 ring-amber-400' : ''}`}>
+              {emptyCount} not filled yet
+            </button>
+          )}
+          {focusRows && <span className="text-xs text-bb-muted">Showing only these — click the chip again to see all.</span>}
+        </div>
+      )}
 
       {/* === SUMMARY CARDS === */}
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-2 sm:gap-3 px-3 sm:px-5 pb-3">
+      <div className={`grid grid-cols-2 md:grid-cols-6 gap-2 sm:gap-3 px-3 sm:px-5 ${lap ? 'pb-4' : 'pb-3'}`}>
         {[
           ['Revenue', rupees(totals.revenue), ''],
           ['Total cost', rupees(totals.cost), ''],
@@ -492,8 +575,8 @@ function JobLogGrid() {
           ['Balance due', rupees(totals.balance), 'text-amber-700'],
         ].map(([label, value, cls]) => (
           <div key={label} className={`bg-white border border-bb-border rounded-xl px-3 py-2 sm:px-4 sm:py-3 ${cls.includes('hidden') ? 'hidden md:block' : ''}`}>
-            <p className="text-[10px] sm:text-[11px] uppercase tracking-wide text-bb-muted">{label}</p>
-            <p className={`text-base sm:text-xl font-bold ${cls.replace('hidden md:block', '')}`}>{value}</p>
+            <p className={`uppercase tracking-wide text-bb-muted ${lap ? 'text-[10.5px] font-semibold' : 'text-[10px] sm:text-[11px]'}`}>{label}</p>
+            <p className={`font-bold ${lap ? 'text-[22px] leading-tight' : 'text-base sm:text-xl'} ${cls.replace('hidden md:block', '')}`}>{value}</p>
           </div>
         ))}
       </div>
@@ -502,6 +585,85 @@ function JobLogGrid() {
       {completed.length === 0 ? (
         <div className="mx-3 sm:mx-5 bg-white border border-bb-border rounded-xl p-10 text-center text-bb-muted">
           No completed events yet. Mark an event as completed and it appears here.
+        </div>
+      ) : lap ? (
+        <div className="mx-5 mb-5 bg-white border border-bb-border rounded-xl overflow-auto max-h-[calc(100dvh-250px)]" data-testid="joblog-table">
+          <table className="border-separate border-spacing-0 text-[13px] min-w-full">
+            <thead>
+              <tr className="text-[10.5px] text-white font-bold uppercase tracking-wide text-left">
+                <th className="sticky top-0 left-0 z-30 bg-gray-500 h-8" colSpan={2} />
+                <th className="sticky top-0 z-10 bg-gray-500 px-3" colSpan={lapInfo.length}>From event &amp; bill</th>
+                {costCols.length > 0 && <th className="sticky top-0 z-10 bg-amber-700 px-3" colSpan={costCols.length}>Costs · you fill in</th>}
+                {incomeCols.length > 0 && <th className="sticky top-0 z-10 bg-emerald-700 px-3" colSpan={incomeCols.length}>Income · you fill in</th>}
+                <th className="sticky top-0 z-10 bg-violet-800 px-3" colSpan={3}>Calculated</th>
+                {textCols.length > 0 && <th className="sticky top-0 z-10 bg-slate-600 px-3" colSpan={textCols.length}>Notes · you fill in</th>}
+              </tr>
+              <tr className="text-[11px] uppercase tracking-wide text-gray-600">
+                <th className="sticky top-8 left-0 z-30 bg-[#faf8fd] font-bold px-3 h-10 border-b border-bb-border w-12 min-w-[48px] text-center">#</th>
+                <th className="sticky top-8 left-12 z-30 bg-[#faf8fd] font-bold px-3 h-10 border-b border-r border-bb-border text-left min-w-[240px]">Client / event</th>
+                {lapInfo.map(b => <th key={b.key} className={`sticky top-8 z-10 bg-[#faf8fd] font-bold px-3 h-10 border-b border-bb-border whitespace-nowrap ${b.text ? 'text-left' : 'text-right'}`}>{b.label}</th>)}
+                {moneyCols.map(c => <th key={c.id} className="sticky top-8 z-10 bg-[#faf8fd] font-bold px-3 h-10 border-b border-bb-border whitespace-nowrap text-right">{c.label}</th>)}
+                {['Total cost', 'Profit', 'Margin'].map(l => <th key={l} className="sticky top-8 z-10 bg-[#faf8fd] font-bold px-3 h-10 border-b border-bb-border whitespace-nowrap text-right">{l}</th>)}
+                {textCols.map(c => <th key={c.id} className="sticky top-8 z-10 bg-[#faf8fd] font-bold px-3 h-10 border-b border-bb-border whitespace-nowrap text-left">{c.label}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.length === 0 && (
+                <tr><td colSpan={99} className="p-8 text-center text-bb-muted">No events match.</td></tr>
+              )}
+              {rows.map((row, r) => {
+                const loss = row.calc.hasAny && row.calc.profit < 0;
+                return (
+                  <tr key={row.id}>
+                    <td className="sticky left-0 z-[5] bg-white border-b border-bb-border/60 px-3 text-center text-bb-muted align-middle">{r + 1}</td>
+                    <td className="sticky left-12 z-[5] bg-white border-b border-r border-bb-border/60 px-3 py-2.5 align-middle">
+                      <div className="leading-tight min-w-[220px] whitespace-normal">
+                        <b className="text-bb-text">{row.client}</b>
+                        {loss && <span className="ml-2 align-middle text-[10px] font-bold uppercase text-red-700 bg-red-100 rounded-full px-2 py-0.5" data-testid="loss-tag">Loss</span>}
+                        {!row.calc.hasAny && <span className="ml-2 align-middle text-[10px] font-bold uppercase text-amber-800 bg-amber-100 rounded-full px-2 py-0.5" data-testid="nocost-tag">No costs</span>}
+                        <div className="text-[11.5px] text-bb-muted mt-0.5">
+                          {row.date ? formatDateRange(row.date, row.endDate) : ''}{row.time ? ` ${row.time}` : ''} · {row.event}{row.subEvents ? ` +${row.subEvents} more` : ''}
+                        </div>
+                      </div>
+                    </td>
+                    {lapInfo.map(b => (
+                      <td key={b.key} className={`border-b border-bb-border/60 px-3 whitespace-nowrap align-middle ${b.text ? 'text-left text-bb-muted' : 'text-right tabular-nums'} ${b.key === 'revenue' ? 'font-bold text-bb-text' : ''} ${b.key === 'balance' && row.balance > 0 ? 'text-amber-700 font-semibold' : ''}`}>
+                        {b.key === 'phone' ? (row.phone ? <a href={`tel:${row.phone}`} className="text-bb-accent hover:underline tabular-nums">{row.phone}</a> : <span className="text-gray-300">—</span>)
+                          : b.key === 'invoiceNo' ? (row.invoiceNo || <span className="text-gray-300">no bill</span>)
+                          : b.text ? row[b.key]
+                          : b.key === 'gst' && !row.gst ? '' : rupees(row[b.key])}
+                      </td>
+                    ))}
+                    {moneyCols.map((col) => renderInput(row, col, r, editCols.indexOf(col)))}
+                    <td className="border-b border-bb-border/60 bg-violet-50/60 font-semibold text-right px-3 whitespace-nowrap tabular-nums align-middle">{row.calc.hasAny ? rupees(row.calc.totalCost) : ''}</td>
+                    <td className={`border-b border-bb-border/60 bg-violet-50/60 font-semibold text-right px-3 whitespace-nowrap tabular-nums align-middle ${row.calc.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                      {row.calc.hasAny ? rupees(row.calc.profit) : <span className="text-gray-400 font-normal">pending</span>}
+                    </td>
+                    <td className="border-b border-bb-border/60 bg-violet-50/60 font-semibold text-right px-3 whitespace-nowrap tabular-nums align-middle">{row.calc.hasAny && row.calc.margin !== null ? `${row.calc.margin}%` : ''}</td>
+                    {textCols.map((col) => renderInput(row, col, r, editCols.indexOf(col)))}
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr className="text-white font-bold">
+                <td className={`${foot} left-0 z-20 h-11`} />
+                <td className={`${foot} left-12 z-20 px-3 whitespace-nowrap`}>Total · {rows.length} event{rows.length === 1 ? '' : 's'}</td>
+                {lapInfo.map(b => (
+                  <td key={b.key} className={`${foot} text-right px-3 whitespace-nowrap tabular-nums ${b.key === 'balance' ? 'text-amber-300' : ''}`}>
+                    {b.num ? rupees(totals[b.key]) : ''}
+                  </td>
+                ))}
+                {moneyCols.map(c => (
+                  <td key={c.id} className={`${foot} text-right px-3 whitespace-nowrap tabular-nums`}>{rupees(totals.byCol[c.id] || 0)}</td>
+                ))}
+                <td className={`${foot} text-right px-3 whitespace-nowrap tabular-nums`}>{rupees(totals.cost)}</td>
+                <td className={`${foot} text-right px-3 whitespace-nowrap tabular-nums text-emerald-300`}>{rupees(totals.profit)}</td>
+                <td className={`${foot} text-right px-3 whitespace-nowrap tabular-nums`}>{totals.margin === null ? '' : `${totals.margin}%`}</td>
+                {textCols.map(c => <td key={c.id} className={foot} />)}
+              </tr>
+            </tfoot>
+          </table>
         </div>
       ) : (
         <div className="mx-3 sm:mx-5 mb-5 bg-white border border-bb-border rounded-xl overflow-auto self-stretch sm:self-start max-w-[calc(100%-1.5rem)] sm:max-w-[calc(100%-2.5rem)] max-h-[calc(100dvh-230px)]">

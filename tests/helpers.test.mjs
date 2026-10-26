@@ -15,7 +15,7 @@ import {
   parseMoney, calcGST, roundOff, getEventBill, getEventRevenue,
   computeEventFinancials, inviteKey, genInvoiceNo, nextInvoiceNo,
   functionDays, functionEnd, formatDateRange, functionDateText, itemDays, lineAmount, usesDays,
-  computeSectionTotal, getAllEventDates, getEventSections, parseDiscount, parseMoneyExpr,
+  computeSectionTotal, getAllEventDates, getEventSections, parseDiscount, parseMoneyExpr, validateMoneyInput,
 } from '../src/utils/helpers.js';
 
 // ============================================================
@@ -275,4 +275,12 @@ test('suggestServices: first few when nothing typed, matches once 2+ letters, ne
   assert.deepEqual(suggestServices(all, 'sou', []), ['Sound system', 'Sound mixer']);
   assert.deepEqual(suggestServices(all, 'SOU', ['Sound system']), ['Sound mixer']);
   assert.deepEqual(suggestServices(all, 'zzz', []), []);
+});
+
+test('validateMoneyInput: explains wrong Job Log values', () => {
+  assert.deepEqual(validateMoneyInput('12000+3500'), { ok: true, value: 15500, formula: '12000+3500' });
+  assert.equal(validateMoneyInput('').ok, true);
+  assert.equal(validateMoneyInput('abc').ok, false);
+  assert.equal(validateMoneyInput('-500').ok, false);
+  assert.equal(validateMoneyInput('99999999999').ok, false);
 });
