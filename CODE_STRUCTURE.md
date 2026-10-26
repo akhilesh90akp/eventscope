@@ -47,6 +47,7 @@ src/
         3-line card on Home/Drafts/Confirmed/Completed; items tile opens EventItemsSheet),
       QuoteLaptopEditor (+ QuoteLaptopTools — quote editor as a list, same `q` object as
         QuotePhoneEditor; tool row = PDF · Group · Ungroup · Hide prices · WhatsApp · More ▾, "no price" chip, fold chevron per event, Summary list),
+      EventFormLaptop (New / Edit event in 3 steps on laptops — same `f` object as EventFormPhone; NewDraft / EditDraft pick one with useIsPhone()),
       QuoteDialogsLaptop (760px pop-ups: FitBudgetLaptop, QuoteRevisionsLaptop, AddItemLaptop, SetPricesLaptop — same props as the phone sheets; pages pick with useIsPhone()),
       PdfButton variant="laptop" ("⤓ PDF" in a title row),
     Badge, Toggle, LocationInput, ErrorBoundary,

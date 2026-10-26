@@ -17,116 +17,14 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { PageHeader, HeaderIcon } from '../components/LaptopUI';
-import { IconButton } from '../components/PhoneUI';
 import Card from '../components/Card';
 import Button from '../components/Button';
-import Input from '../components/Input';
-import Select from '../components/Select';
-import LocationInput from '../components/LocationInput';
-import FunctionDates from '../components/FunctionDates';
 import EventFormPhone from '../components/EventFormPhone';
+import EventFormLaptop from '../components/EventFormLaptop';
 import { useIsPhone } from '../components/useIsPhone';
 import { EVENT_TYPES } from '../constants/data';
 import { functionDatesProblem, functionDatesToSave, genId } from '../utils/helpers';
-import {
-  User, Phone, MessageSquare, MapPin, Clock,
-  IndianRupee, ChevronDown, ChevronUp, X, Plus, Save, StickyNote, Layers, Trash2,
-  Lock,
-} from 'lucide-react';
-
-// ============================================================
-// SUB-COMPONENTS
-// ============================================================
-
-/** Reusable items selection accordion for an event section */
-function ItemsSelector({ selectedItems, onToggle, onRemove, onAddCustom, categories, label }) {
-  const [openCat, setOpenCat] = useState(null);
-  const [customItem, setCustomItem] = useState('');
-
-  const selectedCountForCat = (cat) =>
-    cat.items.filter(i => selectedItems.includes(i)).length;
-
-  const addCustom = () => {
-    if (customItem.trim() && !selectedItems.includes(customItem.trim())) {
-      onAddCustom(customItem.trim());
-      setCustomItem('');
-    }
-  };
-
-  return (
-    <div>
-      <p className="text-xs font-semibold text-bb-muted uppercase mb-2">{label}</p>
-
-      {/* Selected Items Tags */}
-      {selectedItems.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-4 pb-3 border-b border-bb-border">
-          {selectedItems.map(item => (
-            <span key={item} className="inline-flex items-center gap-1 px-2 py-1 bg-bb-accent/20 text-bb-accent text-xs rounded-full">
-              {item}
-              <button onClick={() => onRemove(item)} className="hover:text-white cursor-pointer">
-                <X size={12} />
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-
-      {/* Categories Accordion */}
-      <div className="space-y-2">
-        {categories.map(cat => {
-          const isOpen = openCat === cat.id;
-          return (
-            <div key={cat.id} className={`rounded-lg overflow-hidden transition-all ${isOpen ? 'border-l-4 border-l-bb-accent border border-bb-accent/30 bg-bb-accent/5 shadow-sm' : 'border border-bb-border'}`}>
-              <button
-                onClick={() => setOpenCat(isOpen ? null : cat.id)}
-                className={`w-full flex items-center justify-between px-3 py-2.5 transition-colors cursor-pointer ${isOpen ? 'bg-bb-accent/10' : 'bg-bb-input hover:bg-bb-card-hover'}`}
-              >
-                <span className="flex items-center gap-2 text-sm font-medium text-bb-text">
-                  <span>{cat.icon}</span>
-                  {cat.name}
-                  {selectedCountForCat(cat) > 0 && (
-                    <span className="text-xs bg-bb-accent text-white px-1.5 py-0.5 rounded-full">
-                      {selectedCountForCat(cat)}
-                    </span>
-                  )}
-                </span>
-                {isOpen ? <ChevronUp size={18} className="text-bb-accent" /> : <ChevronDown size={18} className="text-bb-muted" />}
-              </button>
-
-              {isOpen && (
-                <div className="p-3 grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {cat.items.map(item => (
-                    <button
-                      key={item}
-                      onClick={() => onToggle(item)}
-                      className={`text-left text-sm px-3 py-2 rounded-lg border transition-colors cursor-pointer ${
-                        selectedItems.includes(item)
-                          ? 'bg-bb-accent/20 border-bb-accent text-bb-accent font-medium'
-                          : 'bg-white border-bb-border text-bb-text hover:border-bb-accent/50'
-                      }`}
-                    >
-                      {selectedItems.includes(item) && '✓ '}{item}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Custom Item */}
-      <div className="flex gap-2 mt-4">
-        <Input placeholder="Custom item..." value={customItem} onChange={e => setCustomItem(e.target.value)}
-          className="flex-1"
-          onKeyDown={e => e.key === 'Enter' && addCustom()}
-        />
-        <Button icon={Plus} variant="secondary" onClick={addCustom}>Add</Button>
-      </div>
-    </div>
-  );
-}
+import { Lock } from 'lucide-react';
 
 // ============================================================
 // NewDraft — MAIN COMPONENT
@@ -328,136 +226,19 @@ export default function NewDraft() {
     );
   }
 
-  // Phones: the same form in 3 steps (components/EventFormPhone.jsx)
-  if (isPhone) {
-    const onItems = (id, fn) => (id === 'main' ? fn.main : fn.sub);
-    return (
-      <EventFormPhone f={{
-        mode: 'new', form, set, errors, setErrors, saving, events, categories,
-        eventTypeSelectValue, isCustomEventType, handleEventTypeSelect,
-        mainEvent, setMainField, subEvents, addSubEvent, removeSubEvent, setSubField,
-        toggleItem: (id, item) => onItems(id, { main: () => toggleMainItem(item), sub: () => toggleSubItem(id, item) })(),
-        removeItem: (id, item) => onItems(id, { main: () => removeMainItem(item), sub: () => removeSubItem(id, item) })(),
-        addCustomItem: (id, item) => onItems(id, { main: () => addCustomMainItem(item), sub: () => addCustomSubItem(id, item) })(),
-        onSave: handleSubmit,
-        onCancel: () => navigate(((window.history.state?.idx ?? 0) > 0) ? -1 : '/'),
-      }} />
-    );
-  }
-
+  // The same 3-step form on both: EventFormPhone on phones, EventFormLaptop on laptops
+  const Form = isPhone ? EventFormPhone : EventFormLaptop;
+  const onItems = (id, fn) => (id === 'main' ? fn.main : fn.sub);
   return (
-    <div className="space-y-4 pb-8">
-      <PageHeader title="New event" onBack={() => navigate(((window.history.state?.idx ?? 0) > 0) ? -1 : '/')}
-        actions={<HeaderIcon icon={Save} label={saving ? 'Saving…' : 'Save draft'} tone="primary" onClick={handleSubmit} disabled={saving} data-testid="hdr-save" />} />
-
-      {/* Client Info */}
-      <Card>
-        <h3 className="text-sm font-semibold text-bb-muted uppercase mb-3">Client Info</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <Input label="Client Name" placeholder="Full name" icon={User} required
-            value={form.clientName} onChange={e => set('clientName', e.target.value)} error={errors.clientName} />
-          <Input label="Phone" placeholder="Mobile number" icon={Phone} required
-            value={form.clientPhone} onChange={e => set('clientPhone', e.target.value)} error={errors.clientPhone} />
-          <Input label="WhatsApp" placeholder="WhatsApp number" icon={MessageSquare}
-            value={form.clientWhatsapp} onChange={e => set('clientWhatsapp', e.target.value)} />
-          <Input label="Address" placeholder="Client address" icon={MapPin}
-            value={form.clientAddress} onChange={e => set('clientAddress', e.target.value)} />
-        </div>
-      </Card>
-
-      {/* Event Type & Budget */}
-      <Card>
-        <h3 className="text-sm font-semibold text-bb-muted uppercase mb-3">Event Details</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <Select label="Event Type" required options={EVENT_TYPES}
-            value={eventTypeSelectValue} onChange={e => handleEventTypeSelect(e.target.value)} error={errors.eventType} />
-          <Input label="Budget" placeholder="Approx budget" icon={IndianRupee} type="number"
-            value={form.budget} onChange={e => set('budget', e.target.value)} />
-        </div>
-        {/* "Other" picked — let the user type a type not on the preset list
-            (a local ceremony name, etc.) instead of forcing a fixed set. */}
-        {isCustomEventType && (
-          <div className="mt-3">
-            <Input label="Specify Event Type" required placeholder="e.g., Madhuramveppu, Funeral, Election Event..."
-              value={form.eventType} onChange={e => set('eventType', e.target.value)} error={errors.eventType} />
-          </div>
-        )}
-      </Card>
-
-      {/* Main Event */}
-      <Card>
-        <h3 className="text-sm font-semibold text-bb-muted uppercase mb-3">Main event</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-          <Input label="Event Name" placeholder={form.eventType || 'e.g., Wedding Ceremony'}
-            value={mainEvent.name} onChange={e => setMainField('name', e.target.value)} />
-          <FunctionDates fn={mainEvent} onChange={setMainField} required error={errors.mainDate} />
-          <Input label="Time" type="time" icon={Clock}
-            value={mainEvent.time} onChange={e => setMainField('time', e.target.value)} />
-          <LocationInput label="Event Location" placeholder="Search venue location..."
-            value={mainEvent.location} onChange={val => setMainField('location', val)} />
-        </div>
-
-        {/* Main Event Items */}
-        <ItemsSelector
-          selectedItems={mainEvent.items}
-          onToggle={toggleMainItem}
-          onRemove={removeMainItem}
-          onAddCustom={addCustomMainItem}
-          categories={categories}
-          label="Main Event Services"
-        />
-      </Card>
-
-      {/* Sub-Events */}
-      {subEvents.map((sub, idx) => (
-        <Card key={sub.id}>
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-bb-muted uppercase">
-              <Layers size={14} className="inline mr-1" />
-              Sub-Event {idx + 1}
-            </h3>
-            <IconButton icon={Trash2} label={`Remove ${sub.name || 'sub event'}`} tone="quiet" size={34} iconSize={16}
-              className="hover:!text-red-600 hover:!bg-red-50" onClick={() => removeSubEvent(sub.id)} />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-            <Input label="Sub-Event Name" placeholder="e.g., Home Function, Reception..."
-              value={sub.name} onChange={e => setSubField(sub.id, 'name', e.target.value)} />
-            <FunctionDates fn={sub} onChange={(key, val) => setSubField(sub.id, key, val)} error={errors[`sub-${sub.id}`]} />
-            <Input label="Time" type="time" icon={Clock}
-              value={sub.time} onChange={e => setSubField(sub.id, 'time', e.target.value)} />
-            <LocationInput label="Location" placeholder="Search location..."
-              value={sub.location} onChange={val => setSubField(sub.id, 'location', val)} />
-          </div>
-
-          {/* Sub-Event Items */}
-          <ItemsSelector
-            selectedItems={sub.items}
-            onToggle={(item) => toggleSubItem(sub.id, item)}
-            onRemove={(item) => removeSubItem(sub.id, item)}
-            onAddCustom={(item) => addCustomSubItem(sub.id, item)}
-            categories={categories}
-            label={`${sub.name || 'Sub-Event'} Services`}
-          />
-        </Card>
-      ))}
-
-      {/* Add Sub-Event Button */}
-      <button onClick={addSubEvent} data-testid="add-sub-event"
-        className="w-full min-h-[46px] rounded-2xl border-2 border-dashed border-violet-300 bg-violet-50/50 text-bb-accent-hover text-[14px] font-semibold inline-flex items-center justify-center gap-2 cursor-pointer hover:bg-violet-50">
-        <Plus size={18} />Add sub event
-      </button>
-
-      {/* Notes */}
-      <Card>
-        <Input label="Notes" type="textarea" placeholder="Any additional notes..." icon={StickyNote}
-          value={form.notes} onChange={e => set('notes', e.target.value)} />
-      </Card>
-
-      {/* Submit */}
-      <Button icon={Save} fullWidth size="lg" onClick={handleSubmit} disabled={saving}>
-        {saving ? 'Saving...' : 'Save as Draft'}
-      </Button>
-    </div>
+    <Form f={{
+      mode: 'new', form, set, errors, setErrors, saving, events, categories,
+      eventTypeSelectValue, isCustomEventType, handleEventTypeSelect,
+      mainEvent, setMainField, subEvents, addSubEvent, removeSubEvent, setSubField,
+      toggleItem: (id, item) => onItems(id, { main: () => toggleMainItem(item), sub: () => toggleSubItem(id, item) })(),
+      removeItem: (id, item) => onItems(id, { main: () => removeMainItem(item), sub: () => removeSubItem(id, item) })(),
+      addCustomItem: (id, item) => onItems(id, { main: () => addCustomMainItem(item), sub: () => addCustomSubItem(id, item) })(),
+      onSave: handleSubmit,
+      onCancel: () => navigate(((window.history.state?.idx ?? 0) > 0) ? -1 : '/'),
+    }} />
   );
 }
