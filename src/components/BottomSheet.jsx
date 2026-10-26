@@ -60,7 +60,7 @@ function useKeyboardInset(on) {
 // BottomSheet — MAIN COMPONENT
 // ============================================================
 
-export default function BottomSheet({ open, onClose, title, sub, children, footer, testId = 'bottom-sheet' }) {
+export default function BottomSheet({ open, onClose, title, sub, children, footer, testId = 'bottom-sheet', wide = false }) {
   const body = useRef(null);
   useScrollLock(open);
   const kb = useKeyboardInset(open);
@@ -91,7 +91,7 @@ export default function BottomSheet({ open, onClose, title, sub, children, foote
   return createPortal(
     <div className="fixed inset-0 z-[95] flex items-end lg:items-center justify-center" role="dialog" aria-modal="true" aria-label={typeof title === 'string' ? title : undefined} data-testid={testId}>
       <div className="absolute inset-0 bg-[#140a23]/50 touch-none" onClick={onClose} data-testid={`${testId}-backdrop`} />
-      <div className="relative w-full lg:max-w-lg bg-white rounded-t-[22px] lg:rounded-2xl shadow-2xl flex flex-col animate-[sheet-up_.18s_ease-out] transition-[margin] duration-150"
+      <div className={`relative w-full ${wide ? 'lg:max-w-2xl' : 'lg:max-w-lg'} bg-white rounded-t-[22px] lg:rounded-2xl shadow-2xl flex flex-col animate-[sheet-up_.18s_ease-out] transition-[margin] duration-150`}
         style={{ marginBottom: kb, maxHeight: kb ? `calc(100dvh - ${kb}px - 12px)` : '90dvh' }}>
         <div className="lg:hidden w-10 h-1 rounded-full bg-gray-300 mx-auto mt-2.5 shrink-0" />
         {(title || sub) && (

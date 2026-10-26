@@ -187,7 +187,7 @@ export function EventItemsSheet({ ev, onClose, onEdit }) {
   );
 
   return (
-    <BottomSheet open onClose={onClose} title="Items" sub={`${ev.clientName} · ${count} item${count === 1 ? '' : 's'}${total ? ` · ${formatRupees(total)}` : ''}`} testId="items-sheet"
+    <BottomSheet open onClose={onClose} title="Items" sub={`${ev.clientName} · ${count} item${count === 1 ? '' : 's'}${total ? ` · ${formatRupees(total)}` : ''}`} testId="items-sheet" wide
       footer={<div className="flex gap-2.5">
         <button onClick={onClose} className="flex-1 min-h-[46px] rounded-xl border border-gray-300 font-semibold cursor-pointer">Close</button>
         <button onClick={onEdit} className="flex-[1.6] min-h-[46px] rounded-xl bg-bb-accent text-white font-semibold inline-flex items-center justify-center gap-2 cursor-pointer"><FileText size={18} />Edit in quote</button>
