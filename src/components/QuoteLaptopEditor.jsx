@@ -3,17 +3,20 @@
  *
  * Same quote, data and handlers as QuotePhoneEditor (the page passes one `q`
  * object); only the layout differs:
- *   - QuoteLaptopTools: Group (n) · Ungroup · Hide prices · Fit to budget ·
- *     Versions — the page pins it under the title row
+ *   - QuoteLaptopTools: "N items have no price" chip on the left; on the
+ *     right PDF · Group (n) · Ungroup · Hide prices · WhatsApp · More ▾ (Fit to
+ *     budget, Versions, Fold all events, Make contract, Print) — the page pins
+ *     it under the title row (the title row keeps only Save)
  *   - one card per event: a compact tinted band (date block, name, date ·
- *     venue · items, Event total), column headings, then the items as a list
+ *     venue · items, Event total, ⌃ at the far right folds the event), column headings, then the items as a list
  *     (⋮⋮ · tick · name · Qty · Rate · Days · Amount · bin)
  *   - groups read like the list: "<name> group" header (tick, ⋮⋮, ⋯ menu),
  *     the same white number boxes, and at the end "Items add up to ₹x" with
  *     the Total group price box
  *   - a right-aligned Subtotal line (or, with hidden prices, the Final amount
  *     box), then "Add an item" in place
- *   - Price & terms card: Discount, Valid for, GST switch + rate, totals
+ *   - Price & terms card: Discount, Valid for, GST switch + rate; the Summary
+ *     (each event, Subtotal, Discount, GST, big Total) sits at its right
  * The PDF preview stays on the page, unchanged.
  */
 
@@ -24,7 +27,7 @@ import React from 'react';
 import { DndContext, closestCenter } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Trash2, Plus, ListPlus, Layers, Ungroup, EyeOff, Eye, Wand2, History, Pencil } from 'lucide-react';
+import { GripVertical, Trash2, Plus, ListPlus, Layers, Ungroup, EyeOff, Eye, Wand2, History, Pencil, MessageSquare, ChevronUp, ChevronDown, FileSignature, Printer, TriangleAlert } from 'lucide-react';
 import { IconButton, SectionLabel } from './PhoneUI';
 import { MorePopover, PopItem, Seg, Switch } from './LaptopUI';
 import { formatRupees, buildLineEntries, lineAmount, itemDays, functionDateText } from '../utils/helpers';
@@ -42,6 +45,20 @@ const BOX = 'w-full h-[34px] rounded-lg border border-gray-300 bg-white px-2 tex
 
 /** "Stage Decor" → "Stage Decor group" (unless the name already says group) */
 const groupTitle = (name) => (/group/i.test(name) ? name : `${name} group`);
+
+/** Items with no rate yet (loose items only: an item inside a group is priced by the group) */
+function unpricedKeys(q) {
+  if (q.hidePrices) return [];
+  const keys = [];
+  q.printGroups.forEach(g => {
+    const inGroup = new Set((q.bundles || []).flatMap(b => b.itemKeys));
+    g.items.forEach(n => {
+      const key = `${g.id}::${n}`;
+      if (!inGroup.has(key) && !(Number(q.itemPrices[key]?.rate) > 0)) keys.push(key);
+    });
+  });
+  return keys;
+}
 
 // ============================================================
 // SUB-COMPONENTS
@@ -78,9 +95,10 @@ function ItemLine({ q, sectionId, name, keyId, bundle, handle }) {
   const inBundle = !!bundle;
   const checked = inBundle ? q.selectedBundleMembers.has(keyId) : (q.selectedForGroup[sectionId] || new Set()).has(name);
   const set = (field, value) => (inBundle ? q.updateBundleMemberPrice(bundle, keyId, field, value) : q.setItemPrice(keyId, field, value));
+  const unpriced = !inBundle && !q.hidePrices && !(Number(p.rate) > 0);
   return (
-    <div className={`grid ${cols(q.hidePrices)} gap-2.5 items-center px-2.5 py-2 border-b border-gray-100 ${checked ? 'bg-violet-50' : ''}`}
-      data-testid="quote-item" data-item={name}>
+    <div className={`grid ${cols(q.hidePrices)} gap-2.5 items-center px-2.5 py-2 border-b border-gray-100 ${checked ? 'bg-violet-50' : unpriced ? 'bg-amber-50' : ''}`}
+      data-testid="quote-item" data-item={name} data-key={keyId} data-noprice={unpriced ? '1' : undefined}>
       <Handle handle={handle} label={name} />
       <Tick checked={checked} label={name} onChange={() => (inBundle ? q.toggleSelectBundleMember(keyId) : q.toggleSelectForGroup(sectionId, name))} />
       <p className={`min-w-0 text-[14px] break-words ${inBundle ? 'font-medium' : 'font-semibold'} text-bb-text`}>{name}</p>
@@ -88,12 +106,12 @@ function ItemLine({ q, sectionId, name, keyId, bundle, handle }) {
         onChange={e => set('qty', e.target.value === '' ? '' : Number(e.target.value))} className={`${BOX} text-center`} />
       {!q.hidePrices && (
         <input type="number" min="0" placeholder="Rate" aria-label={`${name} rate`} value={p.rate || ''}
-          onChange={e => set('rate', Number(e.target.value) || 0)} className={`${BOX} text-right`} />
+          onChange={e => set('rate', Number(e.target.value) || 0)} className={`${BOX} text-right ${unpriced ? '!border-amber-500' : ''}`} />
       )}
       <input type="number" min="1" aria-label={`${name} days`} value={p.days === '' ? '' : days}
         onChange={e => set('days', e.target.value === '' ? '' : Math.max(1, Math.round(Number(e.target.value)) || 1))}
         className={`${BOX} text-center ${days > 1 ? '!border-bb-accent !bg-violet-50 font-semibold' : ''}`} />
-      {!q.hidePrices && <b className="text-right text-[14px] tabular-nums whitespace-nowrap" data-testid="line-amount">{formatRupees(lineAmount(p))}</b>}
+      {!q.hidePrices && <b className={`text-right text-[14px] tabular-nums whitespace-nowrap ${unpriced ? 'text-amber-700' : ''}`} data-testid="line-amount">{formatRupees(lineAmount(p))}</b>}
       <IconButton icon={Trash2} label={`Remove ${name}`} tone="quiet" size={32} iconSize={15} className="hover:!text-red-600 hover:!bg-red-50"
         onClick={() => q.removeItem(sectionId, name)} />
     </div>
@@ -150,8 +168,26 @@ export function QuoteLaptopTools({ q }) {
   const btn = 'shrink-0 min-h-[36px] px-3 rounded-xl border inline-flex items-center gap-2 text-[13.5px] font-semibold cursor-pointer transition-colors disabled:text-gray-400 disabled:border-gray-200 disabled:bg-gray-50 disabled:cursor-default';
   const plain = 'bg-white border-gray-300 text-bb-text hover:bg-gray-50';
   const lit = 'bg-violet-50 border-violet-300 text-bb-accent-hover';
+  const missing = unpricedKeys(q);
+  const allFolded = q.printGroups.length > 0 && q.printGroups.every(g => q.folded.has(g.id));
+  const jump = () => {
+    const key = missing[0];
+    if (!key) return;
+    const sec = key.split('::')[0];
+    if (q.folded.has(sec)) q.setFolded(f => { const n = new Set(f); n.delete(sec); return n; });
+    setTimeout(() => document.querySelector(`[data-key="${CSS.escape(key)}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 60);
+  };
   return (
     <div className="flex items-center gap-2" data-testid="quote-tools">
+      {missing.length > 0 && (
+        <button onClick={jump} data-testid="noprice-chip"
+          className="inline-flex items-center gap-1.5 text-[12.5px] font-bold text-amber-800 bg-amber-100 rounded-full px-3 py-1.5 cursor-pointer whitespace-nowrap">
+          <TriangleAlert size={14} />{missing.length} item{missing.length === 1 ? ' has' : 's have'} no price
+        </button>
+      )}
+      <span className="flex-1" />
+      {q.pdfNode}
+      <span className="w-px h-6 bg-bb-border mx-0.5" />
       <button onClick={q.onGroup} disabled={!q.canGroup} className={`${btn} ${q.canGroup ? lit : plain}`} data-testid="tool-group">
         <Layers size={16} />{q.tickedCount > 0 ? `Group (${q.tickedCount})` : 'Group'}
       </button>
@@ -159,8 +195,14 @@ export function QuoteLaptopTools({ q }) {
       <button onClick={() => q.setHidePrices(!q.hidePrices)} aria-pressed={q.hidePrices} className={`${btn} ${q.hidePrices ? lit : plain}`} data-testid="tool-hide">
         {q.hidePrices ? <Eye size={16} /> : <EyeOff size={16} />}{q.hidePrices ? 'Show prices' : 'Hide prices'}
       </button>
-      <button onClick={q.onFitBudget} className={`${btn} ${plain}`} data-testid="tool-fit"><Wand2 size={16} />Fit to budget</button>
-      <button onClick={q.onVersions} className={`${btn} ${plain}`} data-testid="tool-versions"><History size={16} />{q.revisionsCount ? `Versions (${q.revisionsCount})` : 'Versions'}</button>
+      {q.hasPhone && <button onClick={q.onWhatsApp} className={`${btn} bg-white border-emerald-200 text-emerald-700 hover:bg-emerald-50`} data-testid="tool-whatsapp"><MessageSquare size={16} />WhatsApp</button>}
+      <MorePopover label="More" testId="tool-more" trigger="text">
+        <PopItem icon={Wand2} onClick={q.onFitBudget} testId="tool-fit">Fit to budget</PopItem>
+        <PopItem icon={History} onClick={q.onVersions} testId="tool-versions">{q.revisionsCount ? `Versions (${q.revisionsCount})` : 'Versions'}</PopItem>
+        <PopItem icon={allFolded ? ChevronDown : ChevronUp} onClick={() => q.setFolded(allFolded ? new Set() : new Set(q.printGroups.map(g => g.id)))} testId="tool-fold">{allFolded ? 'Open all events' : 'Fold all events'}</PopItem>
+        <PopItem icon={FileSignature} onClick={q.onContract} testId="tool-contract">Make contract</PopItem>
+        <PopItem icon={Printer} onClick={q.onPrint} testId="tool-print">Print</PopItem>
+      </MorePopover>
     </div>
   );
 }
@@ -180,11 +222,13 @@ export default function QuoteLaptopEditor({ q }) {
         const total = q.sectionTotals[group.id] || 0;
         const d = group.date ? new Date(`${group.date}T00:00:00`) : null;
         const mismatchDays = group.items.some(n => itemDays(q.itemPrices[`${group.id}::${n}`]) !== group.days);
+        const isFolded = q.folded.has(group.id);
         const info = [group.date ? functionDateText(group) : 'No date yet', group.location, `${group.items.length} item${group.items.length === 1 ? '' : 's'}`].filter(Boolean).join(' · ');
         return (
-          <section key={group.id} className="bg-white border border-bb-border rounded-2xl p-4" data-testid="quote-section" data-section={group.id}>
+          <section key={group.id} className="bg-white border border-bb-border rounded-2xl p-4" data-testid="quote-section" data-section={group.id} data-folded={isFolded ? '1' : undefined}>
             {/* Event band: date · name · date, venue, items · Event total */}
-            <div className="flex items-center gap-3 rounded-xl bg-[#f6f3ff] border border-violet-100 px-3 py-2" data-testid="quote-event-head">
+            <div className="flex items-center gap-3 rounded-xl bg-[#f6f3ff] border border-violet-100 px-3 py-2 cursor-pointer select-none" data-testid="quote-event-head"
+              onClick={() => q.setFolded(f => { const n = new Set(f); if (n.has(group.id)) n.delete(group.id); else n.add(group.id); return n; })}>
               <div className="w-[42px] shrink-0 text-center bg-white border border-violet-200 rounded-[9px] pt-[3px] pb-1 leading-tight shadow-[0_1px_2px_rgba(60,20,110,0.08)]" aria-hidden="true">
                 <div className="text-[10.5px] font-extrabold tracking-[0.04em] text-bb-accent-hover">{d ? d.toLocaleDateString('en-IN', { weekday: 'short' }).toUpperCase() : '—'}</div>
                 <div className="text-[16px] font-extrabold text-bb-text">{d ? d.getDate() : '?'}</div>
@@ -201,7 +245,11 @@ export default function QuoteLaptopEditor({ q }) {
                   <b className="text-[16px] tabular-nums" data-testid="section-total">{formatRupees(total)}</b>
                 </div>
               )}
+              <IconButton icon={isFolded ? ChevronDown : ChevronUp} label={isFolded ? 'Open this event' : 'Fold this event'} tone="quiet" size={30} iconSize={18}
+                aria-expanded={!isFolded} data-testid="event-fold" onClick={(e) => { e.stopPropagation(); q.setFolded(f => { const n = new Set(f); if (n.has(group.id)) n.delete(group.id); else n.add(group.id); return n; }); }} />
             </div>
+
+            {!isFolded && <>
 
             {/* Column headings */}
             {entries.length > 0 && (
@@ -263,6 +311,7 @@ export default function QuoteLaptopEditor({ q }) {
                 <ListPlus size={16} />From services
               </button>
             </div>
+            </>}
           </section>
         );
       })}
@@ -270,7 +319,7 @@ export default function QuoteLaptopEditor({ q }) {
       {/* Price & terms */}
       <section className="bg-white border border-bb-border rounded-2xl px-5 py-4" data-testid="price-terms">
         <SectionLabel>Price &amp; terms</SectionLabel>
-        <div className="flex items-end gap-6 mt-3 flex-wrap">
+        <div className="flex items-start gap-6 mt-3 flex-wrap">
           <label className="block">
             <span className="block text-[12.5px] font-semibold text-gray-700 mb-1">Discount</span>
             <span className="flex items-center gap-2">
@@ -292,13 +341,16 @@ export default function QuoteLaptopEditor({ q }) {
             </span>
           </div>
           <span className="flex-1" />
-          <div className="text-right">
-            <p className="text-[12.5px] text-bb-muted">
-              Subtotal {formatRupees(q.subtotal)}
-              {q.discount.amount > 0 && <> · Discount − {formatRupees(q.discount.amount)}</>}
-              {q.gstEnabled && <> · GST {q.gstRate}% {formatRupees(q.gstData.tax)}</>}
-            </p>
-            <p className="text-[19px] font-extrabold tabular-nums" data-testid="quote-total">Total {formatRupees(q.gstData.total)}</p>
+          <div className="w-[300px] text-[13.5px] tabular-nums" data-testid="quote-summary">
+            <p className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-bb-muted mb-1">Summary</p>
+            {q.printGroups.map(g => (
+              <p key={g.id} className="flex justify-between gap-6 py-1 text-[12.5px] text-bb-muted"><span className="truncate">{g.name}</span><span>{formatRupees(q.sectionTotals[g.id] || 0)}</span></p>
+            ))}
+            <p className="flex justify-between gap-6 py-1.5 text-gray-700"><span>Subtotal</span><span>{formatRupees(q.subtotal)}</span></p>
+            {q.discount.amount > 0 && <p className="flex justify-between gap-6 py-1 font-semibold text-emerald-600"><span>Discount</span><span>− {formatRupees(q.discount.amount)}</span></p>}
+            {q.gstEnabled && <p className="flex justify-between gap-6 py-1 text-gray-700"><span>GST {q.gstRate}%</span><span>{formatRupees(q.gstData.tax)}</span></p>}
+            <p className="flex justify-between gap-6 mt-1.5 pt-2.5 border-t-[1.5px] border-bb-text text-[18px] font-extrabold" data-testid="quote-total"><span>Total</span><span>{formatRupees(q.gstData.total)}</span></p>
+            {unpricedKeys(q).length > 0 && <p className="flex items-center gap-1.5 mt-2 text-[12px] text-amber-800"><TriangleAlert size={13} />{unpricedKeys(q).length} item{unpricedKeys(q).length === 1 ? '' : 's'} still {unpricedKeys(q).length === 1 ? 'has' : 'have'} no price</p>}
           </div>
         </div>
       </section>

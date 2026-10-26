@@ -22,7 +22,7 @@
 // IMPORTS
 // ============================================================
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, MoreHorizontal, Info } from 'lucide-react';
+import { ArrowLeft, MoreHorizontal, Info, ChevronDown } from 'lucide-react';
 import { IconButton } from './PhoneUI';
 
 // ============================================================
@@ -80,7 +80,7 @@ export function PopItem({ icon: Icon, children, onClick, tone, testId }) {
 }
 
 /** ⋯ button that opens a small menu under it. `children` = PopItem rows; each closes the menu. */
-export function MorePopover({ children, label = 'More actions', size = 38, testId = 'btn-more' }) {
+export function MorePopover({ children, label = 'More actions', size = 38, testId = 'btn-more', trigger = 'icon' }) {
   const [open, setOpen] = useState(false);
   const wrap = useRef(null);
   useEffect(() => {
@@ -93,8 +93,15 @@ export function MorePopover({ children, label = 'More actions', size = 38, testI
   }, [open]);
   return (
     <div ref={wrap} className="relative shrink-0">
-      <IconButton icon={MoreHorizontal} label={label} size={size} iconSize={18} aria-expanded={open} aria-haspopup="menu" data-testid={testId}
-        className={open ? '!border-bb-accent !bg-violet-50 !text-bb-accent-hover' : ''} onClick={() => setOpen(o => !o)} />
+      {trigger === 'text'
+        ? (
+          <button type="button" aria-expanded={open} aria-haspopup="menu" data-testid={testId} onClick={() => setOpen(o => !o)}
+            className={`min-h-[36px] px-3 rounded-xl border inline-flex items-center gap-2 text-[13.5px] font-semibold cursor-pointer ${open ? 'border-bb-accent bg-violet-50 text-bb-accent-hover' : 'border-gray-300 bg-white text-bb-text hover:bg-gray-50'}`}>
+            <MoreHorizontal size={16} />{label}<ChevronDown size={14} />
+          </button>
+        )
+        : <IconButton icon={MoreHorizontal} label={label} size={size} iconSize={18} aria-expanded={open} aria-haspopup="menu" data-testid={testId}
+          className={open ? '!border-bb-accent !bg-violet-50 !text-bb-accent-hover' : ''} onClick={() => setOpen(o => !o)} />}
       {open && (
         <div role="menu" data-testid="more-popover" onClick={() => setOpen(false)}
           className="absolute right-0 top-[calc(100%+6px)] z-40 w-56 bg-white border border-bb-border rounded-xl p-1.5 shadow-[0_18px_40px_-12px_rgba(40,10,70,0.35)]">

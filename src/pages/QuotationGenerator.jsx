@@ -63,7 +63,7 @@ import {
   stableJson,
 } from '../utils/helpers';
 import {
-  Printer, MessageSquare, Plus, Save,
+  MessageSquare, Plus, Save,
   ChevronDown, ChevronRight, Layers, Ungroup,
 } from 'lucide-react';
 import { useConfirm } from '../components/useConfirm';
@@ -78,7 +78,7 @@ import { UnderlineTabs, IconButton, MenuRow, SectionLabel } from '../components/
 import AddItemsSheet from '../components/AddItemsSheet';
 import QuotePhoneEditor, { QuoteTools } from '../components/QuotePhoneEditor';
 import QuoteLaptopEditor, { QuoteLaptopTools } from '../components/QuoteLaptopEditor';
-import { PageHeader, HeaderIcon } from '../components/LaptopUI';
+import { PageHeader, HeaderText } from '../components/LaptopUI';
 import StickyBar from '../components/StickyBar';
 import FitBudgetSheet from '../components/FitBudgetSheet';
 import QuoteRevisionsSheet from '../components/QuoteRevisionsSheet';
@@ -972,6 +972,8 @@ export default function QuotationGenerator() {
     onVersions: () => setSheet('revisions'), revisionsCount: revisions.length,
     onSave: handleSave, saveState,
     hasPhone: !!(event.clientWhatsapp || event.clientPhone), onWhatsApp: handleWhatsApp,
+    onContract: () => navigate(`/contract/${event.id}`), onPrint: handlePrint,
+    pdfNode: !isPhone ? <PdfButton docRef={pdfRef} fileName={`${docTitle()}.pdf`} variant="laptop" /> : null,
     // laptop editor: in-place add, bin, group ⋯ menu, Group (n)
     newItemNames, setNewItemName: (sec, v) => setNewItemNames(n => ({ ...n, [sec]: v })), addItem: handleAddItem,
     removeItem: askRemoveItem, tickedCount,
@@ -989,12 +991,7 @@ export default function QuotationGenerator() {
       {!isPhone && <div data-no-print className="space-y-4">
         <PageHeader title="Quotation" onBack={() => navigate(-1)}
           sub={[event.clientName, event.eventType, displayDate && formatDateReadable(displayDate)].filter(Boolean).join(' · ')}
-          actions={<>
-            {(event.clientWhatsapp || event.clientPhone) && <HeaderIcon icon={MessageSquare} label="Share on WhatsApp" tone="green" onClick={handleWhatsApp} data-testid="hdr-whatsapp" />}
-            <HeaderIcon icon={Printer} label="Print" onClick={handlePrint} data-testid="hdr-print" />
-            <PdfButton docRef={pdfRef} fileName={`${docTitle()}.pdf`} variant="laptop" />
-            <HeaderIcon icon={Save} label={saving ? 'Saving…' : 'Save quotation'} tone="primary" onClick={handleSave} disabled={saving} data-testid="hdr-save" />
-          </>} />
+          actions={<HeaderText icon={Save} primary onClick={handleSave} disabled={saving} data-testid="hdr-save">{saving ? 'Saving…' : 'Save'}</HeaderText>} />
         <div className="sticky top-0 z-20 -mx-1 px-1 py-2.5 bg-bb-bg border-b border-bb-border" data-testid="quote-sticky">
           <QuoteLaptopTools q={editorQ} />
         </div>
