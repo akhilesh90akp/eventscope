@@ -98,6 +98,7 @@ export default function Reports() {
   const reportRef = useRef(null);   // the printable report — what the PDF is made from
   const [statusFilter, setStatusFilter] = useState('completed'); // all | completed | confirmed
   const [excludeGST, setExcludeGST] = useState(false);
+  const [closedFy, setClosedFy] = useState(() => new Set());   // laptop: financial years folded shut in All time
   const isPhone = useIsPhone();
   const navigate = useNavigate();
 
@@ -553,12 +554,15 @@ export default function Reports() {
                 {groups.map(g => (
                 <React.Fragment key={g.fy ?? 'list'}>
                 {yearGroups && (
-                  <tr className="bg-violet-50/60 border-b border-bb-border" data-testid="year-heading">
-                    <td colSpan={showStatus ? 5 : 4} className="py-2 px-3 font-bold text-bb-accent-hover">{g.label} · {g.events.length} event{g.events.length === 1 ? '' : 's'}</td>
+                  <tr className="bg-violet-50/60 border-b border-bb-border cursor-pointer select-none" data-testid="year-heading" aria-expanded={!closedFy.has(g.fy)}
+                    onClick={() => setClosedFy(c => { const n = new Set(c); if (n.has(g.fy)) n.delete(g.fy); else n.add(g.fy); return n; })}>
+                    <td colSpan={showStatus ? 5 : 4} className="py-2 px-3 font-bold text-bb-accent-hover">
+                      <span className="inline-flex items-center gap-1.5"><ChevronDown size={16} className={`transition-transform ${closedFy.has(g.fy) ? '-rotate-90' : ''}`} />{g.label} · {g.events.length} event{g.events.length === 1 ? '' : 's'}</span>
+                    </td>
                     <td className="py-2 px-3 text-right font-bold tabular-nums">{formatRupees(g.revenue)}</td>
                   </tr>
                 )}
-                {g.events.map((e, i) => (
+                {!(yearGroups && closedFy.has(g.fy)) && g.events.map((e, i) => (
                   <tr key={e.id} className="border-b border-gray-100 hover:bg-bb-bg/60 cursor-pointer" data-testid="report-row"
                     onClick={() => navigate(`/${e.status === 'draft' ? 'drafts' : e.status}`, { state: { expandId: e.id } })}>
                     <td className="py-2.5 px-3 text-bb-muted tabular-nums">{i + 1}</td>
