@@ -154,8 +154,8 @@ export default function EventCardPhone({ ev, variant = ev?.status, on = {}, lock
           {phone && <IconButton as="a" href={waLink(phone)} target="_blank" rel="noopener noreferrer" icon={MessageSquare} label="WhatsApp" tone="green" />}
         </>}
         {variant === 'completed' && <>
-          <RowButton kind="primary" icon={Receipt} onClick={on.bill} testId="btn-bill">Bill</RowButton>
-          {on.jobLog && <RowButton icon={Table2} onClick={on.jobLog} testId="btn-joblog">Job Log</RowButton>}
+          <RowButton kind="primary" icon={Receipt} onClick={on.bill} testId="btn-bill" compact>Bill</RowButton>
+          {on.jobLog && <RowButton icon={Table2} onClick={on.jobLog} testId="btn-joblog" compact>Job Log</RowButton>}
           {phone && <IconButton as="a" href={waLink(phone)} target="_blank" rel="noopener noreferrer" icon={MessageSquare} label="WhatsApp" tone="green" />}
         </>}
         {on.more && <IconButton icon={MoreHorizontal} label="More actions" onClick={on.more} data-testid="btn-more" />}
