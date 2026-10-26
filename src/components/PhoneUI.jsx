@@ -165,7 +165,7 @@ export function TextField({ label, required, hint, as = 'input', className = '',
 // MENU ROW (bottom sheets)
 // ============================================================
 
-const ROW_TONES = { neutral: 'text-bb-text', green: 'text-emerald-600', red: 'text-red-600' };
+const ROW_TONES = { neutral: 'text-bb-text', green: 'text-emerald-600', red: 'text-red-600', amber: 'text-amber-700' };
 
 export function MenuRow({ icon: Icon, title, sub, tone = 'neutral', onClick, right, chevron = true, disabled, testId }) {
   return (

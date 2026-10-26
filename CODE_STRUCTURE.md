@@ -19,11 +19,11 @@ src/
     Dashboard, NewDraft, EditDraft, DraftsList, ConfirmedEvents (Confirmed + Completed),
     QuotationGenerator, BillGenerator, ContractGenerator (event services agreement),
     Calendar (month/list view, daily limit, owner reminders),
-    Reports (owner; All time / month / year / custom, purchases), JobLog (owner, own tab;
+    Reports (owner; All time / month / year / custom, purchases; phone: tabs on the purple bar, profit under each event), JobLog (owner, own tab;
     cells take sums like 12000+3500), Purchases (owner; business purchases by financial year),
     Billing (owner: Plan & billing — plans, UPI pay, "I've paid", receipts),
     JobEvent (phones: the Job Log of one completed event — /job/:eventId; same data as JobLog),
-    Settings, Admin (platform admins: companies, statuses, Actions ▾, collections, payment settings), CreateCompany (sign-up),
+    Settings, Admin (platform admins: companies, statuses, Actions ▾ — a bottom sheet on phones, collections, payment settings), CreateCompany (sign-up),
     JoinInvite (accept/decline an invite), Login,
     Legal (Terms / Privacy / Data protection — public)
   components/               Reusable UI pieces

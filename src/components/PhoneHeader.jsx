@@ -60,18 +60,23 @@ export default function PhoneHeader({ screen, extra, logo, onMenu, onBack, onLog
     );
   }
 
-  // --- Main screen: title (or the logo on Home) · icons · ☰ ---
+  // --- Main screen: title (or the logo on Home) · icons · ☰ — optional sub-line and tabs underneath ---
+  const below = extra?.below;   // e.g. the Reports period tabs, attached to the bottom of the bar
   return (
-    <div className="h-16 pl-4 pr-2 flex items-center gap-1" data-testid="phone-header" data-kind="main">
-      <div className="flex-1 min-w-0">
-        {screen.logo
-          ? <button onClick={onLogo} aria-label="Home" className="cursor-pointer"><img src={logo} alt="EventScope" className="h-[20px] w-auto" /></button>
-          : <h1 className="text-[1.3rem] font-bold text-white truncate">{title}</h1>}
+    <div data-testid="phone-header" data-kind="main">
+      <div className={`pl-4 pr-2 flex items-center gap-1 ${extra?.sub ? 'min-h-[4.5rem] py-2' : below ? 'h-[3.75rem]' : 'h-16'}`}>
+        <div className="flex-1 min-w-0">
+          {screen.logo
+            ? <button onClick={onLogo} aria-label="Home" className="cursor-pointer"><img src={logo} alt="EventScope" className="h-[20px] w-auto" /></button>
+            : <h1 className="text-[1.3rem] font-bold text-white truncate">{title}</h1>}
+          {extra?.sub && <div className="mt-0.5" data-testid="phone-header-sub">{extra.sub}</div>}
+        </div>
+        {extra?.right}
+        <button onClick={onMenu} aria-label="Open menu" className="w-11 h-11 rounded-xl flex items-center justify-center text-white hover:bg-white/10 cursor-pointer">
+          <Menu size={24} />
+        </button>
       </div>
-      {extra?.right}
-      <button onClick={onMenu} aria-label="Open menu" className="w-11 h-11 rounded-xl flex items-center justify-center text-white hover:bg-white/10 cursor-pointer">
-        <Menu size={24} />
-      </button>
+      {below}
     </div>
   );
 }

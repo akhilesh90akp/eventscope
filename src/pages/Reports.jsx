@@ -30,11 +30,12 @@ import { fyStart, fyLabel, purchasesBetween, purchaseTotal } from '../utils/purc
 import { Printer, BarChart3, Lock, Table2 } from 'lucide-react';
 import UpgradeCard from '../components/UpgradeCard';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronDown, BookOpen } from 'lucide-react';
 import { useIsPhone } from '../components/useIsPhone';
 import { usePhoneHeader } from '../components/phoneScreens';
 import StickyBar from '../components/StickyBar';
-import { SegmentedTabs, SectionLabel, IconButton, DateField } from '../components/PhoneUI';
+import { SectionLabel, IconButton, DateField, UnderlineTabs } from '../components/PhoneUI';
+import { HeaderIconButton } from '../components/PhoneHeader';
 import { PageHeader, HeaderIcon, StatRow, Seg, Switch } from '../components/LaptopUI';
 
 // ============================================================
@@ -57,6 +58,34 @@ const periodRange = (filter, month, year, dateFrom, dateTo) => {
 // ============================================================
 // Reports — MAIN COMPONENT
 // ============================================================
+
+/**
+ * FoldGroup — one financial year on the phone's All time list: a heading with
+ * the year's amount and profit on the right, folding its event cards.
+ * Without a year (Month / Year / Custom) it just shows the cards.
+ */
+function FoldGroup({ g, showHeader, profitText, groupProfit, children }) {
+  const [open, setOpen] = useState(true);
+  if (!showHeader) return <div className="space-y-2.5">{children}</div>;
+  const pr = groupProfit(g.events);
+  return (
+    <div className="space-y-2.5" data-testid="year-heading">
+      <button onClick={() => setOpen(o => !o)} aria-expanded={open}
+        className="w-full flex items-center gap-2.5 bg-violet-50 border border-violet-200 rounded-2xl px-4 py-3 text-left cursor-pointer">
+        <ChevronDown size={18} className={`text-bb-muted shrink-0 transition-transform ${open ? '' : '-rotate-90'}`} />
+        <span className="flex-1 min-w-0">
+          <b className="block text-[15px]">{g.label}</b>
+          <small className="block text-[12.5px] text-gray-600">{g.events.length} event{g.events.length === 1 ? '' : 's'}</small>
+        </span>
+        <span className="text-right shrink-0">
+          <b className="block text-[16px] tabular-nums">{formatRupees(g.revenue)}</b>
+          {pr !== 0 && <small className={`block text-[12.5px] font-semibold tabular-nums ${pr > 0 ? 'text-emerald-600' : 'text-red-600'}`}>{profitText(pr)}</small>}
+        </span>
+      </button>
+      {open && children}
+    </div>
+  );
+}
 
 /** Displays event reports with date-based filtering and summary stats */
 export default function Reports() {
@@ -198,11 +227,16 @@ export default function Reports() {
   // RENDER
   // ------------------------------------------------------------
 
-  // Phones: the PDF button sits in the title bar (follows the chosen tab)
+  // Phones: PDF and Job Log icons in the title bar, the period tabs attached underneath
   usePhoneHeader({
     right: isOwner && canUse('reports')
-      ? <PdfButton variant="header" docRef={reportRef} fileName={`${reportTitle}.pdf`} label={`Download PDF · ${filterTabs.find(t => t.key === filter)?.label}`} />
+      ? <>
+          <PdfButton variant="header" docRef={reportRef} fileName={`${reportTitle}.pdf`} label={`Download PDF · ${filterTabs.find(t => t.key === filter)?.label}`} />
+          <HeaderIconButton icon={BookOpen} label="Open Job Log" onClick={openJobLog} data-testid="hdr-joblog-phone" />
+        </>
       : null,
+    below: <UnderlineTabs value={filter} onChange={setFilter} testId="report-period"
+      options={[{ value: 'all', label: 'All time' }, { value: 'monthly', label: 'Month' }, { value: 'yearly', label: 'Year' }, { value: 'custom', label: 'Custom' }]} />,
   }, [reportTitle, filter, isOwner]);
 
   // Owner only — staff reach this page only by typing the address
@@ -317,18 +351,27 @@ export default function Reports() {
   const groups = yearGroups || [{ fy: null, label: '', events: filteredEvents, revenue: stats.revenue }];
 
   if (isPhone) {
+    // Profit of one completed event from its Job Log (null = no costs entered yet)
+    const profitOf = (e) => {
+      if (e.status !== 'completed') return null;
+      const calc = computeEventFinancials(getEventRevenue(e), financials[e.id]?.values, jobLogColumns);
+      return calc.hasAny ? calc.profit : null;
+    };
+    const profitText = (n) => `Profit ${n < 0 ? '– ' : ''}${formatRupees(Math.abs(n))}`;
+    const groupProfit = (list) => list.reduce((s, e) => s + (profitOf(e) || 0), 0);
+    const numCard = 'bg-white border border-bb-border rounded-2xl px-4 py-3.5';
+    const stepBtn = 'w-11 h-11 shrink-0 rounded-xl border border-gray-300 bg-white flex items-center justify-center text-bb-text cursor-pointer disabled:opacity-35 disabled:cursor-default';
+    const stepper = filter === 'monthly' || filter === 'yearly' || filter === 'all';
     return (
       <div data-testid="reports-phone">
         <div data-no-print className="space-y-4">
-          {/* Period tabs and the ‹ month › stepper stay pinned while the list scrolls */}
+          {/* Month stepper and the Completed / All events pills stay pinned under the purple bar */}
           <StickyBar className="!py-3 space-y-3">
-            <SegmentedTabs value={filter} onChange={setFilter} testId="report-period"
-              options={[{ value: 'all', label: 'All time' }, { value: 'monthly', label: 'Month' }, { value: 'yearly', label: 'Year' }, { value: 'custom', label: 'Custom' }]} />
-            {(filter === 'monthly' || filter === 'yearly') && (
-              <div className="flex items-center gap-2 bg-white border border-bb-border rounded-2xl px-1.5 py-1">
-                <IconButton icon={ChevronLeft} label={filter === 'monthly' ? 'Previous month' : 'Previous year'} tone="quiet" onClick={() => shift(-1)} />
-                <span className="flex-1 text-center text-[17px] font-bold" data-testid="report-period-label">{periodLabel}</span>
-                <IconButton icon={ChevronRight} label={filter === 'monthly' ? 'Next month' : 'Next year'} tone="quiet" onClick={() => shift(1)} />
+            {stepper && (
+              <div className="flex items-center gap-2">
+                <button className={stepBtn} disabled={filter === 'all'} aria-label={filter === 'yearly' ? 'Previous year' : 'Previous month'} onClick={() => shift(-1)}><ChevronLeft size={20} /></button>
+                <span className={`flex-1 h-11 rounded-xl border border-gray-300 bg-white flex items-center justify-center text-[17px] font-bold ${filter === 'all' ? 'text-bb-muted' : ''}`} data-testid="report-period-label">{filter === 'all' ? 'All time' : periodLabel}</span>
+                <button className={stepBtn} disabled={filter === 'all'} aria-label={filter === 'yearly' ? 'Next year' : 'Next month'} onClick={() => shift(1)}><ChevronRight size={20} /></button>
               </div>
             )}
             {filter === 'custom' && (
@@ -337,81 +380,89 @@ export default function Reports() {
                 <DateField label="To" id="rep-to" value={dateTo} onChange={setDateTo} />
               </div>
             )}
+            <div className="flex items-center gap-2">
+              {[['completed', 'Completed'], ['all', 'All events']].map(([k, l]) => (
+                <button key={k} onClick={() => setStatusFilter(k)} className={`shrink-0 whitespace-nowrap min-h-[40px] px-3.5 rounded-full border text-[14px] font-semibold cursor-pointer ${statusFilter === k ? 'bg-bb-accent border-bb-accent text-white' : 'bg-white border-gray-300'}`}>{l}</button>
+              ))}
+              <span className="flex-1" />
+              <label className="shrink-0 flex items-center gap-2 text-[14px] whitespace-nowrap cursor-pointer">
+                No GST
+                <input type="checkbox" className="sr-only peer" checked={excludeGST} onChange={e => setExcludeGST(e.target.checked)} data-testid="exclude-gst" />
+                <span aria-hidden="true" className={`relative w-11 h-[26px] rounded-full ${excludeGST ? 'bg-bb-accent' : 'bg-gray-300'}`}><span className={`absolute top-[3px] left-[3px] w-5 h-5 rounded-full bg-white shadow transition-transform ${excludeGST ? 'translate-x-[18px]' : ''}`} /></span>
+              </label>
+            </div>
           </StickyBar>
-          <div className="flex items-center gap-2">
-            {[['completed', 'Completed'], ['all', 'All events']].map(([k, l]) => (
-              <button key={k} onClick={() => setStatusFilter(k)} className={`shrink-0 whitespace-nowrap min-h-[40px] px-3.5 rounded-full border text-[14px] font-semibold cursor-pointer ${statusFilter === k ? 'bg-bb-accent border-bb-accent text-white' : 'bg-white border-gray-300'}`}>{l}</button>
-            ))}
-            <span className="flex-1" />
-            <label className="shrink-0 flex items-center gap-2 text-[14px] whitespace-nowrap cursor-pointer">
-              No GST
-              <input type="checkbox" className="sr-only peer" checked={excludeGST} onChange={e => setExcludeGST(e.target.checked)} data-testid="exclude-gst" />
-              <span aria-hidden="true" className={`relative w-11 h-[26px] rounded-full ${excludeGST ? 'bg-bb-accent' : 'bg-gray-300'}`}><span className={`absolute top-[3px] left-[3px] w-5 h-5 rounded-full bg-white shadow transition-transform ${excludeGST ? 'translate-x-[18px]' : ''}`} /></span>
-            </label>
-          </div>
 
-          {/* Revenue — the main number */}
-          <div className="bg-white border border-bb-border rounded-2xl p-5" data-testid="rep-revenue">
-            <p className="text-[14px] text-gray-600">Revenue · {stats.completed} completed event{stats.completed === 1 ? '' : 's'}</p>
-            <p className="text-[32px] font-extrabold text-bb-gold tabular-nums leading-tight my-1">{formatRupees(stats.revenue)}</p>
-            <p className="text-[13px] text-gray-600">What your clients pay you for these events, after discount, before GST</p>
-          </div>
-
-          {/* Profit */}
+          {/* Five numbers */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="bg-white border border-bb-border rounded-2xl p-4" data-testid="profit-label">
-              <p className="text-[13.5px] text-gray-600">Profit without purchases</p>
-              <p className={`text-[21px] font-extrabold tabular-nums my-1 ${stats.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{formatRupees(stats.profit)}</p>
-              {stats.missingCosts > 0
-                ? <p className="text-[13px] text-amber-800" data-testid="missing-costs">Based on {stats.profitEvents} event{stats.profitEvents === 1 ? '' : 's'} only. Add expenses for the other {stats.missingCosts}.</p>
-                : <p className="text-[13px] text-gray-600">Expenses added for all {stats.completed} events</p>}
-              {stats.missingCosts > 0 && <button onClick={() => navigate('/completed')} className="mt-1 min-h-[40px] text-[14px] font-semibold text-bb-accent-hover inline-flex items-center gap-1 cursor-pointer">Add expenses<ChevronRight size={16} /></button>}
+            <div className={`${numCard} col-span-2`} data-testid="rep-revenue">
+              <p className="text-[13.5px] text-gray-600">Revenue</p>
+              <p className="text-[30px] font-extrabold text-bb-gold tabular-nums leading-tight">{formatRupees(stats.revenue)}</p>
+              <p className="text-[12.5px] text-gray-600">After discount, before GST</p>
             </div>
-            <div className="bg-white border border-bb-border rounded-2xl p-4">
-              <p className="text-[13.5px] text-gray-600">Profit after purchases</p>
+            <div className={numCard} data-testid="profit-label">
+              <p className="text-[13.5px] text-gray-600">Profit</p>
+              <p className={`text-[21px] font-extrabold tabular-nums ${stats.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{formatRupees(stats.profit)}</p>
+              <p className="text-[12.5px] text-gray-600" data-testid={stats.missingCosts > 0 ? 'missing-costs' : undefined}>
+                {stats.missingCosts > 0 ? `Based on ${stats.profitEvents} of ${stats.completed} events` : `Costs added for all ${stats.completed}`}
+              </p>
+            </div>
+            <div className={numCard}>
+              <p className="text-[13.5px] text-gray-600">After purchases</p>
               {stats.enoughCosts
-                ? <><p className={`text-[21px] font-extrabold tabular-nums my-1 ${stats.afterPurchases >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{formatRupees(stats.afterPurchases)}</p><p className="text-[13px] text-gray-600">Profit minus what you spent on purchases</p></>
-                : <><p className="text-[21px] font-extrabold text-bb-muted my-1" data-testid="after-hidden">—</p><p className="text-[13px] text-gray-600">Shows once most events have expenses added</p></>}
+                ? <><p className={`text-[21px] font-extrabold tabular-nums ${stats.afterPurchases >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{formatRupees(stats.afterPurchases)}</p><p className="text-[12.5px] text-gray-600">Profit – purchases</p></>
+                : <><p className="text-[21px] font-extrabold text-bb-muted" data-testid="after-hidden">—</p><p className="text-[12.5px] text-gray-600">Shows once most events have costs</p></>}
             </div>
-          </div>
-
-          {/* Small tiles */}
-          <div className="grid grid-cols-3 gap-2.5">
-            <div className="bg-white border border-bb-border rounded-2xl px-3.5 py-3"><p className="text-[13px] text-gray-600">Events</p><b className="text-[21px] tabular-nums">{stats.total}</b></div>
-            <div className="bg-white border border-bb-border rounded-2xl px-3.5 py-3"><p className="text-[13px] text-gray-600">Completed</p><b className="text-[21px] tabular-nums text-blue-600">{stats.completed}</b></div>
-            <div className="bg-white border border-bb-border rounded-2xl px-3.5 py-3"><p className="text-[13px] text-gray-600">Purchases</p><b className="text-[17px] tabular-nums text-red-600">{formatRupees(stats.spent)}</b></div>
+            <div className={numCard}>
+              <p className="text-[13.5px] text-gray-600">Events</p>
+              <p className="text-[21px] font-extrabold tabular-nums">{stats.total}</p>
+              <p className="text-[12.5px] text-gray-600">{stats.completed} completed</p>
+            </div>
+            <div className={numCard}>
+              <p className="text-[13.5px] text-gray-600">Spent on purchases</p>
+              <p className="text-[21px] font-extrabold tabular-nums text-red-600">{stats.spent ? `– ${formatRupees(stats.spent)}` : formatRupees(0)}</p>
+              <p className="text-[12.5px] text-gray-600">{filter === 'all' ? 'All time' : 'This period'}</p>
+            </div>
           </div>
 
           {/* The events */}
           {filteredEvents.length === 0 ? (
             <div className="bg-white border border-bb-border rounded-2xl text-center py-10 text-gray-600"><BarChart3 size={36} className="mx-auto mb-2 text-bb-muted" />No events in this period</div>
-          ) : groups.map(g => (
-            <div key={g.fy ?? 'list'} className="space-y-2.5" data-testid={g.fy ? 'year-heading' : undefined}>
-              <SectionLabel right={<b className="text-[14px] text-bb-text tabular-nums">{formatRupees(g.revenue)}</b>}>
-                {g.label ? `${g.label} · ${g.events.length} events` : `${g.events.length} event${g.events.length === 1 ? '' : 's'}`}
-              </SectionLabel>
-              <div className="bg-white border border-bb-border rounded-2xl px-[18px]">
-                {g.events.map(e => (
-                  <button key={e.id} onClick={() => navigate(`/${e.status === 'draft' ? 'drafts' : e.status}`, { state: { expandId: e.id } })}
-                    className="w-full flex items-center gap-3 py-4 border-b border-bb-border last:border-b-0 text-left cursor-pointer" data-testid="report-row">
-                    <span className="flex-1 min-w-0">
-                      <span className="block text-[16px] font-bold truncate">{e.clientName}</span>
-                      <span className="block text-[13px] text-gray-600 mt-0.5">{e.eventType} · {formatDateRange(e.mainEvent?.date || e.date, e.mainEvent ? functionEnd(e.mainEvent) : '')}</span>
-                    </span>
-                    <span className="text-right">
-                      <b className="block text-[16px] tabular-nums">{formatRupees(getEventRevenue(e))}</b>
-                      {e.status !== 'completed' && <span className="inline-block mt-1"><Badge variant={e.status}>{e.status}</Badge></span>}
-                    </span>
-                    <ChevronRight size={18} className="text-gray-400 shrink-0" />
-                  </button>
-                ))}
+          ) : (
+            <>
+              <SectionLabel>{filter === 'all' ? 'All events' : filter === 'monthly' ? `Events in ${periodLabel}` : filter === 'yearly' ? `Events in ${periodLabel}` : 'Events'} · {filteredEvents.length}</SectionLabel>
+              {groups.map(g => (
+                <FoldGroup key={g.fy ?? 'list'} g={g} showHeader={!!g.fy} profitText={profitText} groupProfit={groupProfit}>
+                  {g.events.map(e => {
+                    const pr = profitOf(e);
+                    return (
+                      <button key={e.id} onClick={() => navigate(`/${e.status === 'draft' ? 'drafts' : e.status}`, { state: { expandId: e.id } })}
+                        className="w-full flex items-start gap-3 px-4 py-3.5 bg-white border border-bb-border rounded-2xl text-left cursor-pointer" data-testid="report-row">
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-[16px] font-bold truncate">{e.clientName}</span>
+                          <span className="block text-[13px] text-gray-600 mt-0.5">{e.eventType} · {formatDateRange(e.mainEvent?.date || e.date, e.mainEvent ? functionEnd(e.mainEvent) : '')}</span>
+                        </span>
+                        <span className="text-right shrink-0">
+                          <b className="block text-[16px] tabular-nums">{formatRupees(getEventRevenue(e))}</b>
+                          {e.status !== 'completed'
+                            ? <span className="inline-block mt-1"><Badge variant={e.status}>{e.status}</Badge></span>
+                            : pr !== null
+                              ? <small className={`block text-[12.5px] font-semibold tabular-nums mt-0.5 ${pr >= 0 ? 'text-emerald-600' : 'text-red-600'}`} data-testid="row-profit">{profitText(pr)}</small>
+                              : <span role="link" onClick={(ev) => { ev.stopPropagation(); navigate(`/job/${e.id}`); }} className="inline-flex items-center text-[12.5px] font-semibold text-bb-accent-hover mt-0.5" data-testid="row-add-costs">Add costs<ChevronRight size={14} /></span>}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </FoldGroup>
+              ))}
+              <div className="flex items-center justify-between gap-3 bg-violet-50 border border-violet-200 rounded-2xl px-4 py-3.5" data-testid="rep-total">
+                <b className="text-[15px]">Total · {filteredEvents.length} event{filteredEvents.length === 1 ? '' : 's'}</b>
+                <span className="text-right">
+                  <b className="block text-[17px] text-bb-accent-hover tabular-nums">{formatRupees(stats.revenue)}</b>
+                  {stats.profitEvents > 0 && <small className={`block text-[12.5px] font-semibold tabular-nums ${stats.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{profitText(stats.profit)}</small>}
+                </span>
               </div>
-            </div>
-          ))}
-          {filteredEvents.length > 0 && (
-            <div className="flex justify-between items-center bg-white border border-bb-border rounded-2xl px-[18px] min-h-[60px] font-extrabold">
-              <span className="text-[16px]">Total revenue</span><span className="text-[18px] text-bb-accent-hover tabular-nums">{formatRupees(stats.revenue)}</span>
-            </div>
+            </>
           )}
         </div>
         {printable}

@@ -19,13 +19,19 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useApp } from '../context/AppContext';
 import Card from '../components/Card';
+import StickyBar from '../components/StickyBar';
 import ImportCompanyDialog from '../components/ImportCompanyDialog';
 import AdminTeamDialog from '../components/AdminTeamDialog';
 import AdminBillingDialog from '../components/AdminBillingDialog';
 import Input from '../components/Input';
 import Button from '../components/Button';
+import BottomSheet from '../components/BottomSheet';
+import { MenuRow, SectionLabel } from '../components/PhoneUI';
+import { HeaderIconButton } from '../components/PhoneHeader';
+import { usePhoneHeader } from '../components/phoneScreens';
+import { useIsPhone } from '../components/useIsPhone';
 import { formatDateReadable, resizeImageFile } from '../utils/helpers';
-import { Shield, Search, Lock, Upload, ChevronDown, Wallet } from 'lucide-react';
+import { Shield, Search, Lock, Upload, ChevronDown, Wallet, IndianRupee, Clock, Repeat2, PauseCircle, History, CheckCircle2, Power } from 'lucide-react';
 import { accessInfo, adminStatus, planName, todayIST, isDate, DEFAULT_PILOT } from '../utils/billing';
 import { fyStart } from '../utils/purchases';
 
@@ -42,6 +48,29 @@ const TONE = {
 };
 const FILTERS = [['all', 'All'], ['pilot', 'Pilot'], ['paid', 'Paid'], ['action', 'Needs action'], ['readonly', 'Read-only']];
 
+/** The actions a company offers: [key, title, helper text, colour class, icon, phone tone] — shared by the laptop menu and the phone sheet */
+function actionItems(row) {
+  return [
+    row.pending && ['payment', '✓ Confirm payment', `${rupees(row.pending.amount)} · ref ${row.pending.ref}`, 'text-emerald-700', CheckCircle2, 'green'],
+    !row.pending && ['payment', 'Record payment', 'Paid you some other way', '', IndianRupee, 'neutral'],
+    ['pilot', row.t.plan === 'trial' && row.t.accessUntil ? 'Extend pilot' : 'Set pilot', 'Days or months, auto-suspend', '', Clock, 'neutral'],
+    ['plan', 'Change plan', 'Free pilot / Basic / Standard / Premium', '', Repeat2, 'neutral'],
+    '-',
+    row.info.readOnly || row.info.phase === 'grace' ? ['reactivate', 'Reactivate', 'Switch editing back on', 'text-emerald-700', Power, 'green'] : null,
+    row.info.phase !== 'suspended' ? ['suspend', 'Suspend', 'Make read-only now', 'text-amber-700', PauseCircle, 'amber'] : null,
+    ['history', 'History', 'Everything that happened', '', History, 'neutral'],
+  ].filter(Boolean);
+}
+
+/** Does this company belong under the chosen filter chip? */
+function matchesFilter(filter, { t, info, pending }) {
+  if (filter === 'pilot') return info.kind === 'pilot' || (t.plan || 'trial') === 'trial';
+  if (filter === 'paid') return (t.plan || 'trial') !== 'trial';
+  if (filter === 'action') return !!pending || info.phase === 'grace' || info.phase === 'ending';
+  if (filter === 'readonly') return info.readOnly;
+  return true;
+}
+
 /**
  * Actions ▾ — a small menu; picking an item opens its pop-up. Drawn in a
  * portal with fixed position (the table box clips anything inside it), and
@@ -50,16 +79,7 @@ const FILTERS = [['all', 'All'], ['pilot', 'Pilot'], ['paid', 'Paid'], ['action'
 function ActionsMenu({ row, onPick }) {
   const [pos, setPos] = useState(null);   // { left, top|bottom } while open
   const btnRef = useRef(null);
-  const items = [
-    row.pending && ['payment', '✓ Confirm payment', `${rupees(row.pending.amount)} · ref ${row.pending.ref}`, 'text-emerald-700'],
-    !row.pending && ['payment', 'Record payment', 'Paid you some other way', ''],
-    ['pilot', row.t.plan === 'trial' && row.t.accessUntil ? 'Extend pilot' : 'Set pilot', 'Days or months, auto-suspend', ''],
-    ['plan', 'Change plan', 'Free pilot / Basic / Standard / Premium', ''],
-    '-',
-    row.info.readOnly || row.info.phase === 'grace' ? ['reactivate', 'Reactivate', 'Switch editing back on', 'text-emerald-700'] : null,
-    row.info.phase !== 'suspended' ? ['suspend', 'Suspend', 'Make read-only now', 'text-amber-700'] : null,
-    ['history', 'History', 'Everything that happened', ''],
-  ].filter(Boolean);
+  const items = actionItems(row);
 
   const toggle = () => {
     if (pos) { setPos(null); return; }
@@ -137,7 +157,7 @@ function PaymentSettings() {
     <Card>
       <button onClick={() => setOpen(o => !o)} className="w-full flex items-center gap-2 text-left cursor-pointer">
         <Wallet size={18} className="text-bb-accent" />
-        <span className="font-semibold text-bb-text flex-1">Payment settings <span className="text-xs font-normal text-bb-muted">· your UPI ID shown on every company’s Plan & billing page</span></span>
+        <span className="font-semibold text-bb-text flex-1">Payment settings <span className="hidden md:inline text-xs font-normal text-bb-muted">· your UPI ID shown on every company’s Plan & billing page</span></span>
         <span className={`text-[11px] font-bold rounded-full px-2 py-0.5 ${platformBilling?.upiId ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{platformBilling?.upiId ? 'Set' : 'Not set'}</span>
         <ChevronDown size={16} className={`text-bb-muted transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
@@ -181,6 +201,8 @@ export default function Admin() {
   const [importOpen, setImportOpen] = useState(false);
   const [teamFor, setTeamFor] = useState(null);       // tenant whose team dialog is open
   const [dialog, setDialog] = useState(null);         // { mode, tenant } for AdminBillingDialog
+  const [sheetRow, setSheetRow] = useState(null);     // phone: company whose Actions sheet is open
+  const isPhone = useIsPhone();
 
   // ------------------------------------------------------------
   // DATA LOADING / EFFECTS
@@ -221,13 +243,7 @@ export default function Admin() {
   }), [tenants, payments, today]);
 
   const list = useMemo(() => rows
-    .filter(({ t, info, pending }) => {
-      if (filter === 'pilot') return info.kind === 'pilot' || (t.plan || 'trial') === 'trial';
-      if (filter === 'paid') return (t.plan || 'trial') !== 'trial';
-      if (filter === 'action') return !!pending || info.phase === 'grace' || info.phase === 'ending';
-      if (filter === 'readonly') return info.readOnly;
-      return true;
-    })
+    .filter(r => matchesFilter(filter, r))
     .filter(({ t }) => {
       const q = search.trim().toLowerCase();
       return !q || [t.name, t.ownerEmail, t.id].some(v => (v || '').toLowerCase().includes(q));
@@ -280,6 +296,12 @@ export default function Admin() {
     })();
   }, [undated.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Phones: "Only you see this" under the title, Import in the bar
+  usePhoneHeader({
+    sub: <span className="inline-flex items-center gap-1 text-[11.5px] font-semibold bg-white/15 text-[#e6dbf5] rounded-full px-2.5 py-0.5"><Lock size={12} />Only you see this</span>,
+    right: isPlatformAdmin ? <HeaderIconButton icon={Upload} label="Import company" onClick={() => setImportOpen(true)} data-testid="admin-import" /> : null,
+  }, [isPlatformAdmin]);
+
   // ------------------------------------------------------------
   // RENDER
   // ------------------------------------------------------------
@@ -302,6 +324,106 @@ export default function Admin() {
       {sub && <p className="text-[10px] text-bb-muted truncate">{sub}</p>}
     </Card>
   );
+
+  // ------------------------------------------------------------
+  // RENDER — PHONE
+  // ------------------------------------------------------------
+  if (isPhone) {
+    const due = (r) => !!r.pending || r.info.phase === 'grace';
+    const phoneStat = (label, value, sub, extra) => (
+      <div className="bg-white border border-bb-border rounded-2xl px-4 py-3.5" key={label}>
+        <p className="text-[13px] text-gray-600">{label}</p>
+        <p className="text-[22px] font-extrabold tabular-nums">{tenants ? value : '…'}</p>
+        {extra || <p className="text-[12.5px] text-gray-600">{sub}</p>}
+      </div>
+    );
+    return (
+      <div data-testid="admin-phone">
+        <ImportCompanyDialog isOpen={importOpen} onClose={() => setImportOpen(false)} />
+        <AdminTeamDialog tenant={teamFor} onClose={() => setTeamFor(null)} />
+        <AdminBillingDialog mode={dialog?.mode} tenant={dialog?.tenant || null} onClose={() => setDialog(null)} />
+
+        {/* Filter chips with counts, and search — pinned */}
+        <StickyBar className="!py-3 space-y-2.5">
+          <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-1 px-1" data-testid="admin-chips">
+            {FILTERS.map(([key, label]) => (
+              <button key={key} onClick={() => setFilter(key)} aria-pressed={filter === key}
+                className={`shrink-0 whitespace-nowrap min-h-[40px] px-3.5 rounded-full border text-[14px] font-semibold cursor-pointer ${filter === key ? 'bg-bb-accent border-bb-accent text-white' : 'bg-white border-gray-300'}`}>
+                {label} <span className={filter === key ? 'text-white/80' : 'text-bb-muted'}>{rows.filter(r => matchesFilter(key, r)).length}</span>
+              </button>
+            ))}
+          </div>
+          <label className="flex items-center gap-2 bg-white border border-gray-300 rounded-xl px-3 min-h-[44px]">
+            <Search size={18} className="text-bb-muted shrink-0" />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search company or owner email" className="flex-1 min-w-0 outline-none text-[16px] bg-transparent" />
+          </label>
+        </StickyBar>
+
+        <div className="space-y-4 mt-1">
+          <div className="grid grid-cols-2 gap-3" data-testid="collections">
+            {phoneStat('Companies', summary.total, `${summary.newThisWeek} new · ${summary.active} active · ${summary.due.length} due`)}
+            {phoneStat('This month', rupees(summary.month), `${summary.monthCount} payment${summary.monthCount === 1 ? '' : 's'}`)}
+            {phoneStat('This year (FY)', rupees(summary.fy), `${summary.fyCount} payment${summary.fyCount === 1 ? '' : 's'}`)}
+            {phoneStat('Waiting to confirm', summary.waiting.length, '', summary.waiting.length
+              ? <button onClick={() => open('payment', summary.waiting[0])} className="text-[12.5px] font-semibold text-bb-accent-hover cursor-pointer" data-testid="review-payment">Review payment</button>
+              : <p className="text-[12.5px] text-gray-600">Nothing waiting</p>)}
+          </div>
+
+          <SectionLabel>Companies · {list.length}</SectionLabel>
+          {tenants === null || list.length === 0 ? (
+            <div className="bg-white border border-bb-border rounded-2xl text-center py-10 text-gray-600 text-[14px]">{tenants === null ? 'Loading companies…' : 'No companies match.'}</div>
+          ) : list.map(row => {
+            const { t, status } = row;
+            const c = counts[t.id];
+            return (
+              <div key={t.id} className="bg-white border border-bb-border rounded-2xl p-4" data-testid="admin-card">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-bold text-[16px] flex items-center gap-2 flex-wrap">
+                      {t.name || t.id}
+                      {isNew(t) && <span className="text-[10px] font-bold bg-violet-100 text-violet-700 rounded-full px-1.5">NEW</span>}
+                    </p>
+                    <p className="text-[13px] text-gray-600 truncate">{t.ownerEmail || t.id}</p>
+                  </div>
+                  {pill(status)}
+                </div>
+                <div className="grid grid-cols-3 gap-2 my-3 text-[12.5px] text-gray-600">
+                  <div>Plan<b className="block text-[14.5px] text-bb-text">{planName(t.plan)}{t.plan && t.plan !== 'trial' && t.cycle ? ` · ${t.cycle}` : ''}</b></div>
+                  <div>Events<b className="block text-[14.5px] text-bb-text tabular-nums">{c ? c.events : '…'}</b></div>
+                  <div>Collected<b className="block text-[14.5px] text-bb-text tabular-nums">{rupees(row.collected)}</b></div>
+                </div>
+                <p className="text-[13px] text-bb-text">
+                  {status.sub ? `${status.sub} · ` : ''}
+                  <button onClick={() => setTeamFor(t)} className="font-semibold text-bb-accent-hover cursor-pointer" data-testid="admin-team">Team {c ? c.members : '…'}</button>
+                </p>
+                <div className="flex items-center justify-end gap-2.5 mt-3">
+                  {due(row) && (
+                    <button onClick={() => open('payment', row)} className="flex-1 min-h-[44px] rounded-xl bg-bb-accent text-white font-bold text-[14.5px] cursor-pointer" data-testid="admin-primary">
+                      {row.pending ? 'Confirm payment' : 'Record payment'}
+                    </button>
+                  )}
+                  <button onClick={() => setSheetRow(row)} className="w-[130px] shrink-0 min-h-[44px] rounded-xl border border-gray-300 bg-white font-semibold text-[14.5px] inline-flex items-center justify-center gap-1.5 cursor-pointer" data-testid="admin-actions">
+                    Actions <ChevronDown size={16} />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+          <PaymentSettings />
+        </div>
+
+        {sheetRow && (
+          <BottomSheet open onClose={() => setSheetRow(null)} title={sheetRow.t.name || sheetRow.t.id}
+            sub={`${planName(sheetRow.t.plan)}${sheetRow.t.plan && sheetRow.t.plan !== 'trial' && sheetRow.t.cycle ? ` · ${sheetRow.t.cycle}` : ''} · ${sheetRow.status.label.toLowerCase()}`} testId="admin-actions-sheet">
+            {actionItems(sheetRow).filter(it => it !== '-').map(it => (
+              <MenuRow key={it[0]} icon={it[4]} title={it[1]} sub={it[2]} tone={it[5]} chevron={false} testId={`admin-act-${it[0]}`}
+                onClick={() => { const r = sheetRow; setSheetRow(null); open(it[0], r); }} />
+            ))}
+          </BottomSheet>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
