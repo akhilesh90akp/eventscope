@@ -26,7 +26,7 @@
 // ============================================================
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, AlertTriangle, Bell, CalendarDays, Users, SlidersHorizontal, Info } from 'lucide-react';
+import { ChevronLeft, ChevronRight, AlertTriangle, Bell, CalendarDays, Users, SlidersHorizontal, Info, Phone, MessageSquare, Pencil, FileText, Receipt, FileSignature } from 'lucide-react';
 import { useIsPhone } from '../components/useIsPhone';
 import BottomSheet from '../components/BottomSheet';
 import { SegmentedTabs, IconButton } from '../components/PhoneUI';
@@ -36,7 +36,7 @@ import { useApp } from '../context/AppContext';
 import Card from '../components/Card';
 import ReminderSwitch from '../components/ReminderSwitch';
 import { EVENT_TYPES } from '../constants/data';
-import { formatDateRange, formatRupees } from '../utils/helpers';
+import { formatDateRange, formatRupees, telLink, waLink } from '../utils/helpers';
 import {
   DEFAULT_MAX_PER_DAY, monthGrid, isoDate, eventFunctions, filterFunctions, groupByDate,
   expandDays, assignLanes, dayCount, dayLoad, upcomingReminders,
@@ -164,6 +164,66 @@ function FunctionLine({ f, showAmount, onOpen }) {
         <span className="block text-[12px] font-semibold text-gray-500 mt-1">{STATUS_NAME[f.status] || f.status}</span>
       </span>
     </button>
+  );
+}
+
+/**
+ * Laptop: the chosen day's events as full-width cards under the calendar.
+ * One card per event (name, type, status, amount, days-to-go chip) with a tile
+ * per function that falls on this day, and Quote · Bill · Contract on the left,
+ * Call · WhatsApp · Edit on the right.
+ */
+function DayCardsLaptop({ fns, events, showAmount, navigate, openEvent }) {
+  const byEvent = [];
+  fns.forEach(f => { let g = byEvent.find(x => x.eventId === f.eventId); if (!g) { g = { eventId: f.eventId, list: [] }; byEvent.push(g); } g.list.push(f); });
+  const act = 'min-h-[36px] px-3 rounded-xl border border-gray-300 bg-white inline-flex items-center gap-2 text-[13.5px] font-semibold cursor-pointer hover:bg-gray-50';
+  return (
+    <div className="space-y-3" data-testid="day-cards">
+      {byEvent.map(g => {
+        const first = g.list[0];
+        const ev = events.find(e => e.id === g.eventId) || {};
+        const phone = ev.clientPhone || ev.clientWhatsapp;
+        const isDraft = first.status === 'draft';
+        return (
+          <article key={g.eventId} className="bg-white border border-bb-border rounded-2xl p-4" data-testid="day-card" data-event={g.eventId}>
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h3 className="text-[16px] font-bold text-bb-text">{first.client}</h3>
+              {first.eventType && <span className="text-[11.5px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">{first.eventType}</span>}
+              <span className={`text-[11.5px] font-semibold px-2.5 py-0.5 rounded-full ${STATUS_TAG[first.status] || STATUS_TAG.draft}`}>{STATUS_NAME[first.status] || first.status}</span>
+              <span className="flex-1" />
+              {showAmount && first.amount != null && <b className={`text-[16.5px] tabular-nums ${isDraft ? 'text-bb-muted' : 'text-emerald-600'}`}>{isDraft ? 'Quote ' : ''}{formatRupees(first.amount)}</b>}
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2.5">
+              {g.list.map(f => {
+                const [y, m, d] = f.date.split('-').map(Number);
+                const dt = new Date(y, m - 1, d);
+                return (
+                  <button key={f.key} onClick={() => openEvent(f)} className="flex items-start gap-3 text-left rounded-xl bg-bb-bg px-3 py-2 cursor-pointer hover:bg-violet-50" data-testid="day-tile">
+                    <span className="shrink-0 w-10 text-center rounded-lg bg-white border border-bb-border py-0.5">
+                      <i className="block not-italic text-[9.5px] font-bold uppercase text-bb-accent-hover">{dt.toLocaleDateString('en-IN', { weekday: 'short' })}</i>
+                      <b className="block text-[16px] leading-tight">{d}</b>
+                    </span>
+                    <span className="min-w-0">
+                      <b className="block text-[14px] truncate">{f.name}{f.isMain && <span className="ml-1.5 text-[10.5px] font-bold text-violet-700 bg-violet-100 rounded-full px-2">Main</span>}{f.days > 1 && <span className="ml-1.5 text-[10.5px] font-bold text-violet-700 bg-violet-100 rounded-md px-1.5" data-testid="day-of">Day {f.dayIndex} of {f.days}</span>}</b>
+                      <span className="block text-[12.5px] text-gray-600 truncate">{[f.days > 1 ? formatDateRange(f.startDate || f.date, f.endDate) : '', time12(f.time), f.location].filter(Boolean).join(' · ')}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-3 flex items-center gap-2">
+              <button onClick={() => navigate(`/quotation/${g.eventId}`)} className={act}><FileText size={16} />Quote</button>
+              {!isDraft && <button onClick={() => navigate(`/bill/${g.eventId}`)} className={act}><Receipt size={16} />Bill</button>}
+              {!isDraft && <button onClick={() => navigate(`/contract/${g.eventId}`)} className={act}><FileSignature size={16} />Contract</button>}
+              <span className="flex-1" />
+              {phone && <a href={telLink(phone)} aria-label="Call" className="w-9 h-9 rounded-xl border border-emerald-200 text-emerald-700 flex items-center justify-center hover:bg-emerald-50"><Phone size={16} /></a>}
+              {phone && <a href={waLink(phone)} target="_blank" rel="noreferrer" aria-label="WhatsApp" className="w-9 h-9 rounded-xl border border-emerald-200 text-emerald-700 flex items-center justify-center hover:bg-emerald-50"><MessageSquare size={16} /></a>}
+              <button onClick={() => navigate(`/edit/${g.eventId}`)} aria-label="Edit event" className="w-9 h-9 rounded-xl border border-gray-300 flex items-center justify-center hover:bg-gray-50 cursor-pointer"><Pencil size={16} /></button>
+            </div>
+          </article>
+        );
+      })}
+    </div>
   );
 }
 
@@ -384,7 +444,7 @@ export default function Calendar() {
       )}
 
       {/* Month switcher, filters, view toggle (laptop) */}
-      {!isPhone && <div className="flex flex-wrap items-center gap-3 bg-white border border-bb-border rounded-2xl px-3 py-2" data-testid="cal-filters-strip">
+      {!isPhone && <div className="sticky top-0 z-20 flex flex-wrap items-center gap-3 bg-white border border-bb-border rounded-2xl px-3 py-2 shadow-[0_6px_10px_-8px_rgba(0,0,0,0.18)]" data-testid="cal-filters-strip">
         <div className="flex items-center gap-1.5 w-full sm:w-auto justify-between">
           <IconButton icon={ChevronLeft} label="Previous month" tone="quiet" size={32} iconSize={17} onClick={() => shiftMonth(-1)} />
           <b className="min-w-[140px] text-center text-[14px] text-bb-text" data-testid="month-title">{monthTitle(month.y, month.m)}</b>
@@ -475,7 +535,7 @@ export default function Calendar() {
               <IconButton icon={Info} label="What the colours mean" tone="quiet" size={36} iconSize={17} className="ml-auto" onClick={() => setSheet('key')} />
             </div>
           )}
-          {isPhone ? (view === 'month' && <div className="pt-1">{dayPanel}</div>) : <Card>{dayPanel}</Card>}
+          {isPhone && view === 'month' && <div className="pt-1">{dayPanel}</div>}
           {remindersPanel && <Card>{remindersPanel}</Card>}
           {!isOwner && <p className="text-xs text-bb-muted px-1">Amounts are visible to owners only.</p>}
           {/* Daily limit — what it means; changed in Settings */}
@@ -492,6 +552,21 @@ export default function Calendar() {
           </Card>
         </div>
       </div>
+      {/* === LAPTOP: the chosen day's events as cards under the calendar === */}
+      {!isPhone && view === 'month' && (
+        <section className="space-y-3" data-testid="day-section">
+          <p className="flex items-baseline gap-2.5 px-1">
+            <b className="text-[16px] text-bb-text">{longDay(selected)}</b>
+            <span className="text-[12.5px] text-bb-muted">{selCount} {selCount === 1 ? 'event' : 'events'}{selDrafts ? ` + ${selDrafts} draft${selDrafts > 1 ? 's' : ''}` : ''} · limit {max} a day</span>
+          </p>
+          {selCount > max && (
+            <p className="flex gap-2 text-sm font-medium text-rose-700 bg-rose-50 rounded-lg px-3 py-2"><AlertTriangle size={16} className="shrink-0 mt-0.5" />{selCount - max} over your daily limit — check crew and vehicles before confirming more.</p>
+          )}
+          {selFns.length === 0
+            ? <p className="text-sm text-bb-muted bg-white border border-bb-border rounded-2xl px-4 py-5">{selCount || selDrafts ? 'Nothing matches the filters.' : 'Free day.'}</p>
+            : <DayCardsLaptop fns={selFns} events={events} showAmount={isOwner} navigate={navigate} openEvent={openEvent} />}
+        </section>
+      )}
       {/* === PHONE SHEETS: filters · colour key === */}
       {sheet === 'filters' && (
         <BottomSheet open onClose={() => setSheet(null)} title="Filters" testId="cal-filter-sheet"
