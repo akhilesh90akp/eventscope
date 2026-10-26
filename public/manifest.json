@@ -2,27 +2,27 @@
   "name": "EventScope",
   "short_name": "EventScope",
   "description": "EventScope — Every event, in focus. Quotations, billing and reports for event management companies.",
-  "start_url": "/eventscope/",
-  "scope": "/eventscope/",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#331948",
   "theme_color": "#331948",
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/eventscope/icons/icon-192.png",
+      "src": "/icons/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/eventscope/icons/icon-512.png",
+      "src": "/icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/eventscope/icons/icon-512.png",
+      "src": "/icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"

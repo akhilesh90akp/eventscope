@@ -23,7 +23,7 @@ import { getFirestore, initializeFirestore, persistentLocalCache, persistentMult
 
 const firebaseConfig = {
   apiKey: "AIzaSyDtHNsr6PsItMwzAbEM1bBulqTAYWqa888",
-  authDomain: "eventscope-app.firebaseapp.com",
+  authDomain: "app.eventscope.in",
   projectId: "eventscope-app",
   storageBucket: "eventscope-app.firebasestorage.app",
   messagingSenderId: "688826399809",

@@ -11,8 +11,8 @@
  * is closed, and on the iPhone lock screen for Home Screen apps.
  */
 
-const CACHE_NAME = 'eventscope-v5'; // bump to drop old cached files (e.g. icons)
-const BASE = '/eventscope/';
+const CACHE_NAME = 'eventscope-v6'; // bump to drop old cached files (e.g. icons)
+const BASE = '/';
 
 // Assets to pre-cache on install
 const PRECACHE_ASSETS = [

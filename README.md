@@ -4,7 +4,7 @@
 reports for event management companies — one app, many companies, each
 company's data kept separate.
 
-- **Live site:** `https://akhilesh90akp.github.io/eventscope/` (GitHub Pages)
+- **Live site:** `https://app.eventscope.in/` (Firebase Hosting)
 - **Stack:** React + Vite + Tailwind CSS, Firebase Auth (Google sign-in) and
   Cloud Firestore, installable as a PWA.
 
@@ -45,3 +45,11 @@ multi-tenant data rules.
 - Have the Terms / Privacy pages reviewed by a lawyer.
 - Deploy `firestore.rules` to the Firebase project and confirm the
   rules-test workflow is green.
+
+## Hosting
+
+The app is served from Firebase Hosting at `https://app.eventscope.in/` (project
+`eventscope-app`). Sign-in uses the same address (`authDomain` in `src/firebase.js`),
+which is what lets Google sign-in work in the iPhone home-screen app.
+Every push to `main` publishes through `.github/workflows/deploy.yml`, using the
+GitHub secret `FIREBASE_SERVICE_ACCOUNT`.

@@ -23,7 +23,7 @@
 
 var REMIND_AT_HOUR = 9;                         // ~9 am (script time zone: Asia/Kolkata)
 var DAYS_BEFORE = 2;
-var APP_URL = 'https://akhilesh90akp.github.io/eventscope/';
+var APP_URL = 'https://app.eventscope.in/';
 var FCM_API = 'https://fcm.googleapis.com/v1/projects/' + PROJECT_ID + '/messages:send';
 
 // ============================================================

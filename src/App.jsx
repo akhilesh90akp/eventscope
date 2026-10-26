@@ -8,7 +8,7 @@
  * Uses HashRouter (not BrowserRouter) on purpose: the app is hosted on
  * GitHub Pages, a static host with no server-side routing. Everything after
  * "#" stays client-side, so a hard refresh on any page (e.g.
- * /eventscope/#/drafts) always works. See CODE_STRUCTURE.md.
+ * /#/drafts) always works. See CODE_STRUCTURE.md.
  */
 
 // ============================================================
