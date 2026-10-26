@@ -100,14 +100,14 @@ export default function JobEventLaptop({ event, onClose }) {
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" data-testid="job-event-dialog">
       <div className="absolute inset-0 bg-black/55 backdrop-blur-[2px]" onClick={onClose} />
-      <div role="dialog" aria-label="Job Log" className="relative w-full max-w-[580px] max-h-[92dvh] flex flex-col bg-white rounded-2xl shadow-2xl border border-bb-border">
+      <div role="dialog" aria-label="Job Log" className="relative w-full max-w-[680px] max-h-[92dvh] flex flex-col bg-white rounded-2xl shadow-2xl border border-bb-border">
         <div className="flex items-start gap-3 px-5 pt-4 pb-3 border-b border-bb-border">
           <div className="flex-1 min-w-0">
             <h2 className="text-[17px] font-bold text-bb-text leading-tight flex items-center gap-2">
               Job Log
               {isLoss && <span className="inline-flex items-center gap-1 text-[10.5px] font-bold uppercase text-red-700 bg-red-100 rounded-full px-2 py-0.5" data-testid="job-loss"><AlertTriangle size={11} />Loss</span>}
             </h2>
-            <p className="text-[12.5px] text-bb-muted mt-0.5 truncate">{sub}</p>
+            <p className="text-[15px] font-semibold text-bb-text mt-1 truncate" data-testid="job-sub">{sub}</p>
           </div>
           <button onClick={onClose} aria-label="Close" className="w-9 h-9 -mr-2 rounded-lg flex items-center justify-center text-bb-muted hover:bg-gray-100 cursor-pointer"><X size={20} /></button>
         </div>
