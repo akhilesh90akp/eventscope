@@ -71,7 +71,7 @@ function EventTile({ fn, main, past }) {
   const when = fn?.date ? formatDateRange(fn.date, functionEnd(fn)) : 'No date yet';
   const detail = [when, time12(fn?.time), fn?.location].filter(Boolean).join(' · ');
   return (
-    <div className={`flex items-start gap-3 rounded-xl bg-white border border-violet-200/70 px-3 py-2 min-w-0 ${past ? 'opacity-60' : ''}`} data-testid="event-tile">
+    <div className={`flex items-start gap-3 rounded-xl bg-violet-50/40 border border-violet-200/70 px-3 py-2 min-w-0 ${past ? 'opacity-60' : ''}`} data-testid="event-tile">
       <div className="w-10 shrink-0 text-center bg-violet-100/80 rounded-lg py-0.5 leading-tight" aria-hidden="true">
         <div className="text-[10px] font-extrabold text-bb-accent-hover">{d ? d.toLocaleDateString('en-IN', { weekday: 'short' }).toUpperCase() : '—'}</div>
         <div className="text-[16px] font-extrabold text-bb-text">{d ? d.getDate() : '?'}</div>

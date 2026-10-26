@@ -198,7 +198,7 @@ function DayCardsLaptop({ fns, events, showAmount, navigate, openEvent }) {
                 const [y, m, d] = f.date.split('-').map(Number);
                 const dt = new Date(y, m - 1, d);
                 return (
-                  <button key={f.key} onClick={() => openEvent(f)} className="flex items-start gap-3 text-left rounded-xl bg-white border border-violet-200/70 px-3 py-2 cursor-pointer hover:bg-violet-50" data-testid="day-tile">
+                  <button key={f.key} onClick={() => openEvent(f)} className="flex items-start gap-3 text-left rounded-xl bg-violet-50/40 border border-violet-200/70 px-3 py-2 cursor-pointer hover:bg-violet-50" data-testid="day-tile">
                     <span className="shrink-0 w-10 text-center rounded-lg bg-white border border-bb-border py-0.5">
                       <i className="block not-italic text-[9.5px] font-bold uppercase text-bb-accent-hover">{dt.toLocaleDateString('en-IN', { weekday: 'short' })}</i>
                       <b className="block text-[16px] leading-tight">{d}</b>
