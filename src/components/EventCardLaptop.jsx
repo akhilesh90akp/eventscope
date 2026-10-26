@@ -124,7 +124,7 @@ export default function EventCardLaptop({ ev, variant = ev?.status, on = {}, loc
 
   return (
     <article data-testid="event-card-laptop" data-event={ev.id}
-      className={`bg-white border rounded-2xl px-5 py-4 ${highlight ? 'border-bb-accent ring-2 ring-bb-accent/20' : 'border-bb-border'}`}>
+      className={`bg-white border rounded-2xl px-5 py-4 transition-colors ${highlight || open ? 'border-bb-accent ring-2 ring-bb-accent/20' : 'border-bb-border hover:border-violet-300'}`}>
       {/* 1 · name, type, amount, days */}
       <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0 flex items-center gap-2.5 flex-wrap">
