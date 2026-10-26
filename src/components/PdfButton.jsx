@@ -10,8 +10,6 @@
  * Usage: <PdfButton docRef={pdfRef} fileName="Invoice KC-001 Sneha.pdf" />
  * variant="header": a white download icon for the phone title bar (Reports).
  * variant="laptop": the 38px "⤓ PDF" button of a laptop page header.
- * variant="none": no button, only the preview; `openRef.current()` starts the PDF
- * (used by the phone's ⋮ menu, which closes before the preview opens).
  */
 
 // ============================================================
@@ -28,7 +26,7 @@ import { makePdf, canShareFile, downloadFile } from '../utils/pdfExport';
 // PdfButton — MAIN COMPONENT
 // ============================================================
 
-export default function PdfButton({ docRef, fileName, label = 'PDF', variant = 'primary', openRef = null }) {
+export default function PdfButton({ docRef, fileName, label = 'PDF', variant = 'primary' }) {
   const { showToast } = useApp();
 
   // ------------------------------------------------------------
@@ -68,16 +66,13 @@ export default function PdfButton({ docRef, fileName, label = 'PDF', variant = '
     }
   };
 
-  if (openRef) openRef.current = make;
-
   // ------------------------------------------------------------
   // RENDER
   // ------------------------------------------------------------
   const shareable = pdf && canShareFile(pdf.file);
   return (
     <>
-      {variant === 'none' ? null
-        : variant === 'header'
+      {variant === 'header'
         ? <button onClick={make} disabled={busy} aria-label={label} title={label} data-testid="pdf-header"
           className="w-11 h-11 rounded-xl flex items-center justify-center text-white hover:bg-white/10 cursor-pointer disabled:opacity-40">
           {busy ? <span className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <Download size={22} />}

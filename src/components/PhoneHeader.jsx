@@ -6,7 +6,8 @@
  *     page title + optional icons + ☰ menu; the bottom menu is shown.
  *   - task screens (New/Edit event, Quote, Bill, Contract, Job Log, a Settings
  *     section): ← back, title with a sub-line (client · event · date) and an
- *     optional action on the right; the bottom menu steps aside.
+ *     optional action on the right and optional tabs attached underneath (`below`);
+ *     the bottom menu steps aside.
  *
  * Layout owns the bar. The route decides the title and kind (PHONE_SCREENS);
  * a page adds its sub-line or right-hand buttons with usePhoneHeader()
@@ -41,16 +42,20 @@ export default function PhoneHeader({ screen, extra, logo, onMenu, onBack, onLog
 
   // --- Task screen: ← back · title + sub-line · right action ---
   if (task) {
+    const below = extra?.below;   // e.g. the Details | Preview tabs, attached to the bottom of the bar
     return (
-      <div className="min-h-[5.25rem] pl-2 pr-3 pt-3.5 pb-4 flex items-center gap-1" data-testid="phone-header" data-kind="task">
-        <button onClick={onBack} aria-label="Back" className="w-11 h-11 shrink-0 rounded-xl flex items-center justify-center text-white hover:bg-white/10 cursor-pointer">
-          <ArrowLeft size={22} />
-        </button>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-[1.3rem] leading-tight font-bold text-white truncate">{title}</h1>
-          {extra?.sub && <p className="text-[13.5px] text-[#d8c8ec] mt-1 truncate" data-testid="phone-header-sub">{extra.sub}</p>}
+      <div data-testid="phone-header" data-kind="task">
+        <div className={`pl-2 pr-3 pt-3.5 flex items-center gap-1 ${below ? 'min-h-[4.75rem] pb-1.5' : 'min-h-[5.25rem] pb-4'}`}>
+          <button onClick={onBack} aria-label="Back" className="w-11 h-11 shrink-0 rounded-xl flex items-center justify-center text-white hover:bg-white/10 cursor-pointer">
+            <ArrowLeft size={22} />
+          </button>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-[1.3rem] leading-tight font-bold text-white truncate">{title}</h1>
+            {extra?.sub && <p className="text-[13.5px] text-[#d8c8ec] mt-1 truncate" data-testid="phone-header-sub">{extra.sub}</p>}
+          </div>
+          {extra?.right && <div className="shrink-0 flex items-center gap-1">{extra.right}</div>}
         </div>
-        {extra?.right && <div className="shrink-0 flex items-center gap-1">{extra.right}</div>}
+        {below}
       </div>
     );
   }
@@ -72,10 +77,10 @@ export default function PhoneHeader({ screen, extra, logo, onMenu, onBack, onLog
 }
 
 /** A white icon button for the bar's right side (search, download, ⋮) */
-export function HeaderIconButton({ icon: Icon, label, onClick, ...rest }) {
+export function HeaderIconButton({ icon: Icon, label, onClick, bordered = false, ...rest }) {
   return (
     <button onClick={onClick} aria-label={label} title={label} {...rest}
-      className="w-11 h-11 rounded-xl flex items-center justify-center text-white hover:bg-white/10 cursor-pointer disabled:opacity-40">
+      className={`w-11 h-11 rounded-xl flex items-center justify-center text-white hover:bg-white/10 cursor-pointer disabled:opacity-40 ${bordered ? 'border border-white/35' : ''}`}>
       <Icon size={22} />
     </button>
   );

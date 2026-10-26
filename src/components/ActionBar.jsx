@@ -34,7 +34,7 @@ export default function ActionBar({ label, value, status, valueClass = '', child
       {(label || value) && (
         <div className="flex-1 min-w-0">
           <p className={`text-[13px] ${dark ? 'text-[#cdb8ea]' : 'text-bb-muted'} truncate`}>
-            {label}{status && <> · <span className="text-emerald-600 font-bold">{status}</span></>}
+            {label}{status && <>{label ? ' · ' : ''}<span className="text-emerald-600 font-bold">{status}</span></>}
           </p>
           <p className={`text-[1.3rem] font-extrabold tabular-nums truncate ${valueClass}`} data-testid={`${testId}-value`}>{value}</p>
         </div>

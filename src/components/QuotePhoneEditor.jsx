@@ -2,22 +2,22 @@
  * QuotePhoneEditor — the Details tab of the quotation on phones (below 1024px)
  *
  * Same quote, same data and same handlers as the laptop editor in
- * QuotationGenerator; only the layout differs:
- *   - QuoteTools: a tools row that scrolls sideways (Save · Group · Ungroup ·
- *     Hide prices · WhatsApp · Fit to budget · Versions); the page pins it
- *     under the title bar together with the Details | Preview tabs
- *   - a small row under it: "N items have no price" (tap → jumps to it) and
- *     Fold all / Open all
- *   - one section per event (main + sub events), each with its own pale tint:
- *     a header (date · name (Main) · items · total · chevron) that folds the
- *     event, then the add-item row — which stays pinned under the tools while
- *     you scroll through that event, and hands over to the next event's row
+ * QuotationGenerator; only the layout differs. The tabs and the Save icon live
+ * in the purple title bar, the total / PDF / Add item in the bar at the bottom
+ * (both owned by the page). This file draws what is between them:
+ *   - QuoteTools: Group · Ungroup · Hide prices · More (pinned under the title
+ *     bar by the page); More holds Fit to budget, WhatsApp, Versions, Fold all
+ *   - a small row: "N items have no price" (tap → jumps to it) and Fold all
+ *   - one section per event (main + sub events), each with its own pale tint
+ *     and a border: header rows = date block · name (Main) · venue, then item
+ *     count · total, with a chevron that folds the event
  *   - every item and group: a tick box with the ⋮⋮ drag handle under it
  *   - every item: name · amount · ⋮ menu, then labelled Qty · Rate ₹ · Days
- *     boxes (big amounts like ₹2,00,000 fit on line 1)
- *   - groups: a bordered, softly tinted block — heading (tick, name, ⋮), its
- *     items, and the Group price at the bottom. Ticking the heading ticks
- *     every item inside; loose items line up with the group's items
+ *   - groups: a bordered, softly tinted block — name with "Group · N items"
+ *     under it, its items, and the Group price at the bottom. Ticking the
+ *     heading ticks every item inside; loose items line up with the group's
+ *   - after items are added from the Add items sheet, the page scrolls to the
+ *     first new one and highlights the new lines for a moment
  *   - while a Qty / Rate / Days box is being typed in on a touch screen, a slim
  *     bar above the keyboard shows that line's total with Next and Done
  *   - hidden prices: a Final amount box at the end of each event
@@ -28,14 +28,14 @@
 // ============================================================
 // IMPORTS
 // ============================================================
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { DndContext, closestCenter } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import {
-  GripVertical, MoreVertical, ListPlus, Layers, Ungroup, Check, Wand2, Save, EyeOff, Eye, MessageSquare, History,
-  ChevronDown, ChevronUp, ChevronsDownUp, ChevronsUpDown, TriangleAlert,
+  GripVertical, MoreVertical, MoreHorizontal, Layers, Ungroup, Check, Wand2, EyeOff, Eye,
+  ChevronDown, ChevronUp, ChevronsDownUp, ChevronsUpDown, TriangleAlert, MapPin,
 } from 'lucide-react';
 import { IconButton, NumberBox, SwitchRow, SectionLabel } from './PhoneUI';
 import { formatRupees, buildLineEntries, lineAmount, itemDays } from '../utils/helpers';
@@ -44,12 +44,12 @@ import { formatRupees, buildLineEntries, lineAmount, itemDays } from '../utils/h
 // CONSTANTS
 // ============================================================
 
-/** A pale tint per event (header only): main event first, then each sub event; cycles after four */
+/** A pale tint per event: header fill, a quiet border and the colour of the weekday: main event first, then each sub event; cycles after four */
 const TINTS = [
-  { bg: 'bg-[#f2f6fd]', line: 'border-[#dbe5f7]', fg: 'text-[#3b63b8]' },   // blue
-  { bg: 'bg-[#eff8f6]', line: 'border-[#d3ebe6]', fg: 'text-[#2f7f77]' },   // teal
-  { bg: 'bg-[#fcf6ea]', line: 'border-[#f0e0bd]', fg: 'text-[#a0661f]' },   // amber
-  { bg: 'bg-[#fcf1f5]', line: 'border-[#f0d3de]', fg: 'text-[#a8416b]' },   // rose
+  { bg: 'bg-[#e9effb]', line: 'border-[#becdec]', fg: 'text-[#3b63b8]' },   // blue
+  { bg: 'bg-[#e4f3f0]', line: 'border-[#b5d8d2]', fg: 'text-[#2f7f77]' },   // teal
+  { bg: 'bg-[#f7edd8]', line: 'border-[#e2caa1]', fg: 'text-[#a0661f]' },   // amber
+  { bg: 'bg-[#f7e5eb]', line: 'border-[#e3b9c9]', fg: 'text-[#a8416b]' },   // rose
 ];
 
 const toDate = (s) => (s ? new Date(`${s}T00:00:00`) : null);
@@ -72,8 +72,6 @@ function useKeyboardInset() {
   }, []);
   return inset;
 }
-
-const isTouch = () => typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches;
 
 /** A draggable line (item or group); `children(handleProps)` draws it */
 function Sortable({ id, children }) {
@@ -115,8 +113,9 @@ function ItemRow({ q, sectionId, name, keyId, bundle, handle, last }) {
   const checked = inBundle ? q.selectedBundleMembers.has(keyId) : (q.selectedForGroup[sectionId] || new Set()).has(name);
   const set = (field, value) => (inBundle ? q.updateBundleMemberPrice(bundle, keyId, field, value) : q.setItemPrice(keyId, field, value));
   const unpriced = !inBundle && !q.hidePrices && !(Number(p.rate) > 0);
+  const flashed = !!q.flash?.has(keyId);
   return (
-    <div className={`flex items-start gap-2.5 py-3.5 ${last ? '' : 'border-b border-bb-border'} ${checked ? 'bg-violet-50 -mx-2 px-2 rounded-xl border-transparent' : ''}`} data-testid="quote-item" data-item={name}>
+    <div className={`flex items-start gap-2.5 py-3.5 ${last ? '' : 'border-b border-bb-border'} ${checked ? 'bg-violet-50 -mx-2 px-2 rounded-xl border-transparent' : flashed ? 'bg-violet-100 -mx-2 px-2 rounded-xl border-transparent transition-colors' : ''}`} data-testid="quote-item" data-item={name} data-quote-line={keyId}>
       <Lead checked={checked} handle={handle} label={name}
         onCheck={() => (inBundle ? q.toggleSelectMemberOfGroup(bundle.id, keyId) : q.toggleSelectForGroup(sectionId, name))} />
       <div className="flex-1 min-w-0">
@@ -143,7 +142,7 @@ function ItemRow({ q, sectionId, name, keyId, bundle, handle, last }) {
 
 /**
  * A group, top to bottom: a soft violet heading (tick + ⋮⋮ drag handle, the
- * "GROUP · 3 ITEMS" label, its name, ⋮), its items — each with its own tick
+ * name with "GROUP · 3 ITEMS" under it, ⋮), its items — each with its own tick
  * and ⋮⋮ — and the Group price at the bottom. Ticking the heading ticks all
  * the items inside.
  */
@@ -156,10 +155,10 @@ function GroupBlock({ q, sectionId, bundle, handle }) {
       <div className={`flex items-start gap-2.5 pl-2.5 pr-2 pt-3 pb-3 ${checked ? 'bg-violet-100' : 'bg-violet-50'}`} data-testid="group-header">
         <Lead checked={checked} handle={handle} label={bundle.name} onCheck={() => q.toggleSelectBundleAll(bundle.id)} />
         <div className="flex-1 min-w-0 pt-0.5">
-          <p className="flex items-center gap-1.5 text-[11.5px] font-bold uppercase tracking-wider text-bb-accent-hover">
+          <p className="text-[16.5px] font-bold text-bb-text break-words leading-snug">{bundle.name}</p>
+          <p className="flex items-center gap-1.5 text-[11.5px] font-bold uppercase tracking-wider text-bb-accent-hover mt-1">
             <Layers size={14} />Group · {members.length} items
           </p>
-          <p className="text-[16.5px] font-bold text-bb-text break-words leading-snug mt-0.5">{bundle.name}</p>
         </div>
         <IconButton icon={MoreVertical} label={`Options for group ${bundle.name}`} tone="quiet" size={36} iconSize={18} className="-mt-1"
           onClick={() => q.openGroupMenu(bundle)} />
@@ -185,76 +184,6 @@ function GroupBlock({ q, sectionId, bundle, handle }) {
             onChange={e => q.setBundleAmount(bundle.id, Number(e.target.value) || 0)}
             className="w-[150px] min-h-[44px] rounded-xl border border-violet-200 bg-white px-3 text-[16px] font-bold tabular-nums text-right focus:outline-none focus:ring-2 focus:ring-bb-accent/40" />
         </label>
-      )}
-    </div>
-  );
-}
-
-/**
- * The add-item row of one event. Pinned just under the tools row while that
- * event is on screen (sticky inside its section, so the next event's row takes
- * over when you scroll into it). Typing shows matching services as chips.
- */
-function AddRow({ q, group }) {
-  const text = (q.newItemNames?.[group.id] || '');
-  const trimmed = text.trim();
-  const dup = !!trimmed && group.items.includes(trimmed);
-  const lower = trimmed.toLowerCase();
-  const chips = [];
-  if (lower.length >= 2) {
-    const seen = new Set();
-    (q.categories || []).forEach(cat => (cat.items || []).forEach(item => {
-      if (chips.length >= 8 || seen.has(item) || group.items.includes(item) || !item.toLowerCase().includes(lower)) return;
-      seen.add(item); chips.push(item);
-    }));
-  }
-  // After adding, scroll to the new line and put the cursor in its Rate box
-  const justAdded = useRef(null);
-  useEffect(() => {
-    const name = justAdded.current;
-    if (!name || !group.items.includes(name)) return undefined;
-    justAdded.current = null;
-    const sec = document.querySelector(`[data-section="${group.id}"]`);
-    const row = Array.from(sec?.querySelectorAll('[data-item]') || []).find(el => el.dataset.item === name);
-    if (!row) return undefined;
-    // Phone keyboards resize the screen while they open and close, which can undo a single scroll: repeat it while that settles
-    const go = () => {
-      const vh = window.visualViewport?.height || window.innerHeight;
-      const r = row.getBoundingClientRect();
-      window.scrollBy({ top: r.top + r.height / 2 - vh / 2, behavior: 'auto' });
-    };
-    go();
-    row.querySelector('input[data-qf][aria-label$="rate"]')?.focus({ preventScroll: true });
-    [120, 350, 700].forEach(ms => setTimeout(go, ms));   // (not cleared: the page re-renders often and would cancel them)
-  }, [group.items, group.id]);
-  const [focused, setFocused] = useState(false);
-  const inset = useKeyboardInset();
-  const aboveKeyboard = focused && isTouch();   // on phones the chips ride just above the keyboard
-  const chipButtons = chips.map(item => (
-    <button key={item} onMouseDown={e => e.preventDefault()}
-      onClick={() => { justAdded.current = item; q.addFromCategory(group.id, item); q.setNewItemName(group.id, ''); }}
-      className="shrink-0 min-h-[40px] px-3.5 rounded-full border border-gray-300 bg-white text-[14px] font-semibold cursor-pointer whitespace-nowrap">{item}</button>
-  ));
-  const add = () => { if (trimmed && !dup) { justAdded.current = trimmed; q.addItem(group.id); } };
-  return (
-    <div className="sticky z-20 -mx-3 px-3 py-2.5 bg-white top-[calc(var(--phone-head,4rem)+var(--qs,0px))]" data-testid="add-row">
-      <div className="flex gap-2">
-        <input value={text} onChange={e => q.setNewItemName(group.id, e.target.value)} onKeyDown={e => e.key === 'Enter' && add()}
-          onFocus={() => setFocused(true)} onBlur={() => setTimeout(() => setFocused(false), 150)}
-          placeholder={`Add an item to ${group.name}…`} aria-label={`Add an item to ${group.name}`} enterKeyHint="done" data-testid="add-input"
-          className="flex-1 min-w-0 min-h-[44px] rounded-xl border border-bb-border bg-bb-input px-3 text-[16px] focus:outline-none focus:ring-2 focus:ring-bb-accent/40" />
-        <button onClick={add} disabled={!trimmed || dup} data-testid="add-item"
-          className="min-h-[44px] px-4 rounded-xl bg-bb-accent text-white font-semibold cursor-pointer disabled:opacity-40">Add</button>
-        <IconButton icon={ListPlus} label="Add from services" tone="violet" onClick={() => q.openCategories(group.id)} />
-      </div>
-      {dup && <p className="text-[12.5px] text-amber-800 mt-1.5">Already in this event</p>}
-      {chips.length > 0 && !aboveKeyboard && (
-        <div className="flex gap-2 overflow-x-auto no-scrollbar pt-2 -mx-3 px-3" data-testid="add-suggestions">{chipButtons}</div>
-      )}
-      {chips.length > 0 && aboveKeyboard && createPortal(
-        <div className="fixed left-0 right-0 z-[60] bg-white border-t border-bb-border px-3 py-2 flex gap-2 overflow-x-auto no-scrollbar shadow-[0_-8px_20px_-14px_rgba(0,0,0,0.4)]"
-          style={{ bottom: inset }} data-testid="add-suggestions-kb">{chipButtons}</div>,
-        document.body,
       )}
     </div>
   );
@@ -306,27 +235,18 @@ function KeyboardBar({ q, rootRef }) {
 // QuoteTools — the sideways tools row (pinned with the tabs by the page)
 // ============================================================
 
-/** Save · Group · Ungroup · Hide prices · WhatsApp · Fit to budget · Versions; Group / Ungroup light up once items are ticked */
+/** Group · Ungroup · Hide prices · More; Group / Ungroup light up once items are ticked */
 export function QuoteTools({ q }) {
+  const tool = 'min-h-[42px] rounded-xl border font-semibold text-[14px] inline-flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap disabled:text-gray-400 disabled:border-gray-200 disabled:bg-gray-50 disabled:cursor-default';
   return (
-    <div className="-mx-4 px-4 flex gap-2 overflow-x-auto no-scrollbar pb-0.5" data-testid="quote-tools">
-      {[
-        { id: 'save', icon: Save, label: q.saveState === 'saved' ? 'Saved' : q.saveState === 'saving' ? 'Saving…' : 'Save', onClick: q.onSave, tone: q.saveState === 'saved' ? 'done' : 'main' },
-        { id: 'group', icon: Layers, label: 'Group', onClick: q.onGroup, disabled: !q.canGroup },
-        { id: 'ungroup', icon: Ungroup, label: 'Ungroup', onClick: q.onUngroup, disabled: !q.canUngroup },
-        { id: 'hide', icon: q.hidePrices ? Eye : EyeOff, label: q.hidePrices ? 'Show prices' : 'Hide prices', onClick: () => q.setHidePrices(!q.hidePrices), on: q.hidePrices },
-        q.hasPhone && { id: 'whatsapp', icon: MessageSquare, label: 'WhatsApp', onClick: q.onWhatsApp, tone: 'green' },
-        { id: 'fit', icon: Wand2, label: 'Fit to budget', onClick: q.onFitBudget },
-        { id: 'versions', icon: History, label: q.revisionsCount ? `Versions (${q.revisionsCount})` : 'Versions', onClick: q.onVersions },
-      ].filter(Boolean).map(t => (
-        <button key={t.id} onClick={t.onClick} disabled={t.disabled} data-testid={`tool-${t.id}`} aria-pressed={t.on}
-          className={`shrink-0 min-h-[42px] px-3.5 rounded-xl border font-semibold text-[14px] inline-flex items-center gap-2 cursor-pointer whitespace-nowrap
-            disabled:text-gray-400 disabled:border-gray-200 disabled:bg-gray-50 disabled:cursor-default
-            ${t.tone === 'main' ? 'bg-white border-bb-accent text-bb-accent-hover' : t.tone === 'done' ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-              : t.tone === 'green' ? 'bg-white border-emerald-200 text-emerald-700' : t.on ? 'bg-violet-100 border-violet-300 text-bb-accent-hover' : 'bg-white border-gray-300 text-bb-text'}`}>
-          <t.icon size={17} />{t.label}
-        </button>
-      ))}
+    <div className="flex gap-2" data-testid="quote-tools">
+      <button onClick={q.onGroup} disabled={!q.canGroup} data-testid="tool-group" className={`${tool} flex-1 px-1.5 bg-white border-gray-300 text-bb-text`}><Layers size={17} />Group</button>
+      <button onClick={q.onUngroup} disabled={!q.canUngroup} data-testid="tool-ungroup" className={`${tool} flex-1 px-1.5 bg-white border-gray-300 text-bb-text`}><Ungroup size={17} />Ungroup</button>
+      <button onClick={() => q.setHidePrices(!q.hidePrices)} aria-pressed={q.hidePrices} data-testid="tool-hide"
+        className={`${tool} flex-[1.5] px-1.5 ${q.hidePrices ? 'bg-violet-100 border-violet-300 text-bb-accent-hover' : 'bg-white border-gray-300 text-bb-text'}`}>
+        {q.hidePrices ? <Eye size={17} /> : <EyeOff size={17} />}{q.hidePrices ? 'Show prices' : 'Hide prices'}
+      </button>
+      <button onClick={q.onMore} aria-label="More" data-testid="tool-more" className={`${tool} w-[46px] shrink-0 bg-white border-gray-300 text-bb-text`}><MoreHorizontal size={20} /></button>
     </div>
   );
 }
@@ -339,23 +259,27 @@ export default function QuotePhoneEditor({ q }) {
   const sections = q.printGroups;
   const many = sections.length > 1;
   const rootRef = useRef(null);
-  const [folded, setFolded] = useState(() => new Set());   // events folded shut (this visit only)
-
-  // The add-item row pins under the page's tabs + tools row: tell CSS how tall that is
-  useLayoutEffect(() => {
-    const root = rootRef.current;
-    const bar = document.querySelector('[data-testid="quote-sticky"]');
-    if (!root || !bar) return undefined;
-    const set = () => root.style.setProperty('--qs', `${bar.offsetHeight}px`);
-    set();
-    if (typeof ResizeObserver === 'undefined') return undefined;
-    const ro = new ResizeObserver(set);
-    ro.observe(bar);
-    return () => ro.disconnect();
-  }, []);
+  const { folded, setFolded } = q;   // events folded shut: kept by the page so the More menu can fold them too
 
   const toggleFold = (id) => setFolded(f => { const n = new Set(f); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const allFolded = sections.length > 0 && sections.every(g => folded.has(g.id));
+
+  // After items are added: scroll to the first new line, below the pinned bars. Repeated while the keyboard closes.
+  const lastTick = useRef(null);
+  useEffect(() => {
+    const t = q.scrollTarget;
+    if (!t || lastTick.current === t.tick) return undefined;
+    lastTick.current = t.tick;
+    const row = Array.from(rootRef.current?.querySelectorAll('[data-quote-line]') || []).find(el => el.dataset.quoteLine === t.key);
+    if (!row) return undefined;
+    const go = () => {
+      const head = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--phone-head')) || 0;
+      const bar = document.querySelector('[data-testid="quote-sticky"]')?.offsetHeight || 0;
+      window.scrollBy({ top: row.getBoundingClientRect().top - (head + bar + 16), behavior: 'auto' });
+    };
+    const timers = [30, 200, 500].map(ms => setTimeout(go, ms));
+    return () => timers.forEach(clearTimeout);
+  }, [q.scrollTarget]);
 
   // Items with no price: loose items with no rate, groups with no group price
   const missingIn = (g) => {
@@ -376,25 +300,23 @@ export default function QuotePhoneEditor({ q }) {
   };
 
   return (
-    <div ref={rootRef} className="space-y-5" data-testid="quote-phone" data-quote-phone>
+    <div ref={rootRef} className="space-y-4" data-testid="quote-phone" data-quote-phone>
       <p className="text-[12.5px] text-gray-600">Tick items to group or remove them · hold ⋮⋮ to move. Groups stay inside one event.</p>
 
-      {(missingCount > 0 || sections.length > 0) && (
-        <div className="flex items-center justify-between gap-3 -mt-2">
-          {missingCount > 0
-            ? <button onClick={jumpToUnpriced} data-testid="no-price-chip"
-              className="inline-flex items-center gap-2 min-h-[34px] px-3 rounded-full bg-amber-100 border border-amber-300 text-amber-900 text-[13px] font-bold cursor-pointer">
-              <TriangleAlert size={15} />{missingCount === 1 ? '1 item has no price' : `${missingCount} items have no price`}
-            </button>
-            : <span />}
-          {sections.length > 0 && (
-            <button onClick={() => setFolded(allFolded ? new Set() : new Set(sections.map(g => g.id)))} data-testid="fold-all"
-              className="inline-flex items-center gap-1.5 min-h-[34px] text-[13.5px] font-bold text-bb-accent-hover cursor-pointer">
-              {allFolded ? <ChevronsUpDown size={16} /> : <ChevronsDownUp size={16} />}{allFolded ? 'Open all' : 'Fold all'}
-            </button>
-          )}
-        </div>
-      )}
+      <div className="flex items-center justify-between gap-3 min-h-[34px]">
+        {missingCount > 0
+          ? <button onClick={jumpToUnpriced} data-testid="no-price-chip"
+            className="inline-flex items-center gap-2 min-h-[34px] px-3 rounded-full bg-amber-100 border border-amber-300 text-amber-900 text-[13px] font-bold cursor-pointer">
+            <TriangleAlert size={15} />{missingCount === 1 ? '1 item has no price' : `${missingCount} items have no price`}
+          </button>
+          : <span />}
+        {sections.length > 0 && (
+          <button onClick={() => setFolded(allFolded ? new Set() : new Set(sections.map(g => g.id)))} data-testid="fold-all"
+            className="inline-flex items-center gap-1.5 min-h-[34px] text-[13.5px] font-bold text-bb-accent-hover cursor-pointer">
+            {allFolded ? <ChevronsUpDown size={16} /> : <ChevronsDownUp size={16} />}{allFolded ? 'Open all' : 'Fold all'}
+          </button>
+        )}
+      </div>
 
       {/* One section per event */}
       {sections.map((group, gi) => {
@@ -408,26 +330,30 @@ export default function QuotePhoneEditor({ q }) {
         const d = toDate(group.date);
         return (
           <section key={group.id} className={`rounded-2xl border bg-white ${tint.line}`} data-testid="quote-section" data-section={group.id}>
-            {/* Event header — pale tint; taps to fold: date · name (Main) · items · total · chevron */}
+            {/* Event header — pale tint; taps to fold. Row 1: date · name (Main) · venue · chevron. Row 2: items · days, total */}
             <button onClick={() => toggleFold(group.id)} aria-expanded={open} data-testid="section-toggle"
-              className={`w-full flex items-center gap-3 px-3 py-3 text-left cursor-pointer ${tint.bg} ${open ? 'rounded-t-2xl' : 'rounded-2xl'}`}>
-              <div className="w-[46px] shrink-0 text-center rounded-[10px] py-1 bg-white" aria-hidden="true">
-                <div className={`text-[11px] font-extrabold ${tint.fg}`}>{d ? d.toLocaleDateString('en-IN', { weekday: 'short' }).toUpperCase() : '—'}</div>
-                <div className="text-[18px] leading-tight font-extrabold text-bb-text">{d ? d.getDate() : '?'}</div>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[15.5px] font-bold truncate">
-                  {group.name}{many && group.id === 'main' && <span className="ml-1.5 align-middle text-[11px] font-bold px-1.5 py-px rounded-full bg-white text-gray-600">Main</span>}
-                </p>
-                <p className="text-[13px] text-gray-600 truncate">{group.items.length} item{group.items.length === 1 ? '' : 's'}{group.days > 1 ? ` · ${group.days} days` : ''}{group.location ? ` · ${group.location}` : ''}</p>
-              </div>
-              <b className="text-[16px] tabular-nums" data-testid="section-total">{formatRupees(total)}</b>
-              {open ? <ChevronUp size={20} className="text-bb-muted shrink-0" /> : <ChevronDown size={20} className="text-bb-muted shrink-0" />}
+              className={`w-full flex flex-col gap-2 px-3 pt-3 pb-2.5 text-left cursor-pointer ${tint.bg} ${open ? `rounded-t-2xl border-b ${tint.line}` : 'rounded-2xl'}`}>
+              <span className="flex items-center gap-3">
+                <span className="w-[46px] shrink-0 text-center rounded-[10px] py-1 bg-white" aria-hidden="true">
+                  <span className={`block text-[11px] font-extrabold ${tint.fg}`}>{d ? d.toLocaleDateString('en-IN', { weekday: 'short' }).toUpperCase() : '—'}</span>
+                  <span className="block text-[18px] leading-tight font-extrabold text-bb-text">{d ? d.getDate() : '?'}</span>
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-[15.5px] font-bold break-words">
+                    {group.name}{many && group.id === 'main' && <span className="ml-1.5 align-middle text-[11px] font-bold px-1.5 py-px rounded-full bg-white text-gray-600">Main</span>}
+                  </span>
+                  {group.location && <span className="flex items-start gap-1 text-[13px] text-gray-600 mt-0.5 break-words"><MapPin size={13} className="shrink-0 mt-[3px]" />{group.location}</span>}
+                </span>
+                {open ? <ChevronUp size={20} className="text-bb-muted shrink-0" /> : <ChevronDown size={20} className="text-bb-muted shrink-0" />}
+              </span>
+              <span className="flex items-center justify-between gap-3 pl-[58px]">
+                <span className="text-[13px] text-gray-600">{group.items.length} item{group.items.length === 1 ? '' : 's'}{group.days > 1 ? ` · ${group.days} days` : ''}</span>
+                <b className="text-[16px] tabular-nums" data-testid="section-total">{formatRupees(total)}</b>
+              </span>
             </button>
 
             {open && (
-              <div className="px-3 pb-3">
-                <AddRow q={q} group={group} />
+              <div className="px-3 pt-1 pb-3">
                 {entries.length === 0 && <p className="text-[14px] text-gray-600 text-center py-5">No items yet</p>}
                 <DndContext sensors={q.dndSensors} collisionDetection={closestCenter} onDragEnd={q.onDragEnd(group.id, entries)}>
                   <SortableContext items={ids} strategy={verticalListSortingStrategy}>

@@ -690,3 +690,22 @@ export const countdownText = (d) => (d < 0 ? `${Math.abs(d)} day${d === -1 ? '' 
 
 /** Chip colours for countdownText: grey once past, red ≤ 3 days, amber ≤ 7, green otherwise */
 export const countdownTone = (d) => (d < 0 ? 'bg-gray-100 text-gray-700' : d <= 3 ? 'bg-red-100 text-red-700' : d <= 7 ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800');
+
+// ============================================================
+// ADD ITEMS SHEET (phone quotation)
+// ============================================================
+
+/** Every service name in the company's categories, once each, in list order */
+export function serviceNames(categories) {
+  const seen = new Set();
+  const out = [];
+  (categories || []).forEach(cat => (cat.items || []).forEach(n => { if (n && !seen.has(n)) { seen.add(n); out.push(n); } }));
+  return out;
+}
+
+/** Services to suggest: those matching what is typed (2+ letters) or the first few, minus names already taken */
+export function suggestServices(all, typed, taken, limit = 8) {
+  const q = (typed || '').trim().toLowerCase();
+  const takenSet = new Set(taken);
+  return all.filter(n => !takenSet.has(n) && (q.length < 2 || n.toLowerCase().includes(q))).slice(0, limit);
+}

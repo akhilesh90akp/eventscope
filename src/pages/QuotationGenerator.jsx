@@ -27,9 +27,11 @@
  * Discount (quoteDetails.discount): an amount ("5000") or a percentage
  * ("10%"), taken off before GST; the bill starts with it (helpers.getEventBill).
  *
- * Phones (below 1024px) get QuotePhoneEditor: Details | Preview tabs, the
- * tools bar, open groups, an item ⋮ menu (move / remove from group, duplicate,
- * rename, delete), a Price & terms card and a total bar pinned to the bottom.
+ * Phones (below 1024px) get QuotePhoneEditor: Details | Preview tabs and a Save
+ * icon in the purple title bar, a tools row (Group · Ungroup · Hide prices ·
+ * More), tinted foldable events, open groups, an item ⋮ menu (move / remove
+ * from group, duplicate, rename, delete), a Price & terms card and a bar pinned
+ * to the bottom (total · PDF · Add item, which opens the Add items sheet).
  * Laptops get QuoteLaptopEditor: a title row with WhatsApp · Print · PDF ·
  * Save, a pinned tools row, each event as a list with a compact date band,
  * groups with their price at the end, a Subtotal line, and Price & terms;
@@ -72,7 +74,8 @@ import { HeaderIconButton } from '../components/PhoneHeader';
 import ActionBar from '../components/ActionBar';
 import BottomSheet from '../components/BottomSheet';
 import DocFit from '../components/DocFit';
-import { SegmentedTabs, IconButton, MenuRow, SwitchRow, SectionLabel } from '../components/PhoneUI';
+import { UnderlineTabs, IconButton, MenuRow, SectionLabel } from '../components/PhoneUI';
+import AddItemsSheet from '../components/AddItemsSheet';
 import QuotePhoneEditor, { QuoteTools } from '../components/QuotePhoneEditor';
 import QuoteLaptopEditor, { QuoteLaptopTools } from '../components/QuoteLaptopEditor';
 import { PageHeader, HeaderIcon } from '../components/LaptopUI';
@@ -81,7 +84,7 @@ import FitBudgetSheet from '../components/FitBudgetSheet';
 import QuoteRevisionsSheet from '../components/QuoteRevisionsSheet';
 import { fitUnits, applyFit, makeRevision, addRevision } from '../utils/quoteFit';
 import {
-  MoreVertical, Wand2, History, EyeOff, FileSignature, FileDown, Copy, Type, FolderInput, FolderOutput, Trash2, Undo2, Pencil,
+  Wand2, History, FileSignature, ChevronsDownUp, ChevronsUpDown, Copy, Type, FolderInput, FolderOutput, Trash2, Undo2, Pencil,
 } from 'lucide-react';
 
 // ============================================================
@@ -177,8 +180,10 @@ export default function QuotationGenerator() {
   const [groupMenu, setGroupMenu] = useState(null);         // a bundle
   const [moveMenu, setMoveMenu] = useState(null);           // item being moved to a group
   const [renaming, setRenaming] = useState(null);           // { kind: 'item'|'group', sectionId, name, bundleId, value }
-  const [addItemSection, setAddItemSection] = useState(null);
-  const [addItemText, setAddItemText] = useState('');
+  const [addOpen, setAddOpen] = useState(false);              // phone: the Add items sheet
+  const [folded, setFolded] = useState(() => new Set());     // phone: events folded shut (this visit only)
+  const [scrollTarget, setScrollTarget] = useState(null);     // phone: { key, tick } — the editor scrolls to it
+  const [flash, setFlash] = useState(() => new Set());        // phone: item keys highlighted for a moment after adding
   const [undoInfo, setUndoInfo] = useState(null);           // { rev, message } after Fit to budget
 
   // Add item state — each section (main event / each sub-event) gets its
@@ -205,7 +210,6 @@ export default function QuotationGenerator() {
 
   // Ref for printable section (must be before early return)
   const pdfRef = useRef(null);
-  const pdfOpenRef = useRef(null);                        // starts the PDF from the phone's ⋮ menu
 
   // `saving` disables the Save button while the Firestore write is in flight.
   const [saving, setSaving] = useState(false);
@@ -422,10 +426,13 @@ export default function QuotationGenerator() {
 
   // Phones: client · event · date under the title, ⋮ for quote options
   const headerSub = event ? [event.clientName, event.eventType, (event.mainEvent?.date || event.date) && formatDateReadable(event.mainEvent?.date || event.date)].filter(Boolean).join(' · ') : '';
+  const saveClickRef = useRef(null);   // the title bar's Save icon calls the latest handleSave (set below)
   usePhoneHeader({
     sub: headerSub,
-    right: <HeaderIconButton icon={MoreVertical} label="Quote options" onClick={() => setSheet('options')} data-testid="quote-options" />,
-  }, [headerSub]);
+    right: <HeaderIconButton icon={Save} label={saveState === 'saving' ? 'Saving…' : 'Save quotation'} bordered onClick={() => saveClickRef.current?.()} data-testid="quote-save" />,
+    below: <UnderlineTabs value={tab} onChange={(t) => { setTab(t); window.scrollTo(0, 0); }} testId="quote-tabs"
+      options={[{ value: 'details', label: 'Details' }, { value: 'preview', label: 'Preview' }]} />,
+  }, [headerSub, tab, saveState]);
 
   // The "Undo" bar after Fit to budget goes away by itself
   useEffect(() => {
@@ -774,15 +781,19 @@ export default function QuotationGenerator() {
     endSelect();
   };
 
-  /** Phone "Add item" sheet: adds the typed name to that event */
-  const addTypedItem = () => {
-    const name = addItemText.trim();
-    if (!name || !addItemSection) return;
-    if ((sectionItems[addItemSection] || []).includes(name)) { showToast('That item is already in this event', 'error'); return; }
-    setSectionItems(s => ({ ...s, [addItemSection]: [...(s[addItemSection] || []), name] }));
-    setItemPrices(p => ({ ...p, [`${addItemSection}::${name}`]: newPrice(sectionDaysOf(event)[addItemSection]) }));
-    setAddItemText('');
-    showToast(`Added "${name}"`);
+  /** Phone "Add items" sheet: adds the names to that event, then scrolls to the first new one */
+  const addItemsToEvent = (sectionId, names) => {
+    const fresh = names.filter(n => !(sectionItems[sectionId] || []).includes(n));
+    setAddOpen(false);
+    if (!fresh.length) { showToast('Those items are already in this event', 'error'); return; }
+    setSectionItems(s => ({ ...s, [sectionId]: [...(s[sectionId] || []), ...fresh] }));
+    setItemPrices(p => ({ ...p, ...Object.fromEntries(fresh.map(n => [`${sectionId}::${n}`, newPrice(sectionDaysOf(event)[sectionId])])) }));
+    const keys = fresh.map(n => `${sectionId}::${n}`);
+    setFolded(f => { if (!f.has(sectionId)) return f; const n = new Set(f); n.delete(sectionId); return n; });
+    setFlash(new Set(keys));
+    setScrollTarget({ key: keys[0], tick: Date.now() });
+    setTimeout(() => setFlash(new Set()), 3000);
+    showToast(`${fresh.length === 1 ? '1 item' : `${fresh.length} items`} added to ${printGroups.find(g => g.id === sectionId)?.name || 'the event'}`);
   };
 
   // ------------------------------------------------------------
@@ -859,6 +870,7 @@ export default function QuotationGenerator() {
     setSaving(true);
     try { await saveQuote(true); } finally { setSaving(false); }
   };
+  saveClickRef.current = handleSave;
 
 
   // ------------------------------------------------------------
@@ -953,9 +965,10 @@ export default function QuotationGenerator() {
     onGroup: handleGroupClick, onUngroup: handleUngroupSelected,
     onDragEnd: handleDragEnd, onMemberDragEnd: handleMemberDragEnd,
     openItemMenu: setItemMenu, openGroupMenu: setGroupMenu,
-    openAddItem: (sec) => { setAddItemSection(sec); setAddItemText(''); },
+    openAddItem: () => setAddOpen(true),
     openCategories: setCategoryModalSection,
-    onFitBudget: () => setSheet('fit'),
+    onFitBudget: () => setSheet('fit'), onMore: () => setSheet('options'),
+    folded, setFolded, scrollTarget, flash,
     onVersions: () => setSheet('revisions'), revisionsCount: revisions.length,
     onSave: handleSave, saveState,
     hasPhone: !!(event.clientWhatsapp || event.clientPhone), onWhatsApp: handleWhatsApp,
@@ -992,16 +1005,15 @@ export default function QuotationGenerator() {
       {/* === PHONE: Details | Preview, the editor, and the total bar === */}
       {isPhone && (
         <div data-no-print className="space-y-5">
-          {/* Tabs and the tools row stay pinned under the title bar; the quote scrolls below */}
-          <StickyBar className="!py-3 space-y-3 border-b border-bb-border/70" testId="quote-sticky">
-            <SegmentedTabs value={tab} onChange={(t) => { setTab(t); window.scrollTo(0, 0); }} testId="quote-tabs"
-              options={[{ value: 'details', label: 'Details' }, { value: 'preview', label: 'Preview' }]} />
-            {tab === 'details' && <QuoteTools q={editorQ} />}
-          </StickyBar>
+          {/* The tools row stays pinned under the title bar (the tabs are in the bar); the quote scrolls below */}
+          {tab === 'details' && (
+            <StickyBar className="!py-3 border-b border-bb-border/70" testId="quote-sticky">
+              <QuoteTools q={editorQ} />
+            </StickyBar>
+          )}
           {tab === 'details' && (
             <QuotePhoneEditor q={editorQ} />
           )}
-          <PdfButton docRef={pdfRef} fileName={`${docTitle()}.pdf`} variant="none" openRef={pdfOpenRef} />
           {anyTicked ? (
             <ActionBar testId="select-bar" label={`${tickedItems().length} selected`} value={formatRupees(tickedValue())}>
               <button onClick={endSelect} className="min-h-[44px] px-2.5 rounded-xl text-gray-600 font-semibold cursor-pointer">Clear</button>
@@ -1010,10 +1022,15 @@ export default function QuotationGenerator() {
               <IconButton icon={Layers} label={canMergeIntoExisting ? 'Add to group' : 'Make a group'} tone="violet" onClick={handleGroupClick} disabled={!canGroup} data-testid="make-group" />
             </ActionBar>
           ) : (
-            <ActionBar label={saveState === 'saved' ? 'Total' : saveState === 'saving' ? 'Total · saving…' : saveState === 'error' ? 'Total · not saved' : 'Total · not saved yet'}
-              status={saveState === 'saved' ? '✓ Saved' : null} value={formatRupees(gstData.total)}>
-              {(event.clientWhatsapp || event.clientPhone) && <IconButton icon={MessageSquare} label="Share on WhatsApp" tone="green" onClick={handleWhatsApp} />}
-              <PdfButton docRef={pdfRef} fileName={`${docTitle()}.pdf`} />
+            <ActionBar label={saveState === 'saved' ? '' : saveState === 'saving' ? 'Saving…' : saveState === 'error' ? 'Not saved' : 'Not saved yet'}
+              status={saveState === 'saved' ? '✓ Saved' : null} value={formatRupees(gstData.total)} testId="total-bar">
+              <PdfButton docRef={pdfRef} fileName={`${docTitle()}.pdf`} variant={tab === 'details' ? 'secondary' : 'primary'} />
+              {tab === 'details' && (
+                <button onClick={() => setAddOpen(true)} data-testid="add-items-open"
+                  className="min-h-[48px] px-[18px] rounded-xl bg-bb-accent text-white font-bold text-[15px] inline-flex items-center gap-1.5 cursor-pointer">
+                  <Plus size={18} />Add item
+                </button>
+              )}
             </ActionBar>
           )}
         </div>
@@ -1404,16 +1421,16 @@ export default function QuotationGenerator() {
 
       {/* === SHEETS: quote options · Fit to budget · versions · item / group menus === */}
       {sheet === 'options' && (
-        <BottomSheet open onClose={() => setSheet(null)} title="Quote options" testId="options-sheet">
-          <MenuRow icon={Save} title="Save now" sub="Changes also save by themselves" onClick={() => { setSheet(null); handleSave(); }} testId="opt-save" />
-          <MenuRow icon={Layers} title="Group ticked items" sub={canGroup ? 'Make one group with one price' : 'Tick 2 or more items first'} disabled={!canGroup} onClick={() => { setSheet(null); handleGroupClick(); }} testId="opt-group" />
-          <MenuRow icon={Ungroup} title="Ungroup ticked" sub={canUngroup ? 'Items go back to their own prices' : 'Tick a group first'} disabled={!canUngroup} onClick={() => { setSheet(null); handleUngroupSelected(); }} testId="opt-ungroup" />
-          <SwitchRow icon={EyeOff} title="Hide item prices" sub="PDF shows one final amount per event" checked={hidePrices} onChange={setHidePricesAndShow} testId="opt-hide" />
-          {(event.clientWhatsapp || event.clientPhone) && <MenuRow icon={MessageSquare} title="Share on WhatsApp" sub="Message with the prices" onClick={() => { setSheet(null); handleWhatsApp(); }} />}
+        <BottomSheet open onClose={() => setSheet(null)} title="More" testId="options-sheet">
           <MenuRow icon={Wand2} title="Fit to budget" sub="Bring the total to the client’s number" onClick={() => setSheet('fit')} testId="opt-fit" />
+          {(event.clientWhatsapp || event.clientPhone) && <MenuRow icon={MessageSquare} title="Share on WhatsApp" sub="Message with the prices" onClick={() => { setSheet(null); handleWhatsApp(); }} testId="opt-whatsapp" />}
           <MenuRow icon={History} title="Versions" sub={revisions.length ? `${revisions.length} earlier version${revisions.length > 1 ? 's' : ''}` : 'Fit to budget keeps the old prices here'} onClick={() => setSheet('revisions')} testId="opt-versions" />
-          <MenuRow icon={FileDown} title="Download PDF" sub="Check it, then share or save" onClick={() => { setSheet(null); setTimeout(() => pdfOpenRef.current?.(), 50); }} testId="opt-pdf" />
-          <MenuRow icon={FileSignature} title="Make contract" sub="Uses this quote" onClick={() => navigate(`/contract/${event.id}`)} />
+          {tab === 'details' && printGroups.length > 0 && (() => {
+            const allFolded = printGroups.every(g => folded.has(g.id));
+            return <MenuRow icon={allFolded ? ChevronsUpDown : ChevronsDownUp} title={allFolded ? 'Open all events' : 'Fold all events'}
+              onClick={() => { setSheet(null); setFolded(allFolded ? new Set() : new Set(printGroups.map(g => g.id))); }} testId="opt-fold" />;
+          })()}
+          <MenuRow icon={FileSignature} title="Make contract" sub="Uses this quote" onClick={() => navigate(`/contract/${event.id}`)} testId="opt-contract" />
         </BottomSheet>
       )}
       {sheet === 'fit' && (
@@ -1468,16 +1485,9 @@ export default function QuotationGenerator() {
             className="w-full min-h-[48px] rounded-xl border border-bb-border bg-bb-input px-3 text-[16px] focus:outline-none focus:ring-2 focus:ring-bb-accent/40" />
         </BottomSheet>
       )}
-      {addItemSection && (
-        <BottomSheet open onClose={() => setAddItemSection(null)} title="Add item" sub={printGroups.find(g => g.id === addItemSection)?.name} testId="add-item-sheet"
-          footer={<div className="flex gap-2.5">
-            <button onClick={() => { const sec = addItemSection; setAddItemSection(null); setCategoryModalSection(sec); }} className="flex-1 min-h-[46px] rounded-xl border border-gray-300 font-semibold cursor-pointer">From services</button>
-            <button onClick={addTypedItem} disabled={!addItemText.trim()} data-testid="add-item-save" className="flex-1 min-h-[46px] rounded-xl bg-bb-accent text-white font-semibold cursor-pointer disabled:opacity-40">Add</button>
-          </div>}>
-          <input autoFocus value={addItemText} onChange={e => setAddItemText(e.target.value)} onKeyDown={e => e.key === 'Enter' && addTypedItem()} placeholder="e.g. Welcome board" aria-label="Item name" data-testid="add-item-input"
-            className="w-full min-h-[48px] rounded-xl border border-bb-border bg-bb-input px-3 text-[16px] focus:outline-none focus:ring-2 focus:ring-bb-accent/40" />
-          <p className="text-[13px] text-gray-600 mt-2">Add as many as you like — the sheet stays open.</p>
-        </BottomSheet>
+      {addOpen && (
+        <AddItemsSheet events={printGroups.map(g => ({ id: g.id, name: g.name, items: g.items }))} categories={categories}
+          onSave={addItemsToEvent} onClose={() => setAddOpen(false)} />
       )}
 
       {/* "Undo" right after Fit to budget */}

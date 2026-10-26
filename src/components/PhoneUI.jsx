@@ -5,6 +5,7 @@
  *   IconButton     44×44 icon-only button (call / WhatsApp green, ⋯, ✎, 🗑)
  *   SectionLabel   small uppercase heading above a group of cards
  *   SegmentedTabs  "Details | Preview", "Month | List", period tabs
+ *   UnderlineTabs  the same two tabs as underlines, attached to the bottom of the purple title bar
  *   MenuRow        one row of a bottom-sheet menu (icon, title, helper text)
  *   DateBlock      tinted day-of-week + date square
  *   FunctionRow    an event or sub event: date block, name (+ Main tag), venue
@@ -73,6 +74,23 @@ export function SegmentedTabs({ options, value, onChange, className = '', testId
             className={`flex-1 min-h-[42px] px-2 rounded-[10px] text-[14.5px] font-semibold cursor-pointer transition-colors
               ${on ? 'bg-white text-bb-accent-hover shadow-sm' : 'text-bb-muted hover:text-bb-text'}`}>
             {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Tabs drawn as underlines, for the bottom of the purple title bar (white = current tab) */
+export function UnderlineTabs({ options, value, onChange, testId }) {
+  return (
+    <div role="tablist" className="flex" data-testid={testId}>
+      {options.map(o => {
+        const on = o.value === value;
+        return (
+          <button key={o.value} role="tab" aria-selected={on} onClick={() => onChange(o.value)} data-testid={`${testId}-${o.value}`}
+            className={`flex-1 min-h-[46px] text-[14.5px] border-b-[3px] cursor-pointer ${on ? 'border-white text-white font-bold' : 'border-transparent text-[#d8c8ec] font-semibold'}`}>
+            {o.label}
           </button>
         );
       })}

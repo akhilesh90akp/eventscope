@@ -254,3 +254,25 @@ test('functionDatesProblem / functionDatesToSave', async () => {
   assert.deepEqual(functionDatesToSave({ date: '2026-11-18', multiDay: false, endDate: '2026-11-20' }), { date: '2026-11-18', endDate: '' });
   assert.deepEqual(functionDatesToSave({ date: '2026-11-18', multiDay: true, endDate: '2026-11-20' }), { date: '2026-11-18', endDate: '2026-11-20' });
 });
+
+// ============================================================
+// ADD ITEMS SHEET — service suggestions
+// ============================================================
+
+import { serviceNames, suggestServices } from '../src/utils/helpers.js';
+
+const CATS = [{ items: ['Stage', 'Sound system', 'Chairs'] }, { items: ['Sound mixer', 'Stage', 'Catering'] }];
+
+test('serviceNames: every service once, in list order', () => {
+  assert.deepEqual(serviceNames(CATS), ['Stage', 'Sound system', 'Chairs', 'Sound mixer', 'Catering']);
+  assert.deepEqual(serviceNames(undefined), []);
+});
+
+test('suggestServices: first few when nothing typed, matches once 2+ letters, never names already taken', () => {
+  const all = serviceNames(CATS);
+  assert.deepEqual(suggestServices(all, '', [], 3), ['Stage', 'Sound system', 'Chairs']);
+  assert.deepEqual(suggestServices(all, 's', []).length, 5);            // 1 letter: no filtering yet
+  assert.deepEqual(suggestServices(all, 'sou', []), ['Sound system', 'Sound mixer']);
+  assert.deepEqual(suggestServices(all, 'SOU', ['Sound system']), ['Sound mixer']);
+  assert.deepEqual(suggestServices(all, 'zzz', []), []);
+});

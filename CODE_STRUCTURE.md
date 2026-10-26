@@ -35,9 +35,9 @@ src/
       ActionBar (white bar pinned to the bottom of a task screen: total + main buttons),
       BottomSheet (slides up on phones, a dialog on laptops), DocFit (A4 document fitted to the
         phone width, "Actual size" switch), PhoneUI (IconButton, SectionLabel, SegmentedTabs,
-        MenuRow, SwitchRow, NumberBox, DateField "Sat, 12 Sep 2026", TextField, DateBlock, FunctionRow),
+        MenuRow, SwitchRow, UnderlineTabs (tabs attached to the purple bar), NumberBox, DateField "Sat, 12 Sep 2026", TextField, DateBlock, FunctionRow),
       EventCardPhone (+ EventItemsSheet, EventMoreSheet — Home/Drafts/Confirmed/Completed cards),
-      QuotePhoneEditor (quote Details tab), FitBudgetSheet + QuoteRevisionsSheet (Fit to budget,
+      QuotePhoneEditor (quote Details tab), AddItemsSheet (phone quote: pick an event, add many item names, save), FitBudgetSheet + QuoteRevisionsSheet (Fit to budget,
         versions — also on laptops), EventFormPhone (New/Edit event in 3 steps) + VenueInput
         (saved venues first, then OpenStreetMap, then "use as typed"),
     LAPTOP DESIGN (1024px and up — same design system, phone code untouched):
