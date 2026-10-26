@@ -36,7 +36,7 @@ import { usePhoneHeader } from '../components/phoneScreens';
 import StickyBar from '../components/StickyBar';
 import { SectionLabel, IconButton, DateField, UnderlineTabs } from '../components/PhoneUI';
 import { HeaderIconButton } from '../components/PhoneHeader';
-import { PageHeader, HeaderIcon, StatRow, Seg, Switch } from '../components/LaptopUI';
+import { PageHeader, HeaderIcon, HeaderText, StatRow, Seg, Switch } from '../components/LaptopUI';
 
 // ============================================================
 // HELPERS
@@ -482,7 +482,14 @@ export default function Reports() {
     ? (dateFrom || dateTo ? `Events ${dateFrom ? `from ${formatDateReadable(dateFrom)}` : ''} ${dateTo ? `to ${formatDateReadable(dateTo)}` : ''}`.replace(/\s+/g, ' ').trim() : 'Events')
     : `Events in ${periodLabel}`;
   const showStatus = statusFilter === 'all';
-  const th = 'py-2.5 px-3 text-[11px] font-bold uppercase tracking-[0.06em] text-bb-muted';
+  const th = 'py-2.5 px-3 text-[11px] font-bold uppercase tracking-[0.06em] text-bb-muted sticky top-[126px] z-10 bg-[#f6f6f9]';
+  // Profit of one completed event from its Job Log (null = no costs entered yet)
+  const lapProfit = (e) => {
+    if (e.status !== 'completed') return null;
+    const calc = computeEventFinancials(getEventRevenue(e), financials[e.id]?.values, jobLogColumns);
+    return calc.hasAny ? calc.profit : null;
+  };
+  const lapMoney = (n) => `${n < 0 ? '– ' : ''}${formatRupees(Math.abs(n))}`;
   return (
     <div>
       {/* Screen UI - hidden during print */}
@@ -491,32 +498,34 @@ export default function Reports() {
           actions={<>
             <HeaderIcon icon={Printer} label="Print" onClick={handlePrint} data-testid="hdr-print" />
             <PdfButton docRef={reportRef} fileName={`${reportTitle}.pdf`} variant="laptop" />
-            <HeaderIcon icon={Table2} label="Open Job Log" tone="primary" onClick={openJobLog} data-testid="hdr-joblog" />
+            <HeaderText icon={Table2} primary onClick={openJobLog} data-testid="hdr-joblog">Job Log</HeaderText>
           </>} />
 
-        {/* Filter strip: period tabs · ‹ month › · Completed | All events · Without GST */}
-        <div className="flex items-center gap-3 flex-wrap bg-white border border-bb-border rounded-2xl px-3 py-2" data-testid="report-filters">
-          <Seg label="Period" value={filter} onChange={setFilter} testId="report-period"
-            options={[{ value: 'all', label: 'All time' }, { value: 'monthly', label: 'Month' }, { value: 'yearly', label: 'Year' }, { value: 'custom', label: 'Custom' }]} />
-          {(filter === 'monthly' || filter === 'yearly') && (
+        {/* Pinned: white bar (‹ month › + period tabs), then the filters as pills on the page background */}
+        <div className="sticky top-0 z-20 -mx-1 px-1 pt-1 pb-2 bg-bb-bg" data-testid="report-pinned">
+          <div className="flex items-center gap-3 flex-wrap bg-white border border-bb-border rounded-2xl px-3 py-2" data-testid="report-filters">
             <span className="flex items-center gap-1">
-              <IconButton icon={ChevronLeft} label={filter === 'monthly' ? 'Previous month' : 'Previous year'} tone="quiet" size={32} iconSize={17} onClick={() => shift(-1)} />
-              <b className="min-w-[132px] text-center text-[14px]" data-testid="report-period-label">{periodLabel}</b>
-              <IconButton icon={ChevronRight} label={filter === 'monthly' ? 'Next month' : 'Next year'} tone="quiet" size={32} iconSize={17} onClick={() => shift(1)} />
+              <IconButton icon={ChevronLeft} label={filter === 'yearly' ? 'Previous year' : 'Previous month'} tone="quiet" size={32} iconSize={17} disabled={filter === 'all' || filter === 'custom'} onClick={() => shift(-1)} />
+              {filter === 'custom'
+                ? <span className="flex items-center gap-2 text-[13px] text-bb-muted px-1">
+                    <input type="date" aria-label="From" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="h-[34px] rounded-lg border border-bb-border bg-bb-input px-2 text-[13px] text-bb-text" />
+                    to
+                    <input type="date" aria-label="To" value={dateTo} onChange={e => setDateTo(e.target.value)} className="h-[34px] rounded-lg border border-bb-border bg-bb-input px-2 text-[13px] text-bb-text" />
+                  </span>
+                : <b className={`min-w-[132px] text-center text-[14px] ${filter === 'all' ? 'text-bb-muted' : ''}`} data-testid="report-period-label">{filter === 'all' ? 'All time' : periodLabel}</b>}
+              <IconButton icon={ChevronRight} label={filter === 'yearly' ? 'Next year' : 'Next month'} tone="quiet" size={32} iconSize={17} disabled={filter === 'all' || filter === 'custom'} onClick={() => shift(1)} />
             </span>
-          )}
-          {filter === 'custom' && (
-            <span className="flex items-center gap-2 text-[13px] text-bb-muted">
-              <input type="date" aria-label="From" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="h-[34px] rounded-lg border border-bb-border bg-bb-input px-2 text-[13px] text-bb-text" />
-              to
-              <input type="date" aria-label="To" value={dateTo} onChange={e => setDateTo(e.target.value)} className="h-[34px] rounded-lg border border-bb-border bg-bb-input px-2 text-[13px] text-bb-text" />
-            </span>
-          )}
-          <span className="flex-1" />
-          <Seg label="Which events" value={statusFilter} onChange={setStatusFilter} testId="report-status"
-            options={[{ value: 'completed', label: 'Completed' }, { value: 'all', label: 'All events' }]} />
-          <span className="w-px h-6 bg-bb-border" />
-          <Switch checked={excludeGST} onChange={setExcludeGST} label="Without GST" testId="exclude-gst" />
+            <Seg label="Period" value={filter} onChange={setFilter} testId="report-period"
+              options={[{ value: 'all', label: 'All time' }, { value: 'monthly', label: 'Month' }, { value: 'yearly', label: 'Year' }, { value: 'custom', label: 'Custom' }]} />
+          </div>
+          <div className="flex items-center gap-2 mt-2.5" data-testid="report-status">
+            {[['completed', 'Completed'], ['all', 'All events']].map(([v, l]) => (
+              <button key={v} type="button" onClick={() => setStatusFilter(v)} aria-pressed={statusFilter === v}
+                className={`min-h-[34px] px-4 rounded-full border text-[13.5px] font-semibold cursor-pointer ${statusFilter === v ? 'bg-bb-accent border-bb-accent text-white' : 'bg-white border-gray-300 text-bb-text hover:bg-gray-50'}`}>{l}</button>
+            ))}
+            <span className="flex-1" />
+            <Switch checked={excludeGST} onChange={setExcludeGST} label="Without GST" testId="exclude-gst" />
+          </div>
         </div>
 
         {/* One row of quiet number cards */}
@@ -531,14 +540,16 @@ export default function Reports() {
             tone: !stats.enoughCosts ? 'muted' : stats.afterPurchases >= 0 ? 'green' : 'red',
             hint: stats.enoughCosts ? 'Profit − purchases' : 'Shows once most events have expenses', info: 'Profit, minus what you spent on purchases in this period' },
           { label: 'Events', value: stats.total, hint: statusFilter === 'all' ? `${stats.completed} completed` : 'Completed', testId: 'rep-events' },
-          { label: 'Spent on purchases', value: `${stats.spent ? '− ' : ''}${formatRupees(stats.spent)}`, tone: 'red', hint: 'This period', info: 'Things you bought for the business — chairs, lights, equipment' },
+          { label: 'Spent on purchases', value: `${stats.spent ? '− ' : ''}${formatRupees(stats.spent)}`, tone: 'red', hint: filter === 'all' ? 'All time' : filter === 'monthly' ? 'This month' : filter === 'yearly' ? 'This year' : 'This period', info: 'Things you bought for the business — chairs, lights, equipment' },
         ]} />
 
         {/* The events */}
-        <div className="bg-white border border-bb-border rounded-2xl overflow-hidden" data-testid="report-table">
+        <div className="bg-white border border-bb-border rounded-2xl" data-testid="report-table">
           <div className="flex items-center gap-2.5 px-5 py-3.5">
             <h2 className="text-[15px] font-bold text-bb-text">{tableTitle}</h2>
             <span className="inline-flex items-center justify-center min-w-[1.6rem] h-[22px] px-2 rounded-full bg-violet-100 text-violet-700 text-xs font-bold tabular-nums">{filteredEvents.length}</span>
+            <span className="flex-1" />
+            <span className="text-[12.5px] text-bb-muted">Click a row to open its Job Log</span>
           </div>
           {filteredEvents.length === 0 ? (
             <div className="text-center py-10 border-t border-bb-border">
@@ -551,7 +562,8 @@ export default function Reports() {
                 <tr className="bg-bb-bg/70 border-y border-bb-border text-left">
                   <th className={`${th} w-12`}>#</th><th className={th}>Client</th><th className={th}>Type</th><th className={th}>Date</th>
                   {showStatus && <th className={th}>Status</th>}
-                  <th className={`${th} text-right`}>Amount</th>
+                  <th className={`${th} text-right`}>Profit</th>
+                  <th className={`${th} text-right`}>Amount</th><th className={`${th} w-8`} />
                 </tr>
               </thead>
               <tbody>
@@ -563,25 +575,34 @@ export default function Reports() {
                     <td colSpan={showStatus ? 5 : 4} className="py-2 px-3 font-bold text-bb-accent-hover">
                       <span className="inline-flex items-center gap-1.5"><ChevronDown size={16} className={`transition-transform ${closedFy.has(g.fy) ? '-rotate-90' : ''}`} />{g.label} · {g.events.length} event{g.events.length === 1 ? '' : 's'}</span>
                     </td>
-                    <td className="py-2 px-3 text-right font-bold tabular-nums">{formatRupees(g.revenue)}</td>
+                    {(() => { const gp = g.events.reduce((t, e) => t + (lapProfit(e) || 0), 0); return <td className={`py-2 px-3 text-right font-bold tabular-nums ${gp < 0 ? 'text-red-600' : 'text-emerald-600'}`}>{gp !== 0 ? lapMoney(gp) : '—'}</td>; })()}
+                    <td className="py-2 px-3 text-right font-bold tabular-nums">{formatRupees(g.revenue)}</td><td />
                   </tr>
                 )}
                 {!(yearGroups && closedFy.has(g.fy)) && g.events.map((e, i) => (
                   <tr key={e.id} className="border-b border-gray-100 hover:bg-bb-bg/60 cursor-pointer" data-testid="report-row"
-                    onClick={() => navigate(`/${e.status === 'draft' ? 'drafts' : e.status}`, { state: { expandId: e.id } })}>
+                    onClick={() => openJobLog()}>
                     <td className="py-2.5 px-3 text-bb-muted tabular-nums">{i + 1}</td>
                     <td className="py-2.5 px-3 font-semibold text-bb-text">{e.clientName}</td>
                     <td className="py-2.5 px-3 text-gray-600">{e.eventType}</td>
                     <td className="py-2.5 px-3 text-gray-600 whitespace-nowrap">{formatDateRange(e.mainEvent?.date || e.date, e.mainEvent ? functionEnd(e.mainEvent) : '')}</td>
                     {showStatus && <td className="py-2.5 px-3"><Badge variant={e.status}>{e.status}</Badge></td>}
+                    {(() => { const pr = lapProfit(e); return (
+                      <td className="py-2.5 px-3 text-right tabular-nums">
+                        {e.status !== 'completed' ? <span className="text-bb-muted">—</span>
+                          : pr !== null ? <b className={pr >= 0 ? 'text-emerald-600' : 'text-red-600'} data-testid="row-profit">{lapMoney(pr)}</b>
+                            : <span className="font-semibold text-bb-accent-hover" data-testid="row-add-costs">Add costs</span>}
+                      </td>); })()}
                     <td className="py-2.5 px-3 text-right font-semibold tabular-nums">{formatRupees(getEventRevenue(e))}</td>
+                    <td className="py-2.5 pr-3 text-bb-muted"><ChevronRight size={15} /></td>
                   </tr>
                 ))}
                 </React.Fragment>
                 ))}
                 <tr className="bg-bb-bg/70 font-bold" data-testid="report-total">
                   <td colSpan={showStatus ? 5 : 4} className="py-3 px-3">Total · {filteredEvents.length} event{filteredEvents.length === 1 ? '' : 's'}</td>
-                  <td className="py-3 px-3 text-right text-bb-accent-hover tabular-nums">{formatRupees(stats.revenue)}</td>
+                  <td className={`py-3 px-3 text-right tabular-nums ${stats.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{stats.profitEvents > 0 ? lapMoney(stats.profit) : '—'}</td>
+                  <td className="py-3 px-3 text-right text-bb-accent-hover tabular-nums">{formatRupees(stats.revenue)}</td><td />
                 </tr>
               </tbody>
             </table>
