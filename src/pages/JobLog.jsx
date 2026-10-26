@@ -601,7 +601,7 @@ function JobLogGrid() {
               </tr>
               <tr className="text-[11px] uppercase tracking-wide text-gray-600">
                 <th className="sticky top-8 left-0 z-30 bg-[#faf8fd] font-bold px-3 h-10 border-b border-bb-border w-12 min-w-[48px] text-center">#</th>
-                <th className="sticky top-8 left-12 z-30 bg-[#faf8fd] font-bold px-3 h-10 border-b border-r border-bb-border text-left min-w-[300px]">Client / event</th>
+                <th className="sticky top-8 left-12 z-30 bg-[#faf8fd] font-bold px-3 h-10 border-b border-r border-bb-border text-left min-w-[364px]">Client / event</th>
                 {lapInfo.map(b => <th key={b.key} className={`sticky top-8 z-10 bg-[#faf8fd] font-bold px-3 h-10 border-b border-bb-border whitespace-nowrap ${b.text ? 'text-left' : 'text-right'}`}>{b.label}</th>)}
                 {moneyCols.map(c => <th key={c.id} className="sticky top-8 z-10 bg-[#faf8fd] font-bold px-3 h-10 border-b border-bb-border whitespace-nowrap text-right">{c.label}</th>)}
                 {['Total cost', 'Profit', 'Margin'].map(l => <th key={l} className="sticky top-8 z-10 bg-[#faf8fd] font-bold px-3 h-10 border-b border-bb-border whitespace-nowrap text-right">{l}</th>)}
@@ -618,18 +618,18 @@ function JobLogGrid() {
                   <tr key={row.id}>
                     <td className="sticky left-0 z-[5] bg-white border-b border-bb-border/60 px-3 text-center text-bb-muted align-middle">{r + 1}</td>
                     <td className="sticky left-12 z-[5] bg-white border-b border-r border-bb-border/60 px-3 py-2.5 align-middle">
-                      <div className="leading-tight w-[300px]">
+                      <div className="leading-tight w-[340px]">
                         <div className="flex items-center gap-2">
-                          <b className="text-bb-text truncate flex-1 min-w-0" title={row.client}>{row.client}</b>
+                          <b className="text-bb-text text-[14.5px] truncate flex-1 min-w-0" title={row.client}>{row.client}</b>
                           {loss && <span className="shrink-0 whitespace-nowrap text-[10px] font-bold uppercase text-red-700 bg-red-100 rounded-full px-2 py-0.5" data-testid="loss-tag">Loss</span>}
                           {!row.calc.hasAny && <span className="shrink-0 whitespace-nowrap text-[10px] font-bold uppercase text-amber-800 bg-amber-100 rounded-full px-2 py-0.5" data-testid="nocost-tag">No costs</span>}
                         </div>
-                        <div className="flex items-center gap-1.5 mt-1 text-[12px]" title={subLine(row)}>
-                          <b className="text-bb-text whitespace-nowrap">{row.date ? formatDateRange(row.date, row.endDate) : ''}{row.time ? ` · ${row.time}` : ''}</b>
-                          <span className="text-bb-muted truncate min-w-0 font-medium">· {row.event}</span>
-                          {row.subEvents > 0 && <span className="shrink-0 whitespace-nowrap text-[10.5px] font-bold text-bb-accent-hover bg-violet-100 rounded-full px-1.5 py-px">+{row.subEvents} more</span>}
+                        <div className="flex items-center gap-2 mt-1.5 text-[13px]" title={subLine(row)}>
+                          <b className="shrink-0 whitespace-nowrap text-bb-text bg-gray-100 rounded-md px-2 py-0.5">{row.date ? formatDateRange(row.date, row.endDate) : ''}{row.time ? ` · ${row.time}` : ''}</b>
+                          <span className="text-gray-700 font-medium truncate min-w-0">{row.event}</span>
+                          {row.subEvents > 0 && <span className="shrink-0 whitespace-nowrap text-[11.5px] font-bold text-bb-accent-hover bg-violet-100 rounded-full px-2 py-0.5">+{row.subEvents} more</span>}
                         </div>
-                        {row.location && <div className="flex items-center gap-1 mt-0.5 text-[12px] font-semibold text-gray-600 min-w-0" title={row.location}><MapPin size={12} className="shrink-0 text-bb-accent" /><span className="truncate">{row.location}</span></div>}
+                        {row.location && <div className="flex items-center gap-1.5 mt-1.5 text-[13px] font-medium text-gray-700 min-w-0" title={row.location}><MapPin size={14} className="shrink-0 text-bb-accent" /><span className="truncate">{row.location}</span></div>}
                       </div>
                     </td>
                     {lapInfo.map(b => (
