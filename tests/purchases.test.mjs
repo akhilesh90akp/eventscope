@@ -11,7 +11,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   fyStart, fyLabel, fyRange, purchaseYears, purchasesBetween, summarizePurchases,
-  sortPurchases, cleanPurchase, eventProfitBetween,
+  sortPurchases, cleanPurchase, eventProfitBetween, groupByFinancialYear,
 } from '../src/utils/purchases.js';
 
 // ============================================================
@@ -88,4 +88,11 @@ test('eventProfitBetween: completed events with Job Log entries in the period', 
   const fin = { e1: { values: { labour: 30000 } }, e4: { values: { labour: 1 } } };
   const r = eventProfitBetween(events, fin, cols, ...fyRange(2026));
   assert.deepEqual(r, { profit: 70000, profitEvents: 1, completed: 2 });
+});
+
+test('groupByFinancialYear: newest year first, with totals', () => {
+  const g = groupByFinancialYear([
+    { date: '2025-05-01', amount: 100 }, { date: '2026-06-01', amount: 50 }, { date: '2027-01-10', amount: 25 }, { date: '', amount: 9 },
+  ]);
+  assert.deepEqual(g.map(x => [x.fy, x.label, x.items.length, x.total]), [[2026, 'FY 2026–27', 2, 75], [2025, 'FY 2025–26', 1, 100]]);
 });

@@ -31,15 +31,16 @@ import { useConfirm } from '../components/useConfirm';
 import { formatDateReadable, formatRupees } from '../utils/helpers';
 import {
   fyStart, fyLabel, fyRange, purchaseYears, purchasesBetween, summarizePurchases,
-  sortPurchases, eventProfitBetween, exportPurchasesToExcel,
+  sortPurchases, eventProfitBetween, exportPurchasesToExcel, groupByFinancialYear, PURCHASE_CATEGORIES,
 } from '../utils/purchases';
 import UpgradeCard from '../components/UpgradeCard';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useIsPhone } from '../components/useIsPhone';
 import { usePhoneHeader } from '../components/phoneScreens';
 import { HeaderIconButton } from '../components/PhoneHeader';
 import { IconButton } from '../components/PhoneUI';
-import { PageHeader, HeaderText, StatRow } from '../components/LaptopUI';
+import { PageHeader, HeaderText, StatRow, Seg } from '../components/LaptopUI';
 
 // ============================================================
 // HELPERS
@@ -60,6 +61,7 @@ function CategoryTag({ p }) {
 export default function Purchases() {
   const { purchases, purchasesLoaded, deletePurchase, events, financials, jobLogColumns, isOwner, settings, showToast, canUse } = useApp();
   const confirm = useConfirm();
+  const navigate = useNavigate();
 
   // ------------------------------------------------------------
   // STATE
@@ -70,14 +72,21 @@ export default function Purchases() {
   const [openId, setOpenId] = useState(null);    // phone: which row is open
   const [busy, setBusy] = useState(false);
   const isPhone = useIsPhone();
+  const [view, setView] = useState('fy');          // laptop: 'fy' | 'all'
+  const [category, setCategory] = useState('');    // laptop: '' = all categories
+  const [closedFy, setClosedFy] = useState(() => new Set());   // laptop All time: years whose open/fold state was flipped
 
   // ------------------------------------------------------------
   // DERIVED
   // ------------------------------------------------------------
   const [from, to] = fyRange(year);
-  const list = useMemo(() => sortPurchases(purchasesBetween(purchases, from, to)), [purchases, from, to]);
+  const allTime = !isPhone && view === 'all';
+  const list = useMemo(() => sortPurchases(allTime ? purchases.filter(p => p.date) : purchasesBetween(purchases, from, to)), [purchases, from, to, allTime]);
   const sum = useMemo(() => summarizePurchases(list), [list]);
-  const profit = useMemo(() => eventProfitBetween(events, financials, jobLogColumns, from, to), [events, financials, jobLogColumns, from, to]);
+  const profit = useMemo(() => (allTime ? eventProfitBetween(events, financials, jobLogColumns, '', '') : eventProfitBetween(events, financials, jobLogColumns, from, to)), [events, financials, jobLogColumns, from, to, allTime]);
+  const shown = useMemo(() => (!category ? list : list.filter(p => (category === 'Total only' ? p.mode === 'total' : p.mode !== 'total' && (p.category || 'Other') === category))), [list, category]);
+  const shownTotal = shown.reduce((n, p) => n + (Number(p.amount) || 0), 0);
+  const fyGroups = useMemo(() => (allTime ? groupByFinancialYear(shown) : null), [allTime, shown]);
   const afterPurchases = profit.profit - sum.total;
   const enoughCosts = profit.completed > 0 && profit.profitEvents / profit.completed >= 0.8;
   const thisMonth = useMemo(() => {
@@ -157,21 +166,33 @@ export default function Purchases() {
         </StickyBar>
       )}
 
-      {/* === LAPTOP: title row and the ‹ year › strip === */}
+      {/* === LAPTOP: title row, then the pinned bar (‹ FY › · Financial year | All time · categories) === */}
       {!isPhone && <>
-        <PageHeader title="Purchases" sub="Things you buy for the business and use across many events"
+        <PageHeader title={<span className="inline-flex items-center gap-2.5">Purchases <span className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-bb-muted bg-white border border-bb-border rounded-full px-2.5 py-0.5"><Lock size={11} />Owners only</span></span>}
+          sub="Things you buy for the business and use across many events"
           actions={<>
             <HeaderText icon={Download} onClick={handleDownload} disabled={busy || !list.length} aria-label="Download Excel" title="Download Excel" data-testid="purchases-excel">{busy ? 'Preparing…' : 'Excel'}</HeaderText>
             <HeaderText icon={Plus} primary onClick={() => setDialog({ editing: null })} data-testid="add-purchase">Add purchase</HeaderText>
           </>} />
-        <div className="flex items-center gap-3 bg-white border border-bb-border rounded-2xl px-4 py-2" data-testid="fy-strip">
-          <span className="text-[12px] font-bold tracking-[0.06em] uppercase text-bb-muted">Financial year</span>
-          <span className="flex items-center gap-1">
-            <IconButton icon={ChevronLeft} label="Previous year" tone="quiet" size={32} iconSize={17} onClick={() => setYear(y => y - 1)} disabled={year <= Math.min(...years)} />
-            <b className="min-w-[110px] text-center text-[14px]" data-testid="fy-label">{fyLabel(year)}</b>
-            <IconButton icon={ChevronRight} label="Next year" tone="quiet" size={32} iconSize={17} onClick={() => setYear(y => y + 1)} disabled={year >= Math.max(...years)} />
-          </span>
-          <span className="text-[13px] text-bb-muted">{formatDateReadable(from)} – {formatDateReadable(to)}</span>
+        <div className="sticky top-0 z-20 -mx-1 px-1 pt-1 pb-2 bg-bb-bg" data-testid="purchases-pinned">
+          <div className="flex items-center gap-3 flex-wrap bg-white border border-bb-border rounded-2xl px-3 py-2" data-testid="fy-strip">
+            <span className="flex items-center gap-1">
+              <IconButton icon={ChevronLeft} label="Previous year" tone="quiet" size={32} iconSize={17} onClick={() => setYear(y => y - 1)} disabled={allTime || year <= Math.min(...years)} />
+              <b className={`min-w-[110px] text-center text-[14px] ${allTime ? 'text-bb-muted' : ''}`} data-testid="fy-label">{allTime ? 'All time' : fyLabel(year)}</b>
+              <IconButton icon={ChevronRight} label="Next year" tone="quiet" size={32} iconSize={17} onClick={() => setYear(y => y + 1)} disabled={allTime || year >= Math.max(...years)} />
+            </span>
+            <Seg label="View" value={view} onChange={setView} testId="purchases-view" options={[{ value: 'fy', label: 'Financial year' }, { value: 'all', label: 'All time' }]} />
+            <span className="text-[13px] text-bb-muted">{allTime ? (list.length ? `${formatDateReadable(list[list.length - 1].date)} – today` : '') : `${formatDateReadable(from)} – ${formatDateReadable(to)}`}</span>
+            <span className="flex-1" />
+            <label className="relative">
+              <select value={category} onChange={e => setCategory(e.target.value)} aria-label="Category" data-testid="purchases-category"
+                className="appearance-none min-h-[36px] rounded-xl border border-gray-300 bg-white pl-3 pr-9 text-[13.5px] font-semibold cursor-pointer">
+                <option value="">All categories</option>
+                {[...PURCHASE_CATEGORIES, 'Total only'].map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <ChevronDown size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-bb-muted pointer-events-none" />
+            </label>
+          </div>
         </div>
       </>}
       {isPhone && <p className="text-sm text-bb-muted -mt-1 max-lg:text-[13.5px] max-lg:text-gray-600 max-lg:mt-0">
@@ -190,11 +211,13 @@ export default function Purchases() {
       </div>
       ) : (
         <StatRow items={[
-          { label: 'Spent this year', value: formatRupees(sum.total), tone: 'red', hint: `${sum.count} ${sum.count === 1 ? 'purchase' : 'purchases'}` },
-          { label: 'Biggest category', value: sum.biggestCategory ? sum.biggestCategory.name : '—', hint: sum.biggestCategory ? formatRupees(sum.biggestCategory.amount) : 'Nothing yet' },
+          { label: allTime ? 'Spent all time' : 'Spent this year', value: formatRupees(sum.total), tone: 'red', hint: `${sum.count} ${sum.count === 1 ? 'purchase' : 'purchases'}${allTime && list.length ? ` since ${new Date(list[list.length - 1].date).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}` : ''}` },
+          { label: 'Biggest category', value: sum.biggestCategory ? sum.biggestCategory.name : '—',
+            hint: sum.biggestCategory ? `${formatRupees(sum.biggestCategory.amount)} · ${Math.round((sum.biggestCategory.amount / (sum.total || 1)) * 100)}% of spend`
+              : sum.count ? 'Entries are “Total only” — add items by category to fill this' : 'Nothing yet' },
           enoughCosts
             ? { label: 'Profit after purchases', value: formatRupees(afterPurchases), tone: afterPurchases >= 0 ? 'green' : 'red', hint: `Event profit ${formatRupees(profit.profit)} − purchases` }
-            : { label: 'Profit after purchases', value: '—', tone: 'muted', hint: `Shows once most events have expenses (${profit.profitEvents} of ${profit.completed} now)` },
+            : { label: 'Profit after purchases', value: '—', tone: 'muted', hint: <span>Shows once most events have expenses ({profit.profitEvents} of {profit.completed} now) · <button onClick={() => navigate('/completed')} className="font-semibold text-bb-accent-hover hover:underline cursor-pointer">add costs</button></span> },
           { label: 'This month', value: formatRupees(thisMonth), hint: new Date().toLocaleDateString('en-IN', { month: 'long' }) },
         ]} />
       )}
@@ -284,47 +307,65 @@ export default function Purchases() {
             </table>
           </Card>
           </> : (
-          /* === LAPTOP: table with a title, ✎ / bin icons and a Total row === */
-          <div className="bg-white border border-bb-border rounded-2xl overflow-hidden">
+          /* === LAPTOP: title, table with ✎ and red bin always visible, Total row === */
+          <div className="bg-white border border-bb-border rounded-2xl">
             <div className="flex items-center gap-2.5 px-5 py-3.5">
-              <h2 className="text-[15px] font-bold text-bb-text">Purchases in {fyLabel(year)}</h2>
-              <span className="inline-flex items-center justify-center min-w-[1.6rem] h-[22px] px-2 rounded-full bg-violet-100 text-violet-700 text-xs font-bold tabular-nums">{list.length}</span>
+              <h2 className="text-[15px] font-bold text-bb-text">{allTime ? 'Purchases, all time' : `Purchases in ${fyLabel(year)}`}</h2>
+              <span className="inline-flex items-center justify-center min-w-[1.6rem] h-[22px] px-2 rounded-full bg-violet-100 text-violet-700 text-xs font-bold tabular-nums">{shown.length}</span>
             </div>
             <table className="w-full text-[13.5px]" data-testid="purchases-table">
               <thead>
-                <tr className="bg-bb-bg/70 border-y border-bb-border text-left">
-                  {['Date', 'Item', 'Category', 'Qty', 'Note', 'Amount', ''].map((h, i) => (
-                    <th key={i} className={`py-2.5 px-3 text-[11px] font-bold uppercase tracking-[0.06em] text-bb-muted ${i === 5 || i === 3 ? 'text-right' : ''}`}>{h}</th>
+                <tr className="bg-[#f6f6f9] border-y border-bb-border text-left">
+                  {['Date', 'Item', 'Category', 'Qty', 'Amount', ''].map((h, i) => (
+                    <th key={i} className={`py-2.5 px-3 text-[11px] font-bold uppercase tracking-[0.06em] text-bb-muted sticky top-[62px] z-10 bg-[#f6f6f9] ${i === 4 || i === 3 ? 'text-right' : ''}`}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {list.map(p => (
-                  <tr key={p.id} className="border-b border-gray-100">
-                    <td className="py-2 px-3 whitespace-nowrap text-gray-600">{formatDateReadable(p.date)}</td>
-                    <td className="py-2 px-3 font-semibold text-bb-text">{p.mode === 'total' ? 'Purchases (total)' : p.name}</td>
-                    <td className="py-2 px-3"><CategoryTag p={p} /></td>
-                    <td className="py-2 px-3 text-right tabular-nums">{p.mode === 'total' ? '—' : p.qty || 1}</td>
-                    <td className="py-2 px-3 text-bb-muted">{p.note}</td>
-                    <td className="py-2 px-3 text-right font-semibold whitespace-nowrap tabular-nums">{rupees(p.amount)}</td>
-                    <td className="py-1 px-2 text-right whitespace-nowrap">
-                      <span className="inline-flex gap-1">
-                        <IconButton icon={Edit3} label="Edit purchase" tone="quiet" size={32} iconSize={15} onClick={() => setDialog({ editing: p })} />
-                        <IconButton icon={Trash2} label="Delete purchase" tone="quiet" size={32} iconSize={15} className="hover:!text-red-600 hover:!bg-red-50" onClick={() => askDelete(p)} />
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                {(fyGroups || [{ fy: null, items: shown }]).map((g, gi) => {
+                  const folded = g.fy !== null && (gi === 0 ? closedFy.has(g.fy) : !closedFy.has(g.fy));   // latest year open, older folded; clicking flips it
+                  return (
+                    <React.Fragment key={g.fy ?? 'list'}>
+                      {g.fy !== null && (
+                        <tr className="bg-violet-50/60 border-b border-bb-border cursor-pointer select-none" data-testid="fy-heading" aria-expanded={!folded}
+                          onClick={() => setClosedFy(c => { const n = new Set(c); if (n.has(g.fy)) n.delete(g.fy); else n.add(g.fy); return n; })}>
+                          <td colSpan={4} className="py-2 px-3 font-bold text-bb-accent-hover">
+                            <span className="inline-flex items-center gap-1.5"><ChevronDown size={16} className={`transition-transform ${folded ? '-rotate-90' : ''}`} />{g.label} · {g.items.length} {g.items.length === 1 ? 'entry' : 'entries'}</span>
+                          </td>
+                          <td className="py-2 px-3 text-right font-bold tabular-nums">{rupees(g.total)}</td><td />
+                        </tr>
+                      )}
+                      {!folded && g.items.map(p => (
+                        <tr key={p.id} className="border-b border-gray-100" data-testid="purchase-row">
+                          <td className="py-2.5 px-3 whitespace-nowrap text-gray-600">{formatDateReadable(p.date)}</td>
+                          <td className="py-2.5 px-3">
+                            <b className="block text-bb-text">{titleOf(p)}</b>
+                            <span className="block text-[12px] text-bb-muted">{p.mode === 'total' ? 'Total only · no item list' : p.note}</span>
+                          </td>
+                          <td className="py-2.5 px-3"><CategoryTag p={p} /></td>
+                          <td className="py-2.5 px-3 text-right tabular-nums">{p.mode === 'total' ? '—' : p.qty || 1}</td>
+                          <td className="py-2.5 px-3 text-right font-semibold whitespace-nowrap tabular-nums">{rupees(p.amount)}</td>
+                          <td className="py-1 px-2 text-right whitespace-nowrap">
+                            <span className="inline-flex gap-1">
+                              <IconButton icon={Edit3} label="Edit purchase" tone="quiet" size={32} iconSize={15} onClick={() => setDialog({ editing: p })} />
+                              <IconButton icon={Trash2} label="Delete purchase" tone="quiet" size={32} iconSize={15} className="!text-red-500 hover:!text-red-600 hover:!bg-red-50" onClick={() => askDelete(p)} />
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </React.Fragment>
+                  );
+                })}
                 <tr className="bg-bb-bg/70 font-bold">
-                  <td colSpan="5" className="py-3 px-3">Total · {list.length} {list.length === 1 ? 'entry' : 'entries'}</td>
-                  <td className="py-3 px-3 text-right tabular-nums">{rupees(sum.total)}</td>
+                  <td colSpan="4" className="py-3 px-3">Total · {shown.length} {shown.length === 1 ? 'entry' : 'entries'}</td>
+                  <td className="py-3 px-3 text-right text-bb-accent-hover tabular-nums">{rupees(shownTotal)}</td>
                   <td />
                 </tr>
               </tbody>
             </table>
           </div>
           )}
-          <p className="text-xs text-bb-muted">Owners only — your team doesn’t see this page.</p>
+          {isPhone && <p className="text-xs text-bb-muted">Owners only — your team doesn’t see this page.</p>}
         </>
       )}
 

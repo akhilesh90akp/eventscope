@@ -45,6 +45,19 @@ export const purchaseYears = (purchases, today = new Date().toISOString().slice(
   return [...set].filter(Boolean).sort((a, b) => b - a);
 };
 
+/** Purchases grouped by financial year, newest year first: [{ fy, label, items, total }] */
+export const groupByFinancialYear = (purchases) => {
+  const map = new Map();
+  purchases.forEach(p => {
+    const fy = fyStart(p.date);
+    if (!fy) return;
+    if (!map.has(fy)) map.set(fy, []);
+    map.get(fy).push(p);
+  });
+  return [...map.entries()].sort((a, b) => b[0] - a[0])
+    .map(([fy, items]) => ({ fy, label: fyLabel(fy), items, total: items.reduce((s, p) => s + (Number(p.amount) || 0), 0) }));
+};
+
 // ============================================================
 // TOTALS
 // ============================================================
