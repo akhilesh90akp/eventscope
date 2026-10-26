@@ -58,8 +58,8 @@ export function PageHeader({ title, count, sub, onBack, actions = null, testId =
   );
 }
 
-/** Pages whose header carries the "New event" button */
-const NEW_EVENT_PAGES = ['/', '/drafts', '/confirmed', '/completed', '/calendar', '/reports', '/purchases', '/settings'];
+/** Pages (Home, Calendar, Drafts, Confirmed) whose header carries the "New event" button */
+const NEW_EVENT_PAGES = ['/', '/calendar', '/drafts', '/confirmed'];
 
 /** 38×38 icon button for the page header (tone="primary" for the one main action) */
 export function HeaderIcon({ icon, label, tone = 'neutral', ...rest }) {
