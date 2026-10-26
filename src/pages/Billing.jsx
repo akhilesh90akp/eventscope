@@ -16,9 +16,11 @@
 // IMPORTS
 // ============================================================
 import React, { useEffect, useMemo, useState } from 'react';
-import { Lock, Clock, Users, Copy, X } from 'lucide-react';
+import { Lock, Clock, Users, Copy, X, MessageCircle } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import Card from '../components/Card';
+import { useIsPhone } from '../components/useIsPhone';
+import { waLink } from '../utils/helpers';
 import {
   PAID_PLANS, planPrice, planName, renewalRange, upiLink, daysBetween, todayIST, isDate,
 } from '../utils/billing';
@@ -57,7 +59,7 @@ function UpiQr({ link, size = 160 }) {
 // ============================================================
 
 /** "Your plan" strip at the top */
-function YourPlan({ access, tenant, pending }) {
+function YourPlan({ access, tenant, pending, onRenew }) {
   const label = access.kind === 'pilot' ? 'Free pilot · all features' : access.kind === 'paid' ? `${planName(access.plan)} · ${tenant.cycle === 'yearly' ? 'yearly' : 'monthly'}` : planName(access.plan);
   const start = access.kind === 'pilot' ? tenant.pilotStart : null;
   const total = start && access.until ? daysBetween(start, access.until) + 1 : null;
@@ -75,7 +77,7 @@ function YourPlan({ access, tenant, pending }) {
         </div>
         {used !== null && !ended && (
           <div className="mt-2 h-1.5 rounded-full overflow-hidden max-w-[420px]" style={{ background: '#efeaf5' }}>
-            <div className="h-full rounded-full" style={{ width: `${Math.round(used * 100)}%`, background: 'linear-gradient(90deg,#a855f7,#6d28d9)' }} />
+            <div className="h-full rounded-full" style={{ width: `${Math.round(used * 100)}%`, background: onRenew ? '#7c3aed' : 'linear-gradient(90deg,#a855f7,#6d28d9)' }} />
           </div>
         )}
         {pending && <div className="text-xs mt-1 font-semibold text-emerald-700">Payment of {rupees(pending.amount)} sent — waiting for EventScope to confirm</div>}
@@ -87,12 +89,13 @@ function YourPlan({ access, tenant, pending }) {
             : <><div className="text-2xl font-extrabold leading-none" style={{ color: INK }}>{access.daysLeft}</div><div className="text-xs" style={{ color: MUTED }}>days left</div></>}
         </div>
       )}
+      {onRenew && !pending && <button onClick={onRenew} className="min-h-[38px] px-4 rounded-xl bg-bb-accent text-white text-[13.5px] font-bold cursor-pointer hover:bg-bb-accent-hover" data-testid="renew-strip">Renew</button>}
     </div>
   );
 }
 
 /** One plan card (Basic white, Standard purple-edged, Premium dark plum + gold) */
-function PlanCard({ p, yearly, current, disabled, onChoose }) {
+function PlanCard({ p, yearly, current, disabled, onChoose, laptop }) {
   const dark = p.premium;
   const fg = dark ? '#fff' : INK;
   const muted = dark ? 'rgba(255,255,255,.68)' : MUTED;
@@ -103,7 +106,9 @@ function PlanCard({ p, yearly, current, disabled, onChoose }) {
     : p.popular
       ? { background: '#fff', border: '2px solid transparent', backgroundImage: 'linear-gradient(#fff,#fff),linear-gradient(135deg,#a855f7,#6d28d9)', backgroundOrigin: 'border-box', backgroundClip: 'padding-box,border-box', boxShadow: '0 24px 48px -24px rgba(109,40,217,.45)' }
       : { background: '#fff', border: '1px solid #e9e4f0' };
-  const btn = p.popular
+  const btn = laptop
+    ? (p.popular ? { background: '#7c3aed', color: '#fff' } : dark ? { background: '#f5c451', color: '#2a1240' } : { background: '#fff', color: '#6d28d9', border: '1.5px solid #d8ccf3' })
+    : p.popular
     ? { background: 'linear-gradient(135deg,#8b5cf6,#6d28d9)', color: '#fff', boxShadow: '0 10px 24px -10px rgba(109,40,217,.7)' }
     : dark ? { background: 'linear-gradient(135deg,#f8d77a,#e0a92e)', color: '#2a1240', boxShadow: '0 10px 24px -10px rgba(224,169,46,.6)' }
       : { background: '#fff', color: '#6d28d9', border: '1.5px solid #d8ccf3' };
@@ -112,7 +117,11 @@ function PlanCard({ p, yearly, current, disabled, onChoose }) {
       {p.popular && (
         <span className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-3 py-1.5 text-[11px] font-bold tracking-wider text-white" style={{ background: 'linear-gradient(135deg,#a855f7,#6d28d9)', boxShadow: '0 6px 16px -6px rgba(109,40,217,.6)' }}>MOST POPULAR</span>
       )}
-      {dark && (
+      {laptop && current && (
+        <span className="absolute top-[18px] right-[18px] rounded-full px-2.5 py-1 text-[10.5px] font-bold tracking-wider" data-testid="current-chip"
+          style={dark ? { color: '#f5c451', border: '1px solid rgba(245,196,81,.45)' } : { background: '#ede9fe', color: '#6d28d9' }}>CURRENT PLAN</span>
+      )}
+      {dark && !(laptop && current) && (
         <span className="absolute top-[18px] right-[18px] inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold tracking-wider" style={{ color: '#f5c451', border: '1px solid rgba(245,196,81,.45)' }}>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="#f5c451"><path d="M12 2l2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4z" /></svg> PREMIUM
         </span>
@@ -131,12 +140,12 @@ function PlanCard({ p, yearly, current, disabled, onChoose }) {
       </div>
       <button onClick={onChoose} disabled={disabled}
         className="mt-5 w-full py-3 rounded-xl text-sm font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed" style={btn}>
-        {current ? 'Renew' : p.popular ? 'Choose Standard' : dark ? 'Go Premium' : `Choose ${p.name}`}
+        {current ? 'Renew' : laptop ? `Switch to ${p.name}` : p.popular ? 'Choose Standard' : dark ? 'Go Premium' : `Choose ${p.name}`}
       </button>
       <div className="h-px my-5" style={{ background: dark ? 'rgba(255,255,255,.12)' : '#efeaf5' }} />
       <div className="flex items-center gap-2 text-[13px] font-semibold mb-3" style={{ color: fg }}>
         <Users size={16} color={accent} />{p.teamLabel}
-        {current && <span className="ml-auto text-[10.5px] font-bold rounded-full px-2 py-0.5" style={{ background: dark ? 'rgba(245,196,81,.15)' : '#ede9fe', color: dark ? '#f5c451' : '#6d28d9' }}>CURRENT PLAN</span>}
+        {current && !laptop && <span className="ml-auto text-[10.5px] font-bold rounded-full px-2 py-0.5" style={{ background: dark ? 'rgba(245,196,81,.15)' : '#ede9fe', color: dark ? '#f5c451' : '#6d28d9' }}>CURRENT PLAN</span>}
       </div>
       <div className="text-[11.5px] font-bold tracking-wider uppercase mb-2.5" style={{ color: muted }}>{p.lead}</div>
       <div className="flex flex-col gap-2.5">
@@ -278,7 +287,9 @@ function Checkout({ choice, onClose }) {
 // Billing — MAIN COMPONENT
 // ============================================================
 export default function Billing() {
-  const { tenant, access, isOwner, pendingPayment, payments } = useApp();
+  const { tenant, access, isOwner, pendingPayment, payments, platformBilling } = useApp();
+  const isPhone = useIsPhone();
+  const laptop = !isPhone;
   const [yearly, setYearly] = useState(true);
   const [choice, setChoice] = useState(null);   // { plan, cycle } while the pay pop-up is open
 
@@ -305,22 +316,39 @@ export default function Billing() {
   );
   const trust = ['No charge per event', 'Pay by UPI', 'Your data stays yours', 'Change plan any time'];
 
+  const renewCurrent = () => setChoice({ plan: tenant.plan, cycle: yearly ? 'yearly' : 'monthly' });
+  const canRenew = laptop && PAID_PLANS.some(p => p.id === tenant.plan);
+  const toggle = (
+    <div className="inline-flex rounded-full p-1 gap-0.5" style={{ background: '#efeaf5' }}>
+      {seg(!yearly, 'Monthly')}
+      {seg(yearly, 'Yearly', <span className="text-[11px] font-bold rounded-full px-2 py-0.5 bg-emerald-100 text-emerald-700">2 months free</span>)}
+    </div>
+  );
+  const headline = (
+    <>
+      <h1 className="text-2xl md:text-[32px] font-extrabold tracking-tight" style={{ color: INK }}>Pick the plan that fits your business</h1>
+      <p className="text-[15px] mt-2 mb-4" style={{ color: MUTED }}>One simple price — however many events you run.</p>
+    </>
+  );
+
   return (
     <div className="max-w-[1080px] mx-auto">
-      <YourPlan access={access} tenant={tenant} pending={pendingPayment} />
+      {isPhone && <YourPlan access={access} tenant={tenant} pending={pendingPayment} />}
 
-      <div className="text-center mt-7 mb-5 md:mt-10 md:mb-8">
-        <h1 className="text-2xl md:text-[32px] font-extrabold tracking-tight" style={{ color: INK }}>Pick the plan that fits your business</h1>
-        <p className="text-[15px] mt-2 mb-4" style={{ color: MUTED }}>One simple price — however many events you run.</p>
-        <div className="inline-flex rounded-full p-1 gap-0.5" style={{ background: '#efeaf5' }}>
-          {seg(!yearly, 'Monthly')}
-          {seg(yearly, 'Yearly', <span className="text-[11px] font-bold rounded-full px-2 py-0.5 bg-emerald-100 text-emerald-700">2 months free</span>)}
-        </div>
-      </div>
+      {isPhone ? (
+        <div className="text-center mt-7 mb-5 md:mt-10 md:mb-8">{headline}{toggle}</div>
+      ) : (
+        <>
+          {/* Laptop: the headline scrolls away, the toggle stays pinned */}
+          <div className="text-center pt-4">{headline}</div>
+          <div className="sticky top-0 z-20 bg-bb-bg py-2.5 text-center" data-testid="billing-pinned">{toggle}</div>
+          <div className="mt-3 mb-6"><YourPlan access={access} tenant={tenant} pending={pendingPayment} onRenew={canRenew ? renewCurrent : null} /></div>
+        </>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-5 items-stretch md:pt-2.5">
         {PAID_PLANS.map(p => (
-          <PlanCard key={p.id} p={p} yearly={yearly} current={tenant.plan === p.id}
+          <PlanCard key={p.id} p={p} yearly={yearly} current={tenant.plan === p.id} laptop={laptop}
             disabled={!!pendingPayment}
             onChoose={() => setChoice({ plan: p.id, cycle: yearly ? 'yearly' : 'monthly' })} />
         ))}
@@ -330,7 +358,9 @@ export default function Billing() {
       <div className="flex flex-wrap justify-center gap-x-5 gap-y-2.5 mt-7 mb-2 text-[13px]" style={{ color: MUTED }}>
         {trust.map(t => <span key={t} className="inline-flex items-center gap-1.5"><Tick c="#7c3aed" />{t}</span>)}
       </div>
-      <p className="text-center text-xs" style={{ color: '#9a93a6' }}>Questions? WhatsApp EventScope.</p>
+      {laptop && platformBilling?.supportWhatsapp
+        ? <p className="text-center text-xs" style={{ color: '#9a93a6' }}>Questions?{' '}<a href={waLink(platformBilling.supportWhatsapp, 'Hi, I have a question about my EventScope plan')} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 ml-1 px-3 py-1.5 rounded-full border border-violet-200 bg-white text-[12.5px] font-bold text-bb-accent-hover" data-testid="help-whatsapp"><MessageCircle size={14} />Chat with us on WhatsApp</a></p>
+        : <p className="text-center text-xs" style={{ color: '#9a93a6' }}>Questions? WhatsApp EventScope.</p>}
 
       {/* Payments */}
       <div className="mt-8 bg-white border rounded-2xl px-4 sm:px-5 py-4" style={{ borderColor: '#e9e4f0' }} data-testid="payments">

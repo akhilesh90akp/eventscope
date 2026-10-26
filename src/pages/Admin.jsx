@@ -140,13 +140,13 @@ function PaymentSettings() {
   const { platformBilling, savePlatformBilling, showToast } = useApp();
   const [open, setOpen] = useState(false);
   const isPhone = useIsPhone();
-  const [f, setF] = useState({ upiId: '', payeeName: '', qr: '' });
+  const [f, setF] = useState({ upiId: '', payeeName: '', qr: '', supportWhatsapp: '' });
   const [busy, setBusy] = useState(false);
-  useEffect(() => { if (platformBilling) setF({ upiId: platformBilling.upiId || '', payeeName: platformBilling.payeeName || '', qr: platformBilling.qr || '' }); }, [platformBilling]);
+  useEffect(() => { if (platformBilling) setF({ upiId: platformBilling.upiId || '', payeeName: platformBilling.payeeName || '', qr: platformBilling.qr || '', supportWhatsapp: platformBilling.supportWhatsapp || '' }); }, [platformBilling]);
   const save = async () => {
     if (f.upiId && !/^[\w.-]{2,}@[\w.-]{2,}$/.test(f.upiId.trim())) return showToast('That doesn’t look like a UPI ID (name@bank).', 'error');
     setBusy(true);
-    const res = await savePlatformBilling({ upiId: f.upiId.trim(), payeeName: f.payeeName.trim(), qr: f.qr });
+    const res = await savePlatformBilling({ upiId: f.upiId.trim(), payeeName: f.payeeName.trim(), qr: f.qr, supportWhatsapp: f.supportWhatsapp.trim() });
     setBusy(false);
     showToast(res.success ? 'Payment settings saved' : res.error, res.success ? 'success' : 'error');
   };
@@ -178,6 +178,9 @@ function PaymentSettings() {
                 {f.qr && <button onClick={() => setF(v => ({ ...v, qr: '' }))} aria-label="Remove QR" className="text-red-500 hover:text-red-600 text-[13px] font-semibold cursor-pointer">Remove</button>}
               </div>
             </div>
+          </div>
+          <div className="grid grid-cols-[1fr_1fr_auto] gap-4 mt-3">
+            <Field label="Support WhatsApp (optional — shows a chat button on Plan & billing)" value={f.supportWhatsapp} onChange={e => setF(v => ({ ...v, supportWhatsapp: e.target.value }))} placeholder="Mobile number" inputMode="tel" />
           </div>
           <div className="flex items-center gap-4 mt-3">
             <p className="flex-1 text-[12.5px] text-bb-muted">Without a QR image, the app makes one from your UPI ID with the amount filled in. Saved in the database only — never in the code.</p>
