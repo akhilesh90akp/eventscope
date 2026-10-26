@@ -23,7 +23,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { getEventBill, computeEventFinancials, parseMoneyExpr, validateMoneyInput, formatDateRange, functionEnd } from '../utils/helpers';
 import { exportJobLogToExcel, readJobLogFromExcel } from '../utils/jobLogExcel';
-import { Download, Upload, Loader2, AlertTriangle } from 'lucide-react';
+import { Download, Upload, Loader2, AlertTriangle, MapPin } from 'lucide-react';
 import { useIsPhone } from '../components/useIsPhone';
 import { Switch } from '../components/LaptopUI';
 import { useConfirm } from '../components/useConfirm';
@@ -624,7 +624,12 @@ function JobLogGrid() {
                           {loss && <span className="shrink-0 whitespace-nowrap text-[10px] font-bold uppercase text-red-700 bg-red-100 rounded-full px-2 py-0.5" data-testid="loss-tag">Loss</span>}
                           {!row.calc.hasAny && <span className="shrink-0 whitespace-nowrap text-[10px] font-bold uppercase text-amber-800 bg-amber-100 rounded-full px-2 py-0.5" data-testid="nocost-tag">No costs</span>}
                         </div>
-                        <div className="text-[11.5px] text-bb-muted mt-0.5 truncate" title={subLine(row)}>{subLine(row)}</div>
+                        <div className="flex items-center gap-1.5 mt-1 text-[12px]" title={subLine(row)}>
+                          <b className="text-bb-text whitespace-nowrap">{row.date ? formatDateRange(row.date, row.endDate) : ''}{row.time ? ` · ${row.time}` : ''}</b>
+                          <span className="text-bb-muted truncate min-w-0 font-medium">· {row.event}</span>
+                          {row.subEvents > 0 && <span className="shrink-0 whitespace-nowrap text-[10.5px] font-bold text-bb-accent-hover bg-violet-100 rounded-full px-1.5 py-px">+{row.subEvents} more</span>}
+                        </div>
+                        {row.location && <div className="flex items-center gap-1 mt-0.5 text-[12px] font-semibold text-gray-600 min-w-0" title={row.location}><MapPin size={12} className="shrink-0 text-bb-accent" /><span className="truncate">{row.location}</span></div>}
                       </div>
                     </td>
                     {lapInfo.map(b => (
