@@ -82,6 +82,7 @@ import { PageHeader, HeaderText } from '../components/LaptopUI';
 import StickyBar from '../components/StickyBar';
 import FitBudgetSheet from '../components/FitBudgetSheet';
 import QuoteRevisionsSheet from '../components/QuoteRevisionsSheet';
+import { FitBudgetLaptop, QuoteRevisionsLaptop } from '../components/QuoteDialogsLaptop';
 import { fitUnits, applyFit, makeRevision, addRevision } from '../utils/quoteFit';
 import {
   Wand2, History, FileSignature, ChevronsDownUp, ChevronsUpDown, Copy, Type, FolderInput, FolderOutput, Trash2, Undo2, Pencil,
@@ -1430,15 +1431,15 @@ export default function QuotationGenerator() {
           <MenuRow icon={FileSignature} title="Make contract" sub="Uses this quote" onClick={() => navigate(`/contract/${event.id}`)} testId="opt-contract" />
         </BottomSheet>
       )}
-      {sheet === 'fit' && (
-        <FitBudgetSheet units={fitUnits({ groups: printGroups, itemPrices, bundles, hidePrices, finalAmounts })}
+      {sheet === 'fit' && (() => { const Fit = isPhone ? FitBudgetSheet : FitBudgetLaptop; return (
+        <Fit units={fitUnits({ groups: printGroups, itemPrices, bundles, hidePrices, finalAmounts })}
           subtotal={subtotal} discountNow={discount.amount} gstOn={gstEnabled} onApply={handleFitApply} onClose={() => setSheet(null)} />
-      )}
-      {sheet === 'revisions' && (
-        <QuoteRevisionsSheet revisions={revisions} currentTotal={afterDiscount} revisedLabel={revisedLabel} onToggleRevised={setRevisedLabel}
+      ); })()}
+      {sheet === 'revisions' && (() => { const Rev = isPhone ? QuoteRevisionsSheet : QuoteRevisionsLaptop; return (
+        <Rev revisions={revisions} currentTotal={afterDiscount} revisedLabel={revisedLabel} onToggleRevised={setRevisedLabel}
           onRestore={restoreRevision} onClose={() => setSheet(null)} locked={isSuspended}
           sections={printGroups.map(g => ({ id: g.id, name: g.name }))} current={{ itemPrices, bundles }} />
-      )}
+      ); })()}
       {itemMenu && (() => {
         const inGroup = bundles.find(b => b.id === itemMenu.bundleId);
         const others = bundles.filter(b => b.id !== itemMenu.bundleId && b.itemKeys.some(k => k.startsWith(`${itemMenu.sectionId}::`)));

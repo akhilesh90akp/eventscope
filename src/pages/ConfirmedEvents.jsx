@@ -29,31 +29,12 @@ import EventCardLaptop, { EventDetails } from '../components/EventCardLaptop';
 import { PageHeader, HeaderText } from '../components/LaptopUI';
 import EventCardPhone, { EventItemsSheet, EventMoreSheet } from '../components/EventCardPhone';
 import { useIsPhone } from '../components/useIsPhone';
-import { sortByActiveDate, openJobLog, functionDays, itemDays, lineAmount, getAllEventDates } from '../utils/helpers';
+import { sortByActiveDate, openJobLog, functionDays, lineAmount, getAllEventDates } from '../utils/helpers';
 import { Search, PackageOpen, ArrowLeftRight, ExternalLink } from 'lucide-react';
 import { PlanTag } from '../components/UpgradeCard';
 import AddItemPhoneSheet from '../components/AddItemPhoneSheet';
+import { AddItemLaptop, SetPricesLaptop } from '../components/QuoteDialogsLaptop';
 import SetPricesSheet from '../components/SetPricesSheet';
-
-// ============================================================
-// HELPERS
-// ============================================================
-
-/**
- * Helper: get all items from an event (both old and new format)
- */
-function getAllItems(ev) {
-  if (ev.mainEvent) {
-    const items = [...(ev.mainEvent.items || [])];
-    (ev.subEvents || []).forEach(s => {
-      (s.items || []).forEach(item => {
-        if (!items.includes(item)) items.push(item);
-      });
-    });
-    return items;
-  }
-  return ev.items || [];
-}
 
 // ============================================================
 // ConfirmedEvents — MAIN COMPONENT
@@ -79,7 +60,6 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
   const [search, setSearch] = useState('');
   const [addItemModal, setAddItemModal] = useState(null); // event id for add-item modal
   const [priceModal, setPriceModal] = useState(null); // event id for pricing modal
-  const [newItem, setNewItem] = useState('');
   const [addItemTarget, setAddItemTarget] = useState('main'); // which event to add item to
   const [prices, setPrices] = useState({});
   const [expandedId, setExpandedId] = useState(location.state?.expandId || null); // Home links open one event
@@ -174,7 +154,6 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
     if (result && !result.success) {
       showToast(result.error || 'Failed to add item', 'error');
     }
-    setNewItem('');
   };
 
   /** Opens the pricing modal with current item prices pre-filled using eventId::itemName keys */
@@ -391,16 +370,19 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
       )}
 
       {/* === PHONE: Add item and Set prices sheets (laptops use the pop-ups below) === */}
-      {isPhone && addItemModal && (() => {
+      {/* Add item and Set prices: bottom sheets on phones, 760px pop-ups on laptops */}
+      {addItemModal && (() => {
         const ev = events.find(e => e.id === addItemModal);
         if (!ev) return null;
+        const Add = isPhone ? AddItemPhoneSheet : AddItemLaptop;
         const sub = addItemTarget === 'main' ? null : (ev.subEvents || []).find(x => x.id === addItemTarget);
         const added = ev.mainEvent ? (sub ? sub.items : ev.mainEvent.items) || [] : ev.items || [];
-        return <AddItemPhoneSheet title={`${ev.clientName || ''}${ev.eventType ? ` · ${ev.eventType}` : ''}`} targets={getTargetOptions(ev)} target={addItemTarget} onTarget={setAddItemTarget}
+        return <Add title={`${ev.clientName || ''}${ev.eventType ? ` · ${ev.eventType}` : ''}`} targets={getTargetOptions(ev)} target={addItemTarget} onTarget={setAddItemTarget}
           added={added} categories={categories} onAdd={(name, target) => handleAddItem(ev.id, name, target)} onClose={() => setAddItemModal(null)} />;
       })()}
-      {isPhone && priceModal && (() => {
+      {priceModal && (() => {
         const ev = events.find(e => e.id === priceModal);
+        const Set_ = isPhone ? SetPricesSheet : SetPricesLaptop;
         const multi = Object.keys(prices).length > 1 && ev?.mainEvent && (ev.subEvents || []).length > 0;
         const rows = Object.keys(prices).map(key => {
           const name = key.includes('::') ? key.split('::').slice(1).join('::') : key;
@@ -408,140 +390,9 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
           const group = multi ? (prefix === 'main' ? (ev.mainEvent?.name || ev.eventType || 'Main Event') : ((ev.subEvents || []).find(x => x.id === prefix)?.name || 'Sub Event')) : '';
           return { key, name, group };
         });
-        return <SetPricesSheet title={`${ev?.clientName || ''}${ev?.eventType ? ` · ${ev.eventType}` : ''}`} rows={rows} prices={prices}
+        return <Set_ title={`${ev?.clientName || ''}${ev?.eventType ? ` · ${ev.eventType}` : ''}`} rows={rows} prices={prices}
           onChange={(key, patch) => setPrices(p => ({ ...p, [key]: { ...p[key], ...patch } }))} onSave={savePrices} onClose={() => setPriceModal(null)} />;
       })()}
-      {/* Add Item Modal */}
-      <Modal isOpen={!isPhone && !!addItemModal} onClose={() => setAddItemModal(null)} title="Add Item" size="md">
-        <div className="space-y-3 max-h-[60vh] overflow-y-auto">
-          {/* Target selector: which event to add item to */}
-          {(() => {
-            const ev = events.find(e => e.id === addItemModal);
-            const targets = getTargetOptions(ev);
-            if (targets.length > 1) {
-              return (
-                <div className="mb-3">
-                  <label className="block text-sm font-medium text-bb-text mb-1">Add to:</label>
-                  <select
-                    value={addItemTarget}
-                    onChange={e => setAddItemTarget(e.target.value)}
-                    className="w-full bg-bb-input border border-bb-border rounded-lg px-3 py-2 text-sm text-bb-text"
-                  >
-                    {targets.map(t => (
-                      <option key={t.value} value={t.value}>{t.label}</option>
-                    ))}
-                  </select>
-                </div>
-              );
-            }
-            return null;
-          })()}
-
-          {/* Custom Input */}
-          <div className="flex gap-2">
-            <Input placeholder="Custom item..." value={newItem} onChange={e => setNewItem(e.target.value)}
-              className="flex-1"
-              onKeyDown={e => e.key === 'Enter' && (handleAddItem(addItemModal, newItem))}
-            />
-            <Button size="sm" onClick={() => handleAddItem(addItemModal, newItem)}>Add</Button>
-          </div>
-
-          {/* Category items - browse from predefined categories */}
-          <div className="space-y-2 mt-3">
-            {categories.map(cat => (
-              <div key={cat.id}>
-                <p className="text-xs font-semibold text-bb-muted uppercase mb-1">{cat.icon} {cat.name}</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {cat.items.map(item => {
-                    const ev = events.find(e => e.id === addItemModal);
-                    const allItems = ev ? getAllItems(ev) : [];
-                    const selected = allItems.includes(item);
-                    return (
-                      <button
-                        key={item}
-                        onClick={() => !selected && handleAddItem(addItemModal, item)}
-                        disabled={selected}
-                        className={`text-xs px-2 py-1 rounded-full border transition-colors cursor-pointer ${
-                          selected
-                            ? 'bg-bb-accent/20 border-bb-accent text-bb-accent opacity-50 cursor-not-allowed'
-                            : 'bg-bb-input border-bb-border text-bb-text hover:border-bb-accent'
-                        }`}
-                      >
-                        {item}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </Modal>
-
-      {/* Set Prices Modal */}
-      <Modal isOpen={!isPhone && !!priceModal} onClose={() => setPriceModal(null)} title="Set Prices" size="lg">
-        <div className="space-y-3 max-h-[60vh] overflow-y-auto">
-          {Object.entries(prices).map(([key, val]) => {
-            const itemName = key.includes('::') ? key.split('::').slice(1).join('::') : key;
-            const eventPrefix = key.includes('::') ? key.split('::')[0] : 'main';
-            const ev = events.find(e => e.id === priceModal);
-            const groupLabel = eventPrefix === 'main'
-              ? (ev?.mainEvent?.name || ev?.eventType || 'Main Event')
-              : ((ev?.subEvents || []).find(s => s.id === eventPrefix)?.name || 'Sub Event');
-            return (
-              // Phone: name (and event) on their own line, qty × rate × days = amount below
-              <div key={key} className="flex flex-wrap sm:flex-nowrap items-center gap-x-3 gap-y-2 p-2 bg-bb-input rounded-lg">
-                <div className="basis-full sm:basis-auto sm:flex-1 min-w-0">
-                  <p className="text-sm text-bb-text break-words sm:truncate">{itemName}</p>
-                  {Object.keys(prices).length > 1 && ev?.mainEvent && (ev.subEvents || []).length > 0 && (
-                    <p className="text-xs text-bb-muted truncate">{groupLabel}</p>
-                  )}
-                </div>
-                <input
-                  type="number"
-                  min="1"
-                  placeholder="Qty"
-                  value={val.qty}
-                  onChange={e => setPrices(p => ({ ...p, [key]: { ...p[key], qty: Number(e.target.value) || 1 } }))}
-                  className="w-16 bg-bb-bg border border-bb-border rounded px-2 py-1 text-sm text-bb-text text-center"
-                />
-                <span className="text-bb-muted text-sm">×</span>
-                <input
-                  type="number"
-                  min="0"
-                  placeholder="Rate"
-                  value={val.rate || ''}
-                  onChange={e => setPrices(p => ({ ...p, [key]: { ...p[key], rate: Number(e.target.value) || 0 } }))}
-                  className="w-24 bg-bb-bg border border-bb-border rounded px-2 py-1 text-sm text-bb-text text-right"
-                />
-                <span className="text-bb-muted text-sm">×</span>
-                <input
-                  type="number"
-                  min="1"
-                  placeholder="Days"
-                  aria-label={`${itemName} days`}
-                  value={itemDays(val)}
-                  onChange={e => setPrices(p => ({ ...p, [key]: { ...p[key], days: Math.max(1, Math.round(Number(e.target.value)) || 1) } }))}
-                  className="w-14 bg-bb-bg border border-bb-border rounded px-2 py-1 text-sm text-bb-text text-center"
-                />
-                <span className="text-[11px] text-bb-muted -ml-1">days</span>
-                <span className="text-xs text-bb-muted w-20 text-right ml-auto sm:ml-0">
-                  = ₹{lineAmount(val).toLocaleString('en-IN')}
-                </span>
-              </div>
-            );
-          })}
-
-          {/* Total and save */}
-          <div className="pt-3 border-t border-bb-border flex justify-between items-center">
-            <p className="font-semibold text-bb-text">
-              Total: ₹{Object.values(prices).reduce((s, p) => s + lineAmount(p), 0).toLocaleString('en-IN')}
-            </p>
-            <Button onClick={savePrices}>Save Prices</Button>
-          </div>
-        </div>
-      </Modal>
-
 
       {/* Move-to-status Modal — undo path for accidental Mark Done / Confirm clicks */}
       <Modal isOpen={!!moveId} onClose={() => setMoveId(null)} title="Move Event" size="sm">

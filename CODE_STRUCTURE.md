@@ -46,7 +46,9 @@ src/
         Switch, Field / FormCol form parts), EventCardLaptop (+ EventDetails fold-out — long
         3-line card on Home/Drafts/Confirmed/Completed; items tile opens EventItemsSheet),
       QuoteLaptopEditor (+ QuoteLaptopTools — quote editor as a list, same `q` object as
-        QuotePhoneEditor), PdfButton variant="laptop" ("⤓ PDF" in a title row),
+        QuotePhoneEditor; tool row = PDF · Group · Ungroup · Hide prices · WhatsApp · More ▾, "no price" chip, fold chevron per event, Summary list),
+      QuoteDialogsLaptop (760px pop-ups: FitBudgetLaptop, QuoteRevisionsLaptop, AddItemLaptop, SetPricesLaptop — same props as the phone sheets; pages pick with useIsPhone()),
+      PdfButton variant="laptop" ("⤓ PDF" in a title row),
     Badge, Toggle, LocationInput, ErrorBoundary,
     CostsPanel (costs on one event), JobLogColumnsEditor (Settings tab),
     ImportCompanyDialog (Admin: create a company from an old app's backup),

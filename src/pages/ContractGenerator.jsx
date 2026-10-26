@@ -215,13 +215,9 @@ export default function ContractGenerator() {
             <Switch checked={!!form.stampSpace} onChange={set('stampSpace')} label="Space at the top for stamp paper" disabled={!canEditEvents} testId="stamp-switch" />
           </FormCol>
         </fieldset>
-        {!c.terms.courtCity && (
-          <p className="text-[12.5px] text-amber-800 bg-amber-50 rounded-xl px-3 py-2">
-            Tip: set your court city, cancellation terms and setup hours once in Settings → Contract.
-          </p>
-        )}
-        <p className="text-[12px] text-bb-muted">
-          This is a standard agreement. Have your advocate read it once before first use. Stamp paper value depends on the contract amount — ask your stamp vendor.
+        <p className="text-[12.5px] text-amber-800 bg-amber-50 rounded-xl px-3.5 py-2.5" data-testid="contract-note">
+          {!c.terms.courtCity && 'Tip: set your court city, cancellation terms and setup hours once in Settings → Contract. '}
+          This is a standard agreement; have your advocate read it once before first use. Stamp paper value depends on the contract amount — ask your stamp vendor.
         </p>
       </div>}
 
