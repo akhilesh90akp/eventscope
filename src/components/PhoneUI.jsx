@@ -81,7 +81,7 @@ export function SegmentedTabs({ options, value, onChange, className = '', testId
   );
 }
 
-/** Tabs drawn as underlines, for the bottom of the purple title bar (white = current tab) */
+/** Tabs drawn as underlines, for the bottom of the purple title bar (light green line + white text = current tab) */
 export function UnderlineTabs({ options, value, onChange, testId }) {
   return (
     <div role="tablist" className="flex" data-testid={testId}>
@@ -89,7 +89,7 @@ export function UnderlineTabs({ options, value, onChange, testId }) {
         const on = o.value === value;
         return (
           <button key={o.value} role="tab" aria-selected={on} onClick={() => onChange(o.value)} data-testid={`${testId}-${o.value}`}
-            className={`flex-1 min-h-[46px] text-[14.5px] border-b-[3px] cursor-pointer ${on ? 'border-white text-white font-bold' : 'border-transparent text-[#d8c8ec] font-semibold'}`}>
+            className={`flex-1 min-h-[46px] text-[14.5px] border-b-[3px] cursor-pointer ${on ? 'border-emerald-300 text-white font-bold' : 'border-transparent text-[#d8c8ec] font-semibold'}`}>
             {o.label}
           </button>
         );
