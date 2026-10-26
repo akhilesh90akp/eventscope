@@ -592,15 +592,15 @@ function JobLogGrid() {
             <thead>
               <tr className="text-[10.5px] text-white font-bold uppercase tracking-wide text-left">
                 <th className="sticky top-0 left-0 z-30 bg-gray-500 h-8" colSpan={2} />
-                <th className="sticky top-0 z-10 bg-gray-500 px-3" colSpan={lapInfo.length}>From event &amp; bill</th>
-                {costCols.length > 0 && <th className="sticky top-0 z-10 bg-amber-700 px-3" colSpan={costCols.length}>Costs · you fill in</th>}
-                {incomeCols.length > 0 && <th className="sticky top-0 z-10 bg-emerald-700 px-3" colSpan={incomeCols.length}>Income · you fill in</th>}
+                <th className="sticky top-0 z-10 bg-gray-500 px-3 whitespace-nowrap" colSpan={lapInfo.length}>From event &amp; bill</th>
+                {costCols.length > 0 && <th className="sticky top-0 z-10 bg-amber-700 px-3 whitespace-nowrap" colSpan={costCols.length}>Costs · you fill in</th>}
+                {incomeCols.length > 0 && <th className="sticky top-0 z-10 bg-emerald-700 px-3 whitespace-nowrap" colSpan={incomeCols.length}>Income · you fill in</th>}
                 <th className="sticky top-0 z-10 bg-violet-800 px-3" colSpan={3}>Calculated</th>
-                {textCols.length > 0 && <th className="sticky top-0 z-10 bg-slate-600 px-3" colSpan={textCols.length}>Notes · you fill in</th>}
+                {textCols.length > 0 && <th className="sticky top-0 z-10 bg-slate-600 px-3 whitespace-nowrap" colSpan={textCols.length}>Notes · you fill in</th>}
               </tr>
               <tr className="text-[11px] uppercase tracking-wide text-gray-600">
                 <th className="sticky top-8 left-0 z-30 bg-[#faf8fd] font-bold px-3 h-10 border-b border-bb-border w-12 min-w-[48px] text-center">#</th>
-                <th className="sticky top-8 left-12 z-30 bg-[#faf8fd] font-bold px-3 h-10 border-b border-r border-bb-border text-left min-w-[240px]">Client / event</th>
+                <th className="sticky top-8 left-12 z-30 bg-[#faf8fd] font-bold px-3 h-10 border-b border-r border-bb-border text-left min-w-[300px]">Client / event</th>
                 {lapInfo.map(b => <th key={b.key} className={`sticky top-8 z-10 bg-[#faf8fd] font-bold px-3 h-10 border-b border-bb-border whitespace-nowrap ${b.text ? 'text-left' : 'text-right'}`}>{b.label}</th>)}
                 {moneyCols.map(c => <th key={c.id} className="sticky top-8 z-10 bg-[#faf8fd] font-bold px-3 h-10 border-b border-bb-border whitespace-nowrap text-right">{c.label}</th>)}
                 {['Total cost', 'Profit', 'Margin'].map(l => <th key={l} className="sticky top-8 z-10 bg-[#faf8fd] font-bold px-3 h-10 border-b border-bb-border whitespace-nowrap text-right">{l}</th>)}
@@ -617,10 +617,10 @@ function JobLogGrid() {
                   <tr key={row.id}>
                     <td className="sticky left-0 z-[5] bg-white border-b border-bb-border/60 px-3 text-center text-bb-muted align-middle">{r + 1}</td>
                     <td className="sticky left-12 z-[5] bg-white border-b border-r border-bb-border/60 px-3 py-2.5 align-middle">
-                      <div className="leading-tight min-w-[220px] whitespace-normal">
+                      <div className="leading-tight min-w-[270px] whitespace-normal">
                         <b className="text-bb-text">{row.client}</b>
-                        {loss && <span className="ml-2 align-middle text-[10px] font-bold uppercase text-red-700 bg-red-100 rounded-full px-2 py-0.5" data-testid="loss-tag">Loss</span>}
-                        {!row.calc.hasAny && <span className="ml-2 align-middle text-[10px] font-bold uppercase text-amber-800 bg-amber-100 rounded-full px-2 py-0.5" data-testid="nocost-tag">No costs</span>}
+                        {loss && <span className="ml-2 align-middle whitespace-nowrap inline-block text-[10px] font-bold uppercase text-red-700 bg-red-100 rounded-full px-2 py-0.5" data-testid="loss-tag">Loss</span>}
+                        {!row.calc.hasAny && <span className="ml-2 align-middle whitespace-nowrap inline-block text-[10px] font-bold uppercase text-amber-800 bg-amber-100 rounded-full px-2 py-0.5" data-testid="nocost-tag">No costs</span>}
                         <div className="text-[11.5px] text-bb-muted mt-0.5">
                           {row.date ? formatDateRange(row.date, row.endDate) : ''}{row.time ? ` ${row.time}` : ''} · {row.event}{row.subEvents ? ` +${row.subEvents} more` : ''}
                         </div>
