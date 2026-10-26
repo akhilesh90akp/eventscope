@@ -14,7 +14,7 @@
 // IMPORTS
 // ============================================================
 import { initializeApp } from 'firebase/app';
-import { initializeAuth, browserLocalPersistence, indexedDBLocalPersistence, connectAuthEmulator } from 'firebase/auth';
+import { initializeAuth, browserLocalPersistence, indexedDBLocalPersistence, browserPopupRedirectResolver, connectAuthEmulator } from 'firebase/auth';
 import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, connectFirestoreEmulator } from 'firebase/firestore';
 
 // ============================================================
@@ -23,7 +23,7 @@ import { getFirestore, initializeFirestore, persistentLocalCache, persistentMult
 
 const firebaseConfig = {
   apiKey: "AIzaSyDtHNsr6PsItMwzAbEM1bBulqTAYWqa888",
-  authDomain: "app.eventscope.in",
+  authDomain: import.meta.env.VITE_AUTH_DOMAIN || "app.eventscope.in",
   projectId: "eventscope-app",
   storageBucket: "eventscope-app.firebasestorage.app",
   messagingSenderId: "688826399809",
@@ -41,12 +41,25 @@ const app = initializeApp(firebaseConfig);
 // IndexedDB; an older session saved in IndexedDB is still found (and moved
 // to localStorage), so nobody gets logged out by this change.
 //
-// No popupRedirectResolver here on purpose: with one, start-up first loads a
-// hidden Google sign-in page, which iPhone home-screen apps often block —
-// the app then sat on "Loading…" for ~35 s until it timed out. The resolver
-// is passed only when someone actually taps "Sign in with Google" (Login.jsx).
+// Google's hidden sign-in page (the "popup resolver") is handled in two ways:
+//  - Someone is already signed in (a saved session is found): NOT loaded at
+//    start-up. With it, iPhone home-screen apps can sit on "Loading…" for
+//    ~35 s while Google's page is blocked.
+//  - Nobody is signed in (the login screen will show): loaded at start-up, so by
+//    the time the person taps "Sign in with Google" the popup can open at once.
+//    Loading it only on the tap made iPhones block the popup.
+const hasSavedSession = (() => {
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      if (localStorage.key(i)?.startsWith('firebase:authUser:')) return true;
+    }
+  } catch { /* storage blocked: treat as signed out */ }
+  return false;
+})();
+
 export const auth = initializeAuth(app, {
   persistence: [browserLocalPersistence, indexedDBLocalPersistence],
+  ...(hasSavedSession ? {} : { popupRedirectResolver: browserPopupRedirectResolver }),
 });
 
 // ============================================================

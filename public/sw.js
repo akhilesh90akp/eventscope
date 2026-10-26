@@ -12,7 +12,7 @@
  */
 
 const CACHE_NAME = 'eventscope-v6'; // bump to drop old cached files (e.g. icons)
-const BASE = '/';
+const BASE = new URL(self.registration.scope).pathname; // '/' or '/eventscope/'
 
 // Assets to pre-cache on install
 const PRECACHE_ASSETS = [

@@ -2,9 +2,9 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" href="/favicon.svg" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
-    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" href="%BASE_URL%favicon.svg" />
+    <link rel="apple-touch-icon" sizes="180x180" href="%BASE_URL%icons/apple-touch-icon.png" />
+    <link rel="manifest" href="%BASE_URL%manifest.json" />
     <!-- Open the connections to Google/Firebase while the app is still loading -->
     <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin />
     <link rel="preconnect" href="https://securetoken.googleapis.com" crossorigin />
@@ -90,7 +90,7 @@
         }
 
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js', {scope: '/'})
+          navigator.serviceWorker.register('%BASE_URL%sw.js', {scope: '%BASE_URL%'})
             .then(function(reg) {
               console.log('SW registered');
 
