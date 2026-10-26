@@ -194,7 +194,7 @@ function JobLogGrid() {
     : allRows.filter(r => focusRows === 'loss' ? (r.calc.hasAny && r.calc.profit < 0) : !r.calc.hasAny), [allRows, lap, focusRows]);
 
   const totals = useMemo(() => {
-    const t = { revenue: 0, gst: 0, billTotal: 0, advance: 0, balance: 0, cost: 0, income: 0, profit: 0, byCol: {} };
+    const t = { revenue: 0, gst: 0, billTotal: 0, advance: 0, balance: 0, cost: 0, income: 0, profit: 0, filled: 0, filledRevenue: 0, byCol: {} };
     rows.forEach(r => {
       t.revenue += r.revenue;
       t.gst += r.gst;
@@ -203,10 +203,11 @@ function JobLogGrid() {
       t.balance += r.balance;
       t.cost += r.calc.totalCost;
       t.income += r.calc.income;
-      t.profit += r.calc.profit;
+      // profit only counts events that have costs — an event with none yet isn't a ₹0-cost profit
+      if (r.calc.hasAny) { t.profit += r.calc.profit; t.filled += 1; t.filledRevenue += r.revenue; }
       moneyCols.forEach(c => { t.byCol[c.id] = (t.byCol[c.id] || 0) + (Number(r.values[c.id]) || 0); });
     });
-    t.margin = t.revenue > 0 ? Math.round((t.profit / t.revenue) * 100) : null;
+    t.margin = t.filledRevenue > 0 ? Math.round((t.profit / t.filledRevenue) * 100) : null;
     return t;
   }, [rows, moneyCols]);
 
@@ -571,13 +572,14 @@ function JobLogGrid() {
           ['Revenue', rupees(totals.revenue), ''],
           ['Total cost', rupees(totals.cost), ''],
           ['Commission received', rupees(totals.income), 'text-emerald-700 hidden md:block'],
-          ['Profit', rupees(totals.profit), totals.profit >= 0 ? 'text-emerald-600' : 'text-red-600'],
-          ['Margin', totals.margin === null ? '—' : `${totals.margin}%`, ''],
+          ['Profit', totals.filled ? rupees(totals.profit) : '—', totals.profit >= 0 ? 'text-emerald-600' : 'text-red-600', true],
+          ['Margin', totals.margin === null ? '—' : `${totals.margin}%`, '', true],
           ['Balance due', rupees(totals.balance), 'text-amber-700'],
-        ].map(([label, value, cls]) => (
+        ].map(([label, value, cls, partial]) => (
           <div key={label} className={`bg-white border border-bb-border rounded-xl px-3 py-2 sm:px-4 sm:py-3 ${cls.includes('hidden') ? 'hidden md:block' : ''}`}>
             <p className={`uppercase tracking-wide text-bb-muted ${lap ? 'text-[10.5px] font-semibold' : 'text-[10px] sm:text-[11px]'}`}>{label}</p>
             <p className={`font-bold ${lap ? 'text-[22px] leading-tight' : 'text-base sm:text-xl'} ${cls.replace('hidden md:block', '')}`}>{value}</p>
+            {partial && rows.length > 0 && <p className="text-[11px] text-bb-muted mt-0.5" data-testid="partial-note">{totals.filled === 0 ? 'No costs added yet' : totals.filled < rows.length ? `Only the ${totals.filled} of ${rows.length} events with costs` : `All ${rows.length} events`}</p>}
           </div>
         ))}
       </div>
