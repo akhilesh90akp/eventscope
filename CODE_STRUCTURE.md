@@ -22,7 +22,7 @@ src/
     Reports (owner; All time / month / year / custom, purchases; phone: tabs on the purple bar, profit under each event), JobLog (owner, own tab;
     cells take sums like 12000+3500; laptop 1024px+: boxed cells, More columns switch, Loss / not-filled chips, wrong values explained via validateMoneyInput, Retry on failed save; tablets keep the classic grid), Purchases (owner; business purchases by financial year),
     Billing (owner: Plan & billing — plans, UPI pay, "I've paid", receipts),
-    JobEvent (phones: the Job Log of one completed event — /job/:eventId; same data as JobLog),
+    JobEvent (phones: the Job Log of one completed event — /job/:eventId; same data as JobLog; laptops show JobEventLaptop, a pop-up, from the card and from this route),
     Settings, Admin (platform admins: companies, statuses, Actions ▾ — a bottom sheet on phones, collections, payment settings), CreateCompany (sign-up),
     JoinInvite (accept/decline an invite), Login,
     Legal (Terms / Privacy / Data protection — public)

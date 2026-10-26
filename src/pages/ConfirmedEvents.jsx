@@ -26,6 +26,7 @@ import Input from '../components/Input';
 import Modal from '../components/Modal';
 import { useConfirm } from '../components/useConfirm';
 import EventCardLaptop, { EventDetails } from '../components/EventCardLaptop';
+import JobEventLaptop from '../components/JobEventLaptop';
 import { PageHeader, HeaderText } from '../components/LaptopUI';
 import EventCardPhone, { EventItemsSheet, EventMoreSheet } from '../components/EventCardPhone';
 import { useIsPhone } from '../components/useIsPhone';
@@ -65,6 +66,7 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
   const [expandedId, setExpandedId] = useState(location.state?.expandId || null); // Home links open one event
   const [moveId, setMoveId] = useState(null); // event id for the "Move to..." status-change modal
   const [itemsId, setItemsId] = useState(null); // phone: event whose items sheet is open
+  const [jobId, setJobId] = useState(null);     // laptop: event whose Job Log pop-up is open
   const [moreId, setMoreId] = useState(null);   // phone: event whose ⋯ sheet is open
   const [range, setRange] = useState('all');    // phone quick filter: all | month | next30
 
@@ -309,7 +311,7 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
                 quote: () => navigate(`/quotation/${ev.id}`),
                 bill: () => navigate(`/bill/${ev.id}`),
                 markDone: status === 'confirmed' ? guard(() => markDone(ev.id)) : undefined,
-                jobLog: status === 'completed' && isOwner && canUse('jobLog') ? () => navigate(`/job/${ev.id}`) : undefined,
+                jobLog: status === 'completed' && isOwner && canUse('jobLog') ? () => (isPhone ? navigate(`/job/${ev.id}`) : setJobId(ev.id)) : undefined,
                 items: () => setItemsId(ev.id),
                 more: () => setMoreId(ev.id),
               }} />
@@ -339,7 +341,7 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
                 quote: () => navigate(`/quotation/${ev.id}`),
                 bill: () => navigate(`/bill/${ev.id}`),
                 contract: () => navigate(`/contract/${ev.id}`),
-                jobLog: status === 'completed' && isOwner && canUse('jobLog') ? () => navigate(`/job/${ev.id}`) : undefined,
+                jobLog: status === 'completed' && isOwner && canUse('jobLog') ? () => (isPhone ? navigate(`/job/${ev.id}`) : setJobId(ev.id)) : undefined,
                 markDone: status === 'confirmed' ? guard(() => markDone(ev.id)) : undefined,
                 items: () => setItemsId(ev.id),
                 edit: guard(() => navigate(`/edit/${ev.id}`)),
@@ -353,6 +355,7 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
       )}
 
       {/* === PHONE SHEETS: items on an event · ⋯ actions === */}
+      {!isPhone && jobId && events.find(e => e.id === jobId) && <JobEventLaptop event={events.find(e => e.id === jobId)} onClose={() => setJobId(null)} />}
       {itemsEv && <EventItemsSheet ev={itemsEv} onClose={() => setItemsId(null)} onEdit={() => navigate(`/quotation/${itemsEv.id}`)} />}
       {moreEv && (
         <EventMoreSheet ev={moreEv} onClose={() => setMoreId(null)} locked={isSuspended}

@@ -23,6 +23,8 @@ import Button from '../components/Button';
 import UpgradeCard from '../components/UpgradeCard';
 import { SectionLabel } from '../components/PhoneUI';
 import { usePhoneHeader } from '../components/phoneScreens';
+import { useIsPhone } from '../components/useIsPhone';
+import JobEventLaptop from '../components/JobEventLaptop';
 import { getEventBill, computeEventFinancials, parseMoneyExpr, formatRupees, formatDateReadable } from '../utils/helpers';
 
 // ============================================================
@@ -40,6 +42,7 @@ export default function JobEvent() {
   // ------------------------------------------------------------
   const [drafts, setDrafts] = useState({});   // { columnId: text being typed }
   const [saving, setSaving] = useState(false);
+  const isPhone = useIsPhone();
 
   usePhoneHeader({ sub: event ? [event.clientName, event.eventType, formatDateReadable(event.mainEvent?.date || event.date)].filter(Boolean).join(' · ') : '' }, [event?.id]);
 
@@ -52,6 +55,9 @@ export default function JobEvent() {
       </div>
     );
   }
+
+  // Laptop (reached from Reports → Add costs): the same pop-up as on the cards
+  if (!isPhone) return <JobEventLaptop event={event} onClose={() => navigate(((window.history.state?.idx ?? 0) > 0) ? -1 : '/completed')} />;
 
   // ------------------------------------------------------------
   // DERIVED DATA
