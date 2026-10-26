@@ -50,7 +50,8 @@ export function fitUnits({ groups = [], itemPrices = {}, bundles = [], hidePrice
     buildLineEntries(g.id, g.items, bundles).forEach(en => {
       if (en.type === 'bundle') {
         const amount = Number(en.bundle.amount) || 0;
-        if (amount > 0) out.push({ id: `bundle:${en.bundle.id}`, kind: 'bundle', sectionId: g.id, sectionName: g.name, label: en.bundle.name || 'Group', amount, units: 1, bundleId: en.bundle.id });
+        if (amount > 0) out.push({ id: `bundle:${en.bundle.id}`, kind: 'bundle', sectionId: g.id, sectionName: g.name, label: en.bundle.name || 'Group', amount, units: 1, bundleId: en.bundle.id,
+          inside: en.bundle.itemKeys.filter(k => k.startsWith(`${g.id}::`)).map(k => k.slice(String(g.id).length + 2)) });
       } else {
         const p = itemPrices[en.key] || { qty: 1, rate: 0 };
         const amount = lineAmount(p);
