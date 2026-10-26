@@ -7,7 +7,6 @@
  *      (that's what lets you see every event at a venue later);
  *   2. "On the map" — OpenStreetMap search (free, India only), after 3 letters;
  *   3. "Use as typed" — keep exactly what was typed (no map pin needed).
- * Laptops keep LocationInput.
  */
 
 // ============================================================

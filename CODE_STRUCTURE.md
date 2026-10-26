@@ -27,7 +27,7 @@ src/
     JoinInvite (accept/decline an invite), Login,
     Legal (Terms / Privacy / Data protection — public)
   components/               Reusable UI pieces
-    Layout (desktop sidebar; mobile title bar + hamburger menu + bottom nav; task screens hide the bottom nav), Button, Card, Input, Select, Modal, Toast,
+    Layout (desktop sidebar; mobile title bar + hamburger menu + bottom nav; task screens hide the bottom nav), Button, Card, Input, Modal, Toast,
     PHONE DESIGN (below 1024px — laptops keep their own layouts; pages pick one with useIsPhone):
       PhoneHeader + phoneScreens.js (the purple bar: main screens = title + ☰, task screens =
         ← back + title + sub-line; route table PHONE_SCREENS; pages add a sub-line / buttons
@@ -50,8 +50,8 @@ src/
       EventFormLaptop (New / Edit event in 3 steps on laptops — same `f` object as EventFormPhone; NewDraft / EditDraft pick one with useIsPhone()),
       QuoteDialogsLaptop (760px pop-ups: FitBudgetLaptop, QuoteRevisionsLaptop, AddItemLaptop, SetPricesLaptop — same props as the phone sheets; pages pick with useIsPhone()),
       PdfButton variant="laptop" ("⤓ PDF" in a title row),
-    Badge, Toggle, LocationInput, ErrorBoundary,
-    CostsPanel (costs on one event), JobLogColumnsEditor (Settings tab),
+    Badge, Toggle, ErrorBoundary,
+    JobEventLaptop (a completed event's costs & income as a laptop pop-up), JobLogColumnsEditor (Settings tab),
     ImportCompanyDialog (Admin: create a company from an old app's backup),
     AdminTeamDialog (Admin: a company's members/invites — change role, remove),
     AuthBackground (video behind sign-in / sign-up / invite screens),
@@ -59,8 +59,7 @@ src/
     StickyBar (keeps search boxes / Settings tabs pinned while scrolling),
     PdfButton (makes a PDF of a document, previews it, then Share / Download / Open),
     ContractDocument (the printable agreement), ReminderSwitch (push reminders on/off per device),
-    FunctionDates (a function's date, or start–end for multi-day — New/Edit event;
-      its checks functionDatesProblem / functionDatesToSave live in utils/helpers.js),
+    (a function's date checks, functionDatesProblem / functionDatesToSave, live in utils/helpers.js),
     DaysCell (the Days column of the printed quote/bill),
     ConfirmDialog (the app's own "Are you sure?" pop-up: <ConfirmProvider> in main.jsx) +
       useConfirm.js (the hook — use it instead of window.confirm; tone 'danger' for deletes),
