@@ -6,7 +6,7 @@
 // ============================================================
 // IMPORTS
 // ============================================================
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import AuthBackground from '../components/AuthBackground';
 import AnimatedLogo from '../components/AnimatedLogo';
 import { signInWithPopup, GoogleAuthProvider, browserPopupRedirectResolver } from 'firebase/auth';
@@ -23,6 +23,14 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Warm up Google's hidden sign-in page while the login screen is showing, so
+  // the popup can open straight from the tap. iPhones block a popup that has to
+  // wait for that page to load first — the button then stayed on "Signing in…".
+  // Only the login screen does this, so signed-in start-up stays fast.
+  useEffect(() => {
+    try { browserPopupRedirectResolver._initialize?.(auth).catch(() => {}); } catch { /* best effort */ }
+  }, []);
+
   // ------------------------------------------------------------
   // EVENT HANDLERS
   // ------------------------------------------------------------
@@ -32,11 +40,19 @@ export default function Login() {
     setError('');
     const provider = new GoogleAuthProvider();
 
+    // If Google's page never answers (some iPhone home-screen apps), don't hang
+    // on "Signing in…" forever — say what to do instead.
+    const stuck = setTimeout(() => {
+      setLoading(false);
+      setError('Sign-in is taking too long. If you opened this from the home screen, open the site in Safari, sign in there, then try again.');
+    }, 20000);
     try {
       // Popup on all platforms — most reliable. The popup helper is loaded
       // only now (not at app start — see firebase.js).
       await signInWithPopup(auth, provider, browserPopupRedirectResolver);
+      clearTimeout(stuck);
     } catch (err) {
+      clearTimeout(stuck);
       console.error('Login error:', err.code, err.message);
       if (err.code === 'auth/popup-closed-by-user') {
         setError('');
