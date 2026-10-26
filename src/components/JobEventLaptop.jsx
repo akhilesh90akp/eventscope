@@ -100,7 +100,7 @@ export default function JobEventLaptop({ event, onClose }) {
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" data-testid="job-event-dialog">
       <div className="absolute inset-0 bg-black/55 backdrop-blur-[2px]" onClick={onClose} />
-      <div role="dialog" aria-label="Job Log" className="relative w-full max-w-[860px] max-h-[92dvh] flex flex-col bg-white rounded-2xl shadow-2xl border border-bb-border">
+      <div role="dialog" aria-label="Job Log" className="relative w-full max-w-[580px] max-h-[92dvh] flex flex-col bg-white rounded-2xl shadow-2xl border border-bb-border">
         <div className="flex items-start gap-3 px-5 pt-4 pb-3 border-b border-bb-border">
           <div className="flex-1 min-w-0">
             <h2 className="text-[17px] font-bold text-bb-text leading-tight flex items-center gap-2">
@@ -127,18 +127,7 @@ export default function JobEventLaptop({ event, onClose }) {
           )}
           {!calc.hasAny && <p className="text-[13px] rounded-lg bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2" data-testid="job-nocosts">Not filled yet — add the costs on the right to see this event’s profit.</p>}
 
-          <div className="grid grid-cols-[260px_1fr] gap-5 items-start">
-            <section>
-              <p className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-bb-muted mb-1.5">From the bill · read only</p>
-              <div className="rounded-xl border border-bb-border bg-gray-50/60 px-3.5 py-1">
-                <Row label="Revenue (before GST)" value={formatRupees(bill.revenue)} />
-                <Row label="GST" value={formatRupees(bill.gst)} />
-                <Row label="Bill total" value={formatRupees(bill.billTotal)} />
-                <Row label="Received" value={formatRupees(bill.advance)} />
-                <Row label="Balance due" value={formatRupees(bill.balance)} cls={bill.balance > 0 ? '[&_b]:text-amber-700' : ''} />
-              </div>
-            </section>
-
+          <div className="space-y-4">
             <section>
               <p className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-bb-muted mb-1.5">Costs &amp; income · you fill in</p>
               <div className="rounded-xl border border-bb-border px-3.5 py-1">
@@ -153,7 +142,7 @@ export default function JobEventLaptop({ event, onClose }) {
                         <input inputMode="decimal" disabled={!canEditEvents} value={shown(col)} placeholder="—" aria-label={col.label} aria-invalid={!!err} data-testid={`job-${col.id}`}
                           onFocus={e => { const el = e.currentTarget; startEdit(col); requestAnimationFrame(() => el.select()); }}
                           onChange={e => type(col, e.target.value)} onBlur={() => commit(col)} onKeyDown={e => e.key === 'Enter' && e.currentTarget.blur()}
-                          className={`w-[170px] h-9 px-2.5 rounded-lg border text-right tabular-nums outline-none focus:ring-2 focus:ring-bb-accent focus:border-transparent ${err ? 'border-red-400 bg-red-50 text-red-700' : col.type === 'income' ? 'border-emerald-300 bg-white' : 'border-bb-border bg-white'}`} />
+                          className={`w-[180px] h-9 px-2.5 rounded-lg border text-right tabular-nums outline-none focus:ring-2 focus:ring-bb-accent focus:border-transparent ${err ? 'border-red-400 bg-red-50 text-red-700' : col.type === 'income' ? 'border-emerald-300 bg-white' : 'border-bb-border bg-white'}`} />
                       </label>
                       {err && <p className="text-[11.5px] text-red-600 text-right mt-1" data-testid="job-error">{err}</p>}
                       {!err && formula && <p className="text-[12px] text-bb-muted text-right mt-1">= {formatRupees(values[col.id])}</p>}
@@ -163,6 +152,17 @@ export default function JobEventLaptop({ event, onClose }) {
                 {money.length > 0 && <div className="flex justify-between py-2.5 text-[14px] border-t-2 border-bb-border"><b>Total costs</b><b className="tabular-nums">{formatRupees(calc.totalCost)}</b></div>}
               </div>
             </section>
+            <section>
+              <p className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-bb-muted mb-1.5">From the bill · read only</p>
+              <div className="rounded-xl border border-bb-border bg-gray-50/60 px-3.5 py-1">
+                <Row label="Revenue (before GST)" value={formatRupees(bill.revenue)} />
+                <Row label="GST" value={formatRupees(bill.gst)} />
+                <Row label="Bill total" value={formatRupees(bill.billTotal)} />
+                <Row label="Received" value={formatRupees(bill.advance)} />
+                <Row label="Balance due" value={formatRupees(bill.balance)} cls={bill.balance > 0 ? '[&_b]:text-amber-700' : ''} />
+              </div>
+            </section>
+
           </div>
 
           {texts.map(col => (
