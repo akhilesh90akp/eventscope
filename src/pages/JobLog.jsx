@@ -416,6 +416,7 @@ function JobLogGrid() {
   const ro = 'bg-[#f9fafb] text-gray-600 border-b border-r border-gray-100';  // read-only cell
   const foot = 'sticky bottom-0 z-10 bg-bb-sidebar';                         // totals row cell
   const stickyBg = 'bg-[#f9fafb]';
+  const subLine = (row) => `${row.date ? formatDateRange(row.date, row.endDate) : ''}${row.time ? ` ${row.time}` : ''} · ${row.event}${row.subEvents ? ` +${row.subEvents} more` : ''}`;
   // Laptop: columns that come from the event & bill (the rest wait behind "More columns")
   const lapInfo = [
     ...(moreCols ? [{ key: 'phone', label: 'Contact', text: true }, { key: 'location', label: 'Location', text: true }, { key: 'type', label: 'Type', text: true }, { key: 'invoiceNo', label: 'Invoice #', text: true }] : []),
@@ -617,13 +618,13 @@ function JobLogGrid() {
                   <tr key={row.id}>
                     <td className="sticky left-0 z-[5] bg-white border-b border-bb-border/60 px-3 text-center text-bb-muted align-middle">{r + 1}</td>
                     <td className="sticky left-12 z-[5] bg-white border-b border-r border-bb-border/60 px-3 py-2.5 align-middle">
-                      <div className="leading-tight min-w-[270px] whitespace-normal">
-                        <b className="text-bb-text">{row.client}</b>
-                        {loss && <span className="ml-2 align-middle whitespace-nowrap inline-block text-[10px] font-bold uppercase text-red-700 bg-red-100 rounded-full px-2 py-0.5" data-testid="loss-tag">Loss</span>}
-                        {!row.calc.hasAny && <span className="ml-2 align-middle whitespace-nowrap inline-block text-[10px] font-bold uppercase text-amber-800 bg-amber-100 rounded-full px-2 py-0.5" data-testid="nocost-tag">No costs</span>}
-                        <div className="text-[11.5px] text-bb-muted mt-0.5">
-                          {row.date ? formatDateRange(row.date, row.endDate) : ''}{row.time ? ` ${row.time}` : ''} · {row.event}{row.subEvents ? ` +${row.subEvents} more` : ''}
+                      <div className="leading-tight w-[300px]">
+                        <div className="flex items-center gap-2">
+                          <b className="text-bb-text truncate flex-1 min-w-0" title={row.client}>{row.client}</b>
+                          {loss && <span className="shrink-0 whitespace-nowrap text-[10px] font-bold uppercase text-red-700 bg-red-100 rounded-full px-2 py-0.5" data-testid="loss-tag">Loss</span>}
+                          {!row.calc.hasAny && <span className="shrink-0 whitespace-nowrap text-[10px] font-bold uppercase text-amber-800 bg-amber-100 rounded-full px-2 py-0.5" data-testid="nocost-tag">No costs</span>}
                         </div>
+                        <div className="text-[11.5px] text-bb-muted mt-0.5 truncate" title={subLine(row)}>{subLine(row)}</div>
                       </div>
                     </td>
                     {lapInfo.map(b => (
