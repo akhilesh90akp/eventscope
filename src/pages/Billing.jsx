@@ -95,7 +95,7 @@ function YourPlan({ access, tenant, pending, onRenew }) {
 }
 
 /** One plan card (Basic white, Standard purple-edged, Premium dark plum + gold) */
-function PlanCard({ p, yearly, current, disabled, onChoose, laptop }) {
+function PlanCard({ p, yearly, current, picked, disabled, onChoose, laptop }) {
   const dark = p.premium;
   const fg = dark ? '#fff' : INK;
   const muted = dark ? 'rgba(255,255,255,.68)' : MUTED;
@@ -126,7 +126,9 @@ function PlanCard({ p, yearly, current, disabled, onChoose, laptop }) {
           <svg width="12" height="12" viewBox="0 0 24 24" fill="#f5c451"><path d="M12 2l2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4z" /></svg> PREMIUM
         </span>
       )}
-      <div className="text-xl font-bold tracking-tight" style={{ color: fg }}>{p.name}</div>
+      <div className="text-xl font-bold tracking-tight" style={{ color: fg }}>{p.name}
+        {picked && <span className="ml-2 align-middle rounded-full px-2 py-0.5 text-[10.5px] font-bold tracking-wider" data-testid="picked-chip" style={dark ? { color: '#f5c451', border: '1px solid rgba(245,196,81,.45)' } : { background: '#ede9fe', color: '#6d28d9' }}>YOUR PICK</span>}
+      </div>
       <div className="text-[13px] mt-0.5" style={{ color: muted }}>{p.tag}</div>
       <div className="flex items-start gap-0.5 mt-5" style={{ color: fg }}>
         <span className="text-xl font-semibold mt-1.5">₹</span>
@@ -348,7 +350,7 @@ export default function Billing() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-5 items-stretch md:pt-2.5">
         {PAID_PLANS.map(p => (
-          <PlanCard key={p.id} p={p} yearly={yearly} current={tenant.plan === p.id} laptop={laptop}
+          <PlanCard key={p.id} p={p} yearly={yearly} current={tenant.plan === p.id} picked={(tenant.plan || 'trial') === 'trial' && tenant.interestedPlan === p.id} laptop={laptop}
             disabled={!!pendingPayment}
             onChoose={() => setChoice({ plan: p.id, cycle: yearly ? 'yearly' : 'monthly' })} />
         ))}

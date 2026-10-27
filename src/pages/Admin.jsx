@@ -41,6 +41,8 @@ import { fyStart } from '../utils/purchases';
 // ============================================================
 const DAY = 24 * 60 * 60 * 1000;
 const isNew = (t) => t.createdAt && Date.now() - new Date(t.createdAt).getTime() < 7 * DAY;
+/** A company still on its free pilot that picked a plan on the website */
+const wants = (t) => (t.plan || 'trial') === 'trial' && !!t.interestedPlan;
 const rupees = (n) => `₹${(Number(n) || 0).toLocaleString('en-IN')}`;
 const fmt = (iso) => (isDate(iso) ? formatDateReadable(`${iso}T00:00:00`) : '');
 const TONE = {
@@ -408,7 +410,7 @@ export default function Admin() {
                   {pill(status)}
                 </div>
                 <div className="grid grid-cols-3 gap-2 my-3 text-[12.5px] text-gray-600">
-                  <div>Plan<b className="block text-[14.5px] text-bb-text">{planName(t.plan)}{t.plan && t.plan !== 'trial' && t.cycle ? ` · ${t.cycle}` : ''}</b></div>
+                  <div>Plan<b className="block text-[14.5px] text-bb-text">{planName(t.plan)}{t.plan && t.plan !== 'trial' && t.cycle ? ` · ${t.cycle}` : ''}{wants(t) && <span className="block text-[11.5px] font-semibold text-violet-700">Wants {planName(t.interestedPlan)}</span>}</b></div>
                   <div>Events<b className="block text-[14.5px] text-bb-text tabular-nums">{c ? c.events : '…'}</b></div>
                   <div>Collected<b className="block text-[14.5px] text-bb-text tabular-nums">{rupees(row.collected)}</b></div>
                 </div>
@@ -502,7 +504,7 @@ export default function Admin() {
                       <div className="text-[12px] text-bb-muted">{t.ownerEmail || t.id}</div>
                     </td>
                     <td className="py-3 px-3 text-gray-600 whitespace-nowrap">{t.createdAt ? formatDateReadable(t.createdAt) : '—'}</td>
-                    <td className="py-3 px-3 whitespace-nowrap">{planName(t.plan)}{t.plan && t.plan !== 'trial' && t.cycle && <span className="text-[12px] text-bb-muted"> · {t.cycle}</span>}</td>
+                    <td className="py-3 px-3 whitespace-nowrap">{planName(t.plan)}{t.plan && t.plan !== 'trial' && t.cycle && <span className="text-[12px] text-bb-muted"> · {t.cycle}</span>}{wants(t) && <span className="block text-[11.5px] font-semibold text-violet-700">Wants {planName(t.interestedPlan)}</span>}</td>
                     <td className="py-3 px-3 whitespace-nowrap tabular-nums">{c ? c.members : '…'} <button onClick={() => setTeamFor(t)} title="View / manage team" className="ml-1 text-bb-accent-hover font-semibold hover:underline cursor-pointer">Manage</button></td>
                     <td className="py-3 px-3 text-right tabular-nums">{c ? c.events : '…'}</td>
                     <td className="py-3 px-3">{pill(status)}{status.sub && <div className="text-[11.5px] text-bb-muted mt-1 max-w-[150px]">{status.sub}</div>}</td>

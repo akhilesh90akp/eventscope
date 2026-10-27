@@ -59,6 +59,12 @@ export const PAID_PLANS = [
   },
 ];
 
+/** localStorage key where the website's "Choose <plan>" link leaves the pick until sign-up */
+export const PLAN_INTEREST_KEY = 'es-plan-interest';
+
+/** 'basic'|'standard'|'premium' if it is a paid plan id, else '' */
+export const cleanInterest = (id) => (PAID_PLANS.some(p => p.id === id) ? id : '');
+
 const planById = (id) => PAID_PLANS.find(p => p.id === id) || null;
 
 /** Price for a plan and billing cycle (yearly = 10 × monthly) */

@@ -16,6 +16,7 @@ import './index.css'
 import App from './App'
 import ErrorBoundary from './components/ErrorBoundary'
 import { ConfirmProvider } from './components/ConfirmDialog'
+import { PLAN_INTEREST_KEY, cleanInterest } from './utils/billing'
 
 // ============================================================
 // STALE VERSION GUARD
@@ -31,6 +32,20 @@ window.addEventListener('vite:preloadError', (event) => {
   sessionStorage.setItem('es-reloaded-at', String(Date.now()));
   window.location.reload();
 });
+
+// ============================================================
+// PLAN PICKED ON THE WEBSITE — eventscope.in links here as /?plan=standard.
+// Remember it until the person creates their company, then tidy the address.
+// ============================================================
+try {
+  const url = new URL(window.location.href);
+  const picked = cleanInterest(url.searchParams.get('plan'));
+  if (picked) localStorage.setItem(PLAN_INTEREST_KEY, picked);
+  if (url.searchParams.has('plan')) {
+    url.searchParams.delete('plan');
+    window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+  }
+} catch { /* private mode etc. — the pick is only a convenience */ }
 
 // ============================================================
 // MOUNT — the #root element in index.html

@@ -8,7 +8,7 @@
  *   platformAdmins/{uid}                      EventScope staff (added by hand in the console)
  *   users/{uid}                               { tenantId, role: 'owner'|'staff', name, email, joinedAt }
  *   invites/{email}                           pending invite { tenantId, role: 'owner'|'staff', ... }
- *   tenants/{tenantId}                        { name, plan, status, ownerUid, ownerEmail, createdAt } — platform-controlled
+ *   tenants/{tenantId}                        { name, plan, status, ownerUid, ownerEmail, createdAt, interestedPlan? } — platform-controlled
  *   tenants/{tenantId}/private/contact        owner's backup email + phone (owner + admins only)
  *   tenants/{tenantId}/config/settings        company profile + invoice settings (owner-editable)
  *   tenants/{tenantId}/config/categories      service categories (owner-editable)
@@ -44,7 +44,7 @@ import { buildCompanyBackup, backupFileName } from '../utils/companyBackup';
 import { markStartup } from '../utils/startupTiming';
 import { requestPushToken, dropPushToken, rememberTokenId, savedTokenId, deviceLabel } from '../utils/push';
 import { useConfirm } from '../components/useConfirm';
-import { accessInfo, todayIST, pilotFields, paidFields, DEFAULT_PILOT, hasFeature } from '../utils/billing';
+import { accessInfo, todayIST, pilotFields, paidFields, DEFAULT_PILOT, hasFeature, PLAN_INTEREST_KEY, cleanInterest } from '../utils/billing';
 
 // ============================================================
 // CONSTANTS
@@ -474,11 +474,15 @@ export function AppProvider({ children }) {
     const newTenantId = `${slug}-${Math.random().toString(36).slice(2, 7)}`;
     const now = new Date().toISOString();
     const ownerEmail = inviteKey(user.email);
+    let interestedPlan = '';                       // the plan picked on the website, if any
+    try { interestedPlan = cleanInterest(localStorage.getItem(PLAN_INTEREST_KEY)); } catch { /* ignore */ }
 
-    try {
+    // withPlan=false is the fallback if the live security rules don't know interestedPlan yet
+    const writeAll = async (withPlan) => {
       const batch = writeBatch(db);
       batch.set(doc(db, 'tenants', newTenantId), {
         name: companyName,
+        ...(withPlan && interestedPlan ? { interestedPlan } : {}),
         ownerUid: user.uid,
         ownerEmail,
         plan: 'trial',
@@ -500,6 +504,16 @@ export function AppProvider({ children }) {
         recoveryEmail: inviteKey(recoveryEmail),
       });
       await batch.commit();
+    };
+
+    try {
+      try {
+        await writeAll(true);
+      } catch (first) {
+        if (!interestedPlan || first.code !== 'permission-denied') throw first;
+        await writeAll(false);
+      }
+      try { localStorage.removeItem(PLAN_INTEREST_KEY); } catch { /* ignore */ }
     } catch (err) {
       console.error('Error creating company:', err.code, err.message);
       return {

@@ -422,6 +422,13 @@ test('history and platform settings: admins write; platform settings readable wh
   await assertFails(getDoc(doc(anon(), 'platform/billing')));
 });
 
+test('sign-up may remember the plan picked on the website, only a real plan', async () => {
+  const until = new Date(Date.now() + 92 * 86400000).toISOString().slice(0, 10);
+  const ok = { pilotStart: '2026-10-17', pilotLength: 3, pilotUnit: 'months', pilotExtended: false, accessUntil: until, autoSuspend: true, blockAfterMs: Date.now() + 98 * 86400000 };
+  await assertSucceeds(signupBatch(as('ip1', 'ip1@gmail.com'), 'ip1', 'ip1co', { ...ok, interestedPlan: 'standard' }));
+  await assertFails(signupBatch(as('ip2', 'ip2@gmail.com'), 'ip2', 'ip2co', { ...ok, interestedPlan: 'enterprise' }));
+});
+
 test('sign-up may set the standard 3-month pilot, not a longer one', async () => {
   const until = new Date(Date.now() + 92 * 86400000).toISOString().slice(0, 10);
   const ok = { pilotStart: '2026-10-17', pilotLength: 3, pilotUnit: 'months', pilotExtended: false, accessUntil: until, autoSuspend: true, blockAfterMs: Date.now() + 98 * 86400000 };

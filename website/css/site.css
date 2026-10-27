@@ -74,3 +74,7 @@ html{scroll-padding-top:84px;}
   .mnav-x span:last-child{transform:rotate(-45deg);}
   .mnav a{font-size:24px;padding:20px 0;}
 }
+
+/* "Choose <plan>" buttons on the pricing rows */
+.cta-plan{border:1.5px solid #6d28d9;color:#4c1d95;background:transparent;padding:10px 20px;min-height:44px;font-size:14px;}
+.cta-plan:hover{background:#4c1d95;color:#f6f4fa;}
