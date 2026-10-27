@@ -50,3 +50,15 @@ a:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid #E3
   [style*="margin-top:120px"]{margin-top:72px!important;}
 }
 @media (prefers-reduced-motion:reduce){.menu-btn span{transition:none;}html{scroll-behavior:auto;}}
+
+/* Menu stays at the top while scrolling */
+.topbar{position:fixed;top:0;left:0;right:0;z-index:60;background:rgba(26,11,39,.88);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border-bottom:1px solid rgba(246,244,250,.08);}
+.topbar header{padding-top:14px!important;padding-bottom:14px!important;}
+.topbar .mnav{max-height:calc(100vh - 70px);overflow-y:auto;}
+section#top{padding-top:76px;}
+html{scroll-padding-top:84px;}
+@media (max-width:600px){
+  .topbar header[style]{padding-top:10px!important;padding-bottom:10px!important;}
+  section#top{padding-top:64px;}
+  .hd[style*="clamp(40px,5vw,72px)"]{font-size:40px!important;}
+}
