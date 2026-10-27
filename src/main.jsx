@@ -17,6 +17,7 @@ import App from './App'
 import ErrorBoundary from './components/ErrorBoundary'
 import { ConfirmProvider } from './components/ConfirmDialog'
 import { PLAN_INTEREST_KEY, cleanInterest } from './utils/billing'
+import { initInstall } from './utils/install'
 
 // ============================================================
 // STALE VERSION GUARD
@@ -46,6 +47,9 @@ try {
     window.history.replaceState(null, '', url.pathname + url.search + url.hash);
   }
 } catch { /* private mode etc. — the pick is only a convenience */ }
+
+// Listen for the browser's "can be installed" event early (it fires only once)
+initInstall();
 
 // ============================================================
 // MOUNT — the #root element in index.html

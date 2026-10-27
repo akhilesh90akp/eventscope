@@ -11,6 +11,7 @@ import AuthBackground from '../components/AuthBackground';
 import AnimatedLogo from '../components/AnimatedLogo';
 import { signInWithPopup, GoogleAuthProvider, browserPopupRedirectResolver } from 'firebase/auth';
 import { auth } from '../firebase';
+import InstallButton from '../components/InstallButton';
 
 // ============================================================
 // Login — MAIN COMPONENT
@@ -94,6 +95,8 @@ export default function Login() {
             {loading ? 'Signing in...' : 'Sign in with Google'}
           </span>
         </button>
+
+        <InstallButton className="mt-3" />
 
         {error && (
           <div className="mt-4 p-3 bg-red-50 rounded-lg">

@@ -54,6 +54,7 @@ src/
     JobEventLaptop (a completed event's costs & income as a laptop pop-up), JobLogColumnsEditor (Settings tab),
     ImportCompanyDialog (Admin: create a company from an old app's backup),
     AdminTeamDialog (Admin: a company's members/invites — change role, remove),
+    InstallButton ("Install app": one tap on Android / Chrome, Add to Home Screen steps on iPhone — sign-in screen and phone Home; logic in utils/install.js),
     AuthBackground (video behind sign-in / sign-up / invite screens),
     AnimatedLogo (logo that builds itself once on those screens and while loading),
     StickyBar (keeps search boxes / Settings tabs pinned while scrolling),
@@ -92,6 +93,7 @@ src/
     quoteFit.js             Fit to budget (lower prices evenly to a target, locks, rounding) and quote
                             revisions (event.quoteRevisions, newest first, max 10)
     push.js                 This device's push token (Firebase Cloud Messaging); saving is in AppContext
+    install.js              "Install app": keeps the browser's install prompt (Android / Chrome / Edge), says if this device can install, shows iPhone steps instead
     startupTiming.js        Records how long opening the app took (shown at the bottom of Settings)
 tools/
   drive-backup/             Google Apps Script: daily backup of ALL data to a private

@@ -24,6 +24,7 @@ import EventCardLaptop from '../components/EventCardLaptop';
 import { PageHeader } from '../components/LaptopUI';
 import EventCardPhone, { EventItemsSheet, EventMoreSheet } from '../components/EventCardPhone';
 import { PlanTag } from '../components/UpgradeCard';
+import InstallButton from '../components/InstallButton';
 import { SectionLabel } from '../components/PhoneUI';
 import { useIsPhone } from '../components/useIsPhone';
 import { sortByActiveDate, formatRupees } from '../utils/helpers';
@@ -80,6 +81,9 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-5 lg:space-y-6">
+      {/* Phones: "Install app" until it is on the home screen */}
+      {isPhone && <InstallButton />}
+
       {/* Laptop: title row with today's date */}
       {!isPhone && <PageHeader title="Home" sub={new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} />}
 
