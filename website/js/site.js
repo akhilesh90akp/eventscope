@@ -6,9 +6,10 @@
     var set = function (open) {
       btn.setAttribute('aria-expanded', open ? 'true' : 'false');
       nav.hidden = !open;
+      document.documentElement.style.overflow = open ? 'hidden' : '';
     };
     btn.addEventListener('click', function () { set(btn.getAttribute('aria-expanded') !== 'true'); });
-    nav.addEventListener('click', function (e) { if (e.target.closest('a')) set(false); });
+    nav.addEventListener('click', function (e) { if (e.target.closest('a') || e.target.closest('.mnav-x')) set(false); });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') set(false); });
   }
 
