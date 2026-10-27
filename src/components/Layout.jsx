@@ -22,6 +22,7 @@ import { useConfirm } from './useConfirm';
 import { PlanNotice } from './NoticeBar';
 import { PlanTag } from './UpgradeCard';
 import { countByStatus } from '../utils/helpers';
+import { PLAN_INTEREST_KEY, cleanInterest } from '../utils/billing';
 import { useTyping } from './useTyping';
 import PhoneHeader, { PhoneHeaderProvider } from './PhoneHeader';
 import { phoneScreenFor, usePhoneHeaderExtra } from './phoneScreens';
@@ -163,6 +164,15 @@ function LayoutShell() {
   // ------------------------------------------------------------
   // EFFECTS
   // ------------------------------------------------------------
+
+  // Arrived from a "Choose <plan>" button on the website while already signed
+  // in to a company → show Plan & billing (new companies take the pick at sign-up).
+  useEffect(() => {
+    if (tenantStatus !== 'ready' || !isOwner) return;
+    let picked = '';
+    try { picked = cleanInterest(localStorage.getItem(PLAN_INTEREST_KEY)); localStorage.removeItem(PLAN_INTEREST_KEY); } catch { /* ignore */ }
+    if (picked) navigate('/billing');
+  }, [tenantStatus, isOwner, navigate]);
 
   // Something tried to save while the company is read-only → explain once
   useEffect(() => {
