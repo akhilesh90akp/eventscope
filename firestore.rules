@@ -116,11 +116,13 @@ service cloud.firestore {
         && myLinkAfter.role == 'owner';
     }
 
-    // A new company's free pilot: the standard 3 months, auto-suspend on, and
-    // the write-block date no further away than that (plus grace days).
+    // A new company's free pilot: the standard 60 days (3 months is still accepted
+    // for app versions opened before the change), auto-suspend on, and the
+    // write-block date no further away than that (plus grace days).
     function newPilotOk(d) {
       return !('blockAfterMs' in d)
-        || (d.pilotLength == 3 && d.pilotUnit == 'months' && d.pilotExtended == false
+        || (((d.pilotLength == 60 && d.pilotUnit == 'days') || (d.pilotLength == 3 && d.pilotUnit == 'months'))
+            && d.pilotExtended == false
             && d.autoSuspend == true && d.blockAfterMs is int
             && d.blockAfterMs <= request.time.toMillis() + 110 * 86400000);
     }

@@ -423,16 +423,18 @@ test('history and platform settings: admins write; platform settings readable wh
 });
 
 test('sign-up may remember the plan picked on the website, only a real plan', async () => {
-  const until = new Date(Date.now() + 92 * 86400000).toISOString().slice(0, 10);
-  const ok = { pilotStart: '2026-10-17', pilotLength: 3, pilotUnit: 'months', pilotExtended: false, accessUntil: until, autoSuspend: true, blockAfterMs: Date.now() + 98 * 86400000 };
+  const until = new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10);
+  const ok = { pilotStart: '2026-10-17', pilotLength: 60, pilotUnit: 'days', pilotExtended: false, accessUntil: until, autoSuspend: true, blockAfterMs: Date.now() + 66 * 86400000 };
   await assertSucceeds(signupBatch(as('ip1', 'ip1@gmail.com'), 'ip1', 'ip1co', { ...ok, interestedPlan: 'standard' }));
   await assertFails(signupBatch(as('ip2', 'ip2@gmail.com'), 'ip2', 'ip2co', { ...ok, interestedPlan: 'enterprise' }));
 });
 
-test('sign-up may set the standard 3-month pilot, not a longer one', async () => {
-  const until = new Date(Date.now() + 92 * 86400000).toISOString().slice(0, 10);
-  const ok = { pilotStart: '2026-10-17', pilotLength: 3, pilotUnit: 'months', pilotExtended: false, accessUntil: until, autoSuspend: true, blockAfterMs: Date.now() + 98 * 86400000 };
+test('sign-up may set the standard 60-day pilot (or the older 3-month one), not a longer one', async () => {
+  const until = new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10);
+  const ok = { pilotStart: '2026-10-17', pilotLength: 60, pilotUnit: 'days', pilotExtended: false, accessUntil: until, autoSuspend: true, blockAfterMs: Date.now() + 66 * 86400000 };
   await assertSucceeds(signupBatch(as('p1', 'p1@gmail.com'), 'p1', 'p1co', ok));
+  await assertSucceeds(signupBatch(as('p5', 'p5@gmail.com'), 'p5', 'p5co', { ...ok, pilotLength: 3, pilotUnit: 'months', accessUntil: new Date(Date.now() + 92 * 86400000).toISOString().slice(0, 10), blockAfterMs: Date.now() + 98 * 86400000 }));
+  await assertFails(signupBatch(as('p6', 'p6@gmail.com'), 'p6', 'p6co', { ...ok, pilotLength: 120 }));
   await assertFails(signupBatch(as('p2', 'p2@gmail.com'), 'p2', 'p2co', { ...ok, pilotLength: 12 }));
   await assertFails(signupBatch(as('p3', 'p3@gmail.com'), 'p3', 'p3co', { ...ok, blockAfterMs: Date.now() + 400 * 86400000 }));
   await assertFails(signupBatch(as('p4', 'p4@gmail.com'), 'p4', 'p4co', { ...ok, autoSuspend: false }));

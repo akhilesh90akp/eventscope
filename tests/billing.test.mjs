@@ -10,8 +10,19 @@ import assert from 'node:assert/strict';
 import {
   GRACE_DAYS, planPrice, planName, hasFeature, planFor, teamLimit, showsEventScopeMark,
   addDays, addMonths, daysBetween, periodEnd, blockAfterMs, todayIST,
-  pilotFields, renewalRange, paidFields, accessInfo, adminStatus,
+  pilotFields, renewalRange, paidFields, accessInfo, adminStatus, DEFAULT_PILOT,
 } from '../src/utils/billing.js';
+
+// ============================================================
+// DEFAULT PILOT
+// ============================================================
+test('new companies get a 60-day pilot (day 1 counts)', () => {
+  assert.deepEqual(DEFAULT_PILOT, { length: 60, unit: 'days' });
+  const f = pilotFields({ start: '2026-10-14', ...DEFAULT_PILOT });
+  assert.equal(f.accessUntil, '2026-12-12');
+  assert.equal(f.pilotUnit, 'days');
+  assert.equal(f.blockAfterMs, blockAfterMs('2026-12-12'));
+});
 
 // ============================================================
 // PLANS

@@ -24,8 +24,9 @@
 
 /** Days after accessUntil before the app turns read-only */
 export const GRACE_DAYS = 5;
-/** Default pilot length for new companies (and existing ones without dates) */
-export const DEFAULT_PILOT = { length: 3, unit: 'months' };
+/** Default pilot length for new companies (and existing ones without dates): 60 days.
+ *  Admin → Extend pilot can still set any length per company. */
+export const DEFAULT_PILOT = { length: 60, unit: 'days' };
 
 /** Feature keys that depend on the plan (everything else is in every plan) */
 export const FEATURES = {
