@@ -106,6 +106,12 @@ tests/
   tenantImport.test.mjs     Unit tests for reading backup files (old export, Drive and owner backups)
   pdfExport / contract / calendar / purchases / billing / quoteFit .test.mjs   Unit tests for page breaks, contract
                             figures, calendar math, purchases
+website/                    The marketing site at eventscope.in: plain HTML/CSS/JS, no build step.
+                            index.html (home), whats-new.html, get-started.html;
+                            css/ home.css + inner.css (page looks) and site.css (shared:
+                            FAQ, phone menu, phone-size tuning); js/site.js; img/ real app
+                            screenshots (sample data only) + logos; fonts/ Rajdhani.
+                            Deployed as the Firebase Hosting site target "site".
 public/                     Logos, icons, manifest, service worker, login-bg.* (video),
                             export-bluebell.html (one-time old-app export — delete after migration)
 ```

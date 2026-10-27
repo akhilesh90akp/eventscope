@@ -1,3 +1,17 @@
 {
-  "projects": { "default": "eventscope-app" }
+  "projects": {
+    "default": "eventscope-app"
+  },
+  "targets": {
+    "eventscope-app": {
+      "hosting": {
+        "app": [
+          "eventscope-app"
+        ],
+        "site": [
+          "eventscope-site"
+        ]
+      }
+    }
+  }
 }

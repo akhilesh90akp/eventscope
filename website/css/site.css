@@ -1,0 +1,52 @@
+/* Shared by every page: fonts, FAQ, mobile menu and phone-size tuning.
+   Page-specific look lives in home.css / inner.css. */
+
+@font-face{font-family:'Rajdhani';font-weight:400;font-style:normal;font-display:swap;src:url(../fonts/Rajdhani-Regular.woff) format('woff');}
+
+html{scroll-behavior:smooth;scroll-padding-top:20px;-webkit-text-size-adjust:100%;}
+img{max-width:100%;}
+a:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid #E3CA7C;outline-offset:3px;border-radius:4px;}
+
+/* FAQ (home) */
+.faq{border-bottom:1px solid rgba(26,11,39,.25);}
+.faq summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:20px;padding:24px 0;min-height:60px;color:#1a0b27;}
+.faq summary::-webkit-details-marker{display:none;}
+.faq[open] .chev{transform:rotate(45deg);}
+.faq .chev{flex:none;}
+
+/* Mobile menu */
+.menu-btn{display:none;width:46px;height:46px;border-radius:999px;border:1px solid rgba(246,244,250,.35);background:transparent;cursor:pointer;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:0;}
+.menu-btn span{display:block;width:18px;height:1.5px;background:#f6f4fa;transition:transform .35s cubic-bezier(.2,.8,.2,1);}
+.menu-btn[aria-expanded="true"] span:first-child{transform:translateY(3.75px) rotate(45deg);}
+.menu-btn[aria-expanded="true"] span:last-child{transform:translateY(-3.75px) rotate(-45deg);}
+.mnav{position:relative;z-index:20;display:none;flex-direction:column;background:#1a0b27;border-top:1px solid rgba(246,244,250,.12);border-bottom:1px solid rgba(246,244,250,.12);padding:8px 20px 14px;}
+.mnav a{padding:16px 0;font-size:17px;color:#f6f4fa;border-bottom:1px solid rgba(246,244,250,.1);}
+.mnav a:last-child{border-bottom:0;}
+.mnav a:after{display:none;}
+
+@media (max-width:900px){
+  .menu-btn{display:inline-flex;}
+  .mnav:not([hidden]){display:flex;}
+}
+
+/* Phones */
+@media (max-width:600px){
+  header[style]{padding-left:20px!important;padding-right:20px!important;padding-top:20px!important;padding-bottom:20px!important;gap:12px!important;flex-wrap:nowrap!important;}
+  header img{height:20px!important;}
+  header .nl{display:none;}
+  header .cta{padding:10px 16px!important;min-height:44px!important;font-size:14px!important;white-space:nowrap;width:auto;}
+  header .cta .ar{display:none;}
+  section>div[style],footer>div[style]{padding-left:20px!important;padding-right:20px!important;}
+  section>div[style*="padding:150px"],section>div[style*="padding:120px"],section>div[style*="padding:130px"],section>div[style*="padding:110px"]{padding-top:72px!important;padding-bottom:72px!important;}
+  h1.hd{font-size:clamp(44px,13vw,60px)!important;line-height:.98!important;}
+  .hd[style*="font-size:65px"]{font-size:44px!important;}
+  .stick{position:static!important;}
+  .cta{width:100%;justify-content:center;}
+  .mnav .cta{width:auto;}
+  .p2,.p3{display:none;}
+  [style*="padding-left:140px"]{padding-left:0!important;}
+  .accb .phone{flex-basis:120px!important;width:120px!important;}
+  [style*="gap:130px"]{gap:84px!important;}
+  [style*="margin-top:120px"]{margin-top:72px!important;}
+}
+@media (prefers-reduced-motion:reduce){.menu-btn span{transition:none;}html{scroll-behavior:auto;}}

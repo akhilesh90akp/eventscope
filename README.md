@@ -53,3 +53,10 @@ The app is served from Firebase Hosting at `https://app.eventscope.in/` (project
 which is what lets Google sign-in work in the iPhone home-screen app.
 Every push to `main` publishes through `.github/workflows/deploy.yml`, using the
 GitHub secret `FIREBASE_SERVICE_ACCOUNT`.
+
+The marketing site lives in `website/` and is served at `https://eventscope.in/` as a
+second Firebase Hosting site (`eventscope-site`, target `site` in `.firebaserc`). It is
+plain files, so there is nothing to build. The same deploy workflow publishes it. The
+WhatsApp contact number is not in git: add the GitHub secret `SITE_WHATSAPP` (digits
+only, with country code) and the deploy puts it into the website's WhatsApp buttons.
+Preview locally with `python3 -m http.server -d website 8099`.

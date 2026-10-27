@@ -1,6 +1,8 @@
 name: Deploy to Firebase Hosting
 
-# Every push to main builds the app and publishes it to https://app.eventscope.in/
+# Every push to main publishes two Firebase Hosting sites:
+#   app  -> https://app.eventscope.in/  (the built app)
+#   site -> https://eventscope.in/      (the website/ folder, plain files)
 # Needs the GitHub secret FIREBASE_SERVICE_ACCOUNT (see README, "Hosting").
 
 on:
@@ -20,8 +22,25 @@ jobs:
           node-version: 22
       - run: npm install
       - run: npm run build
-      - uses: FirebaseExtended/action-hosting-deploy@v0
+      - name: Deploy the app
+        uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           projectId: eventscope-app
+          target: app
+          channelId: live
+      # The WhatsApp number is not kept in git: it comes from the repo secret
+      # SITE_WHATSAPP (digits only, with country code, e.g. 919876543210).
+      # Without the secret the WhatsApp buttons open the app instead.
+      - name: Fill in the website contact number
+        env:
+          WA: ${{ secrets.SITE_WHATSAPP }}
+        run: |
+          if [ -n "$WA" ]; then sed -i "s/WHATSAPP_NUMBER/$WA/g" website/*.html; fi
+      - name: Deploy the website
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: eventscope-app
+          target: site
           channelId: live
