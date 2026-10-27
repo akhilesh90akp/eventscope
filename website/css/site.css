@@ -67,10 +67,10 @@ html{scroll-padding-top:84px;}
 @media (max-width:600px){
   .mnav:not([hidden]){position:fixed;inset:0;z-index:100;height:100vh;height:100dvh;overflow-y:auto;border:0;padding:0 24px 32px;background:#1a0b27;}
   .mnav-close{display:block;}
-  .mnav-top{display:flex;align-items:center;padding:26px 0 16px;margin-bottom:8px;}
+  .mnav-top{display:flex;align-items:center;justify-content:space-between;padding:20px 0 12px;margin-bottom:8px;}
   .mnav-top img{height:20px;width:auto;}
-  .mnav-x{position:relative;width:46px;height:46px;border-radius:999px;border:1px solid rgba(246,244,250,.35);background:transparent;cursor:pointer;padding:0;}
-  .mnav-x span{position:absolute;left:14px;top:22px;width:18px;height:1.5px;background:#f6f4fa;}
+  .mnav-x{position:relative;width:44px;height:44px;border:0;background:transparent;cursor:pointer;padding:0;margin-right:-10px;}
+  .mnav-x span{position:absolute;left:11px;top:21px;width:22px;height:1.5px;background:#f6f4fa;}
   .mnav-x span:first-child{transform:rotate(45deg);}
   .mnav-x span:last-child{transform:rotate(-45deg);}
   .mnav a{font-family:'Rajdhani','Inter',sans-serif;font-weight:400;font-size:24px;line-height:1.1;padding:15px 0;}
