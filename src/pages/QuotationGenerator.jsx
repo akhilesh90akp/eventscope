@@ -470,7 +470,10 @@ export default function QuotationGenerator() {
   const handleAddItem = (sectionId) => {
     const name = (newItemNames[sectionId] || '').trim();
     if (!name) return;
-    if ((sectionItems[sectionId] || []).includes(name)) return;
+    if ((sectionItems[sectionId] || []).includes(name)) {   // say so instead of doing nothing (e.g. a duplicated quote already has it)
+      showToast(`“${name}” is already in ${printGroups.find(g => g.id === sectionId)?.name || 'this event'} — change its qty instead`, 'error');
+      return;
+    }
     setSectionItems(s => ({ ...s, [sectionId]: [...(s[sectionId] || []), name] }));
     setItemPrices(p => ({ ...p, [`${sectionId}::${name}`]: newPrice(sectionDaysOf(event)[sectionId]) }));
     setNewItemNames(n => ({ ...n, [sectionId]: '' }));

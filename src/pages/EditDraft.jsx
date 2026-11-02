@@ -13,7 +13,7 @@
 // ============================================================
 // IMPORTS
 // ============================================================
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import Button from '../components/Button';
@@ -64,9 +64,15 @@ export default function EditDraft() {
   // DATA LOADING / EFFECTS
   // ------------------------------------------------------------
 
-  // Populate form with existing event data when loaded
+  // Fill the form once, when the event first arrives. Not again after that:
+  // the live Firestore listener hands back a new copy of every event whenever
+  // anything changes (another event saved, this one's write confirmed by the
+  // server), and refilling then wiped what was being typed or picked — e.g.
+  // services added to a just-duplicated event. (The page remounts per event.)
+  const filledRef = useRef(false);
   useEffect(() => {
-    if (event) {
+    if (event && !filledRef.current) {
+      filledRef.current = true;
       setForm({
         clientName: event.clientName || '',
         clientPhone: event.clientPhone || '',
