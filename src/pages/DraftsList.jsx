@@ -48,7 +48,7 @@ function getEventLocation(ev) {
 
 /** Lists all draft events with search, expand/collapse, and actions */
 export default function DraftsList() {
-  const { events, settings, deleteEvent, updateEvent, showToast, isSuspended, askUnlock } = useApp();
+  const { events, settings, deleteEvent, updateEvent, duplicateEvent, showToast, isSuspended, askUnlock } = useApp();
   // Read-only (plan ended / paused): these buttons show a lock and explain why
   const guard = (fn) => (...args) => (isSuspended ? askUnlock() : fn(...args));
   const confirm = useConfirm();
@@ -104,6 +104,13 @@ export default function DraftsList() {
     } else {
       showToast(result.error || 'Failed to confirm event', 'error');
     }
+  };
+  /** Duplicate: a new draft "<client> (Copy)" with the same events, items and prices; opens it to edit */
+  const duplicate = async (ev) => {
+    const result = await duplicateEvent(ev);
+    if (!result.success) { showToast(result.error || 'Couldn’t make a copy', 'error'); return; }
+    showToast(`Copy made: ${result.event.clientName} — check the details`);
+    navigate(`/edit/${result.id}`);
   };
   /** Asks first (app pop-up), then deletes. Only toasts success if the write actually succeeded. */
   const handleDelete = async (ev) => {
@@ -182,6 +189,7 @@ export default function DraftsList() {
                 quote: () => navigate(`/quotation/${ev.id}`),
                 items: () => setItemsId(ev.id),
                 edit: guard(() => navigate(`/edit/${ev.id}`)),
+                duplicate: guard(() => duplicate(ev)),
                 delete: guard(() => handleDelete(ev)),
               }} />
           ))}
@@ -198,6 +206,7 @@ export default function DraftsList() {
           <EventMoreSheet ev={ev} onClose={() => setMoreId(null)} locked={isSuspended}
             on={{
               edit: close(guard(() => navigate(`/edit/${moreId}`))),
+              duplicate: close(guard(() => duplicate(ev))),
               quote: close(() => navigate(`/quotation/${moreId}`)),
               delete: close(guard(() => handleDelete(ev))),
             }} />

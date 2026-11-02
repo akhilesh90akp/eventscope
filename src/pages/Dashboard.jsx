@@ -36,7 +36,7 @@ import { FileText, CheckCircle, PartyPopper, IndianRupee, CalendarDays, ChevronR
 
 /** Main dashboard view with stats and upcoming events */
 export default function Dashboard() {
-  const { events, isOwner, updateEvent, showToast, isSuspended, askUnlock, canUse } = useApp();
+  const { events, isOwner, updateEvent, duplicateEvent, showToast, isSuspended, askUnlock, canUse } = useApp();
   const navigate = useNavigate();
   const [itemsId, setItemsId] = useState(null); // items list (phone sheet / laptop dialog)
   const [moreId, setMoreId] = useState(null);   // phone: an event's ⋯ menu
@@ -69,6 +69,13 @@ export default function Dashboard() {
   const guard = (fn) => (...args) => (isSuspended ? askUnlock() : fn(...args));
   const fromMore = (fn) => () => { setMoreId(null); fn(); };
 
+  /** Duplicate: a new draft "<client> (Copy)" with the same events, items and prices; opens it to edit */
+  const duplicate = async (ev) => {
+    const result = await duplicateEvent(ev);
+    if (!result.success) { showToast(result.error || 'Couldn’t make a copy', 'error'); return; }
+    showToast(`Copy made: ${result.event.clientName} — check the details`);
+    navigate(`/edit/${result.id}`);
+  };
   /** Confirmed → Completed */
   const markDone = async (id) => {
     const result = await updateEvent(id, { status: 'completed' });
@@ -161,6 +168,7 @@ export default function Dashboard() {
                   markDone: guard(() => markDone(ev.id)),
                   edit: guard(() => navigate(`/edit/${ev.id}`)),
                   addItems: guard(() => navigate(`/quotation/${ev.id}`)),
+                  duplicate: guard(() => duplicate(ev)),
                 }} />
             ))}
           </div>
@@ -174,6 +182,7 @@ export default function Dashboard() {
             contractTag={!canUse('contracts') ? <PlanTag feature="contracts" /> : null}
             on={{
               edit: fromMore(guard(() => navigate(`/edit/${ev.id}`))),
+              duplicate: fromMore(guard(() => duplicate(ev))),
               bill: fromMore(() => navigate(`/bill/${ev.id}`)),
               contract: fromMore(() => navigate(`/contract/${ev.id}`)),
               markDone: fromMore(guard(() => markDone(ev.id))),

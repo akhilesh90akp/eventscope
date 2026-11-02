@@ -47,7 +47,7 @@ import SetPricesSheet from '../components/SetPricesSheet';
  * Handles pricing, item addition, and marking events completed.
  */
 export default function ConfirmedEvents({ status = 'confirmed' }) {
-  const { events, categories, updateEvent, deleteEvent, showToast, isOwner, isSuspended, askUnlock, canUse } = useApp();
+  const { events, categories, updateEvent, deleteEvent, duplicateEvent, showToast, isOwner, isSuspended, askUnlock, canUse } = useApp();
   // Read-only (plan ended / paused): these buttons show a lock and explain why
   const guard = (fn) => (...args) => (isSuspended ? askUnlock() : fn(...args));
   const confirm = useConfirm();
@@ -235,6 +235,13 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
     return [];
   };
   /** Asks first (app pop-up), then deletes. Only toasts success if the write actually succeeded. */
+  /** Duplicate: a new draft "<client> (Copy)" with the same events, items and prices; opens it to edit */
+  const duplicate = async (ev) => {
+    const result = await duplicateEvent(ev);
+    if (!result.success) { showToast(result.error || 'Couldn’t make a copy', 'error'); return; }
+    showToast(`Copy made: ${result.event.clientName} — check the details`);
+    navigate(`/edit/${result.id}`);
+  };
   const handleDelete = async (ev) => {
     const ok = await confirm({
       title: 'Delete this event?',
@@ -348,6 +355,7 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
                 addItems: guard(() => { setAddItemModal(ev.id); setAddItemTarget('main'); }),
                 setPrices: guard(() => openPriceModal(ev)),
                 move: getMoveOptions(ev.status).length ? () => setMoveId(ev.id) : undefined,
+                duplicate: guard(() => duplicate(ev)),
                 delete: guard(() => handleDelete(ev)),
               }} />
           ))}
@@ -368,6 +376,7 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
             contract: fromMore(() => navigate(`/contract/${moreEv.id}`)),
             move: getMoveOptions(moreEv.status).length ? fromMore(() => setMoveId(moreEv.id)) : undefined,
             markDone: moreEv.status === 'confirmed' ? fromMore(guard(() => markDone(moreEv.id))) : undefined,
+            duplicate: fromMore(guard(() => duplicate(moreEv))),
             delete: fromMore(guard(() => handleDelete(moreEv))),
           }} />
       )}

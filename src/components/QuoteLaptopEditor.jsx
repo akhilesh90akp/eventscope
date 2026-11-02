@@ -27,7 +27,7 @@ import React from 'react';
 import { DndContext, closestCenter } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Trash2, Plus, ListPlus, Layers, Ungroup, EyeOff, Eye, Wand2, History, Pencil, MessageSquare, ChevronUp, ChevronDown, FileSignature, Printer, TriangleAlert } from 'lucide-react';
+import { GripVertical, Trash2, Plus, ListPlus, Layers, Ungroup, EyeOff, Eye, Wand2, History, Pencil, MessageSquare, ChevronUp, ChevronDown, FileSignature, Printer, TriangleAlert, Copy, ClipboardPaste } from 'lucide-react';
 import { IconButton, SectionLabel } from './PhoneUI';
 import { MorePopover, PopItem, Seg, Switch } from './LaptopUI';
 import { formatRupees, buildLineEntries, lineAmount, itemDays, functionDateText } from '../utils/helpers';
@@ -199,6 +199,9 @@ export function QuoteLaptopTools({ q }) {
       <MorePopover label="More" testId="tool-more" trigger="text">
         <PopItem icon={Wand2} onClick={q.onFitBudget} testId="tool-fit">Fit to budget</PopItem>
         <PopItem icon={History} onClick={q.onVersions} testId="tool-versions">{q.revisionsCount ? `Versions (${q.revisionsCount})` : 'Versions'}</PopItem>
+        <PopItem icon={Copy} onClick={q.onCopyItems} testId="tool-copy">Copy all items</PopItem>
+        <PopItem icon={ClipboardPaste} onClick={q.onPasteItems} disabled={!q.clipCount} testId="tool-paste"
+          sub={q.clipCount ? `${q.clipCount} from ${q.clipFrom}` : 'Copy items from a quote first'}>Paste items</PopItem>
         <PopItem icon={allFolded ? ChevronDown : ChevronUp} onClick={() => q.setFolded(allFolded ? new Set() : new Set(q.printGroups.map(g => g.id)))} testId="tool-fold">{allFolded ? 'Open all events' : 'Fold all events'}</PopItem>
         <PopItem icon={FileSignature} onClick={q.onContract} testId="tool-contract">Make contract</PopItem>
         <PopItem icon={Printer} onClick={q.onPrint} testId="tool-print">Print</PopItem>

@@ -17,7 +17,7 @@
 import React from 'react';
 import {
   FileText, Receipt, Phone, MessageSquare, MoreHorizontal, ClipboardList, ChevronRight,
-  CheckCircle2, Edit3, Plus, Tag, FileSignature, ArrowLeftRight, Trash2, Lock, CalendarDays, MapPin, Table2,
+  CheckCircle2, Edit3, Plus, Tag, FileSignature, ArrowLeftRight, Copy, Trash2, Lock, CalendarDays, MapPin, Table2,
 } from 'lucide-react';
 import Badge from './Badge';
 import BottomSheet from './BottomSheet';
@@ -257,7 +257,7 @@ function DateBlockMini({ date }) {
 // ============================================================
 
 /**
- * @param on  { edit, addItems, setPrices, quote, bill, contract, move, markDone, delete } (missing = hidden)
+ * @param on  { edit, addItems, setPrices, quote, bill, contract, move, duplicate, markDone, delete } (missing = hidden)
  * @param contractTag  e.g. a PlanTag when contracts aren't on the plan
  */
 export function EventMoreSheet({ ev, onClose, on = {}, locked = false, contractTag = null }) {
@@ -274,6 +274,7 @@ export function EventMoreSheet({ ev, onClose, on = {}, locked = false, contractT
         {on.bill && <MenuRow icon={Receipt} title="Bill" sub="Invoice for this event" onClick={on.bill} testId="more-bill" />}
         {on.contract && <MenuRow icon={FileSignature} title={<>Contract {contractTag}</>} sub="Service agreement PDF" onClick={on.contract} testId="more-contract" />}
         {on.move && <MenuRow icon={L(ArrowLeftRight)} title="Move to…" sub={ev.status === 'completed' ? 'Back to Confirmed or Drafts' : 'Back to Drafts'} onClick={on.move} testId="more-move" />}
+        {on.duplicate && <MenuRow icon={L(Copy)} title="Duplicate event" sub="A new draft named “(Copy)” to edit" onClick={on.duplicate} testId="more-duplicate" />}
         {on.markDone && <MenuRow icon={L(CheckCircle2)} title="Mark as done" sub="Move to Completed" tone="green" onClick={on.markDone} testId="more-done" />}
       </div>
       {on.delete && (

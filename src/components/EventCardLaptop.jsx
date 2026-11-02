@@ -22,7 +22,7 @@
 import React from 'react';
 import {
   FileText, Receipt, FileSignature, Phone, MessageSquare, Edit3, ClipboardList, ChevronRight, ChevronDown, ChevronUp,
-  CheckCircle2, Plus, Tag, ArrowLeftRight, Trash2, Lock, Table2, Home, Navigation, StickyNote,
+  CheckCircle2, Plus, Tag, ArrowLeftRight, Copy, Trash2, Lock, Table2, Home, Navigation, StickyNote,
 } from 'lucide-react';
 import Badge from './Badge';
 import { IconButton } from './PhoneUI';
@@ -92,7 +92,7 @@ function EventTile({ fn, main, past }) {
 /**
  * @param ev        the event
  * @param variant   'draft' | 'confirmed' | 'completed' | 'home'
- * @param on        { quote, bill, contract, confirm, markDone, jobLog, items, edit, addItems, setPrices, move, delete }
+ * @param on        { quote, bill, contract, confirm, markDone, jobLog, items, edit, addItems, setPrices, move, duplicate, delete }
  *                  (missing = hidden)
  * @param locked    read-only company: write actions show a lock
  * @param open      fold-out shown; onToggle switches it; details = its content
@@ -182,11 +182,12 @@ export default function EventCardLaptop({ ev, variant = ev?.status, on = {}, loc
         {phone && <IconButton as="a" href={telLink(phone)} icon={Phone} label="Call" tone="green" size={38} iconSize={17} />}
         {phone && <IconButton as="a" href={waLink(phone)} target="_blank" rel="noopener noreferrer" icon={MessageSquare} label="WhatsApp" tone="green" size={38} iconSize={17} />}
         {on.edit && <IconButton icon={L(Edit3)} label="Edit event" size={38} iconSize={17} onClick={on.edit} data-testid="btn-edit" />}
-        {(on.addItems || on.setPrices || on.move || on.delete || (on.markDone && !dayOver)) && (
+        {(on.addItems || on.setPrices || on.move || on.duplicate || on.delete || (on.markDone && !dayOver)) && (
           <MorePopover>
             {on.addItems && <PopItem icon={L(Plus)} onClick={on.addItems} testId="more-add">Add items</PopItem>}
             {on.setPrices && <PopItem icon={L(Tag)} onClick={on.setPrices} testId="more-prices">Set prices</PopItem>}
             {on.move && <PopItem icon={L(ArrowLeftRight)} onClick={on.move} testId="more-move">Move to…</PopItem>}
+            {on.duplicate && <PopItem icon={L(Copy)} onClick={on.duplicate} testId="more-duplicate">Duplicate event</PopItem>}
             {on.markDone && !dayOver && <PopItem icon={L(CheckCircle2)} onClick={on.markDone} testId="more-done">Mark as done</PopItem>}
             {on.delete && <PopItem icon={L(Trash2)} tone="red" onClick={on.delete} testId="more-delete">Delete event</PopItem>}
           </MorePopover>

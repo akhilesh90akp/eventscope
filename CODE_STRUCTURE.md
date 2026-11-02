@@ -92,6 +92,9 @@ src/
     purchases.js            Purchases: financial year (Apr–Mar), totals, form cleaning, Excel download
     quoteFit.js             Fit to budget (lower prices evenly to a target, locks, rounding) and quote
                             revisions (event.quoteRevisions, newest first, max 10)
+    copyPaste.js            Duplicate event (new draft "<client> (Copy)"; bill, contract and versions left
+                            out) and Copy / Paste quote items (kept in this device's localStorage per company;
+                            paste skips names already in that event; groups come along)
     push.js                 This device's push token (Firebase Cloud Messaging); saving is in AppContext
     install.js              "Install app": keeps the browser's install prompt (Android / Chrome / Edge), says if this device can install, shows iPhone steps instead
     startupTiming.js        Records how long opening the app took (shown at the bottom of Settings)

@@ -84,8 +84,9 @@ import FitBudgetSheet from '../components/FitBudgetSheet';
 import QuoteRevisionsSheet from '../components/QuoteRevisionsSheet';
 import { FitBudgetLaptop, QuoteRevisionsLaptop } from '../components/QuoteDialogsLaptop';
 import { fitUnits, applyFit, makeRevision, addRevision } from '../utils/quoteFit';
+import { copyQuoteItems, pasteQuoteItems, clipItemCount, readClip, writeClip, CLIP_EVENT } from '../utils/copyPaste';
 import {
-  Wand2, History, FileSignature, ChevronsDownUp, ChevronsUpDown, Copy, Type, FolderInput, FolderOutput, Trash2, Undo2, Pencil,
+  Wand2, History, FileSignature, ChevronsDownUp, ChevronsUpDown, Copy, ClipboardPaste, Type, FolderInput, FolderOutput, Trash2, Undo2, Pencil,
 } from 'lucide-react';
 
 // ============================================================
@@ -110,7 +111,7 @@ const newPrice = (days) => ({ qty: 1, rate: 0, days: days || 1 });
 /** Builds and previews a printable quotation document for an event */
 export default function QuotationGenerator() {
   const { eventId } = useParams();
-  const { events, settings, categories, updateEvent, showToast, isSuspended, askUnlock, tenant } = useApp();
+  const { events, settings, categories, updateEvent, showToast, isSuspended, askUnlock, tenant, tenantId } = useApp();
   // Premium: the company's own colour on the document and no EventScope mark
   const brand = docBrandColor(tenant?.plan, settings);
   const showMark = showsEventScopeMark(tenant?.plan);
@@ -176,7 +177,7 @@ export default function QuotationGenerator() {
   // Phones: which tab, and the open sheet / menu
   const isPhone = useIsPhone();
   const [tab, setTab] = useState('details');               // 'details' | 'preview'
-  const [sheet, setSheet] = useState(null);                 // 'options' | 'fit' | 'revisions' | null
+  const [sheet, setSheet] = useState(null);                 // 'options' | 'fit' | 'revisions' | 'paste' | null
   const [itemMenu, setItemMenu] = useState(null);           // { sectionId, name, key, bundleId }
   const [groupMenu, setGroupMenu] = useState(null);         // a bundle
   const [moveMenu, setMoveMenu] = useState(null);           // item being moved to a group
@@ -441,6 +442,16 @@ export default function QuotationGenerator() {
     const t = setTimeout(() => setUndoInfo(null), 15000);
     return () => clearTimeout(t);
   }, [undoInfo]);
+
+  // Copy / Paste items: what was copied (this device), kept up to date when another quote or tab copies
+  const [clip, setClip] = useState(() => readClip(tenantId));
+  useEffect(() => {
+    const sync = () => setClip(readClip(tenantId));
+    sync();
+    window.addEventListener(CLIP_EVENT, sync);
+    window.addEventListener('storage', sync);
+    return () => { window.removeEventListener(CLIP_EVENT, sync); window.removeEventListener('storage', sync); };
+  }, [tenantId]);
 
   if (!event) {
     return (
@@ -875,6 +886,37 @@ export default function QuotationGenerator() {
 
 
   // ------------------------------------------------------------
+  // EVENT HANDLERS — COPY / PASTE ITEMS
+  // ------------------------------------------------------------
+
+  /** Keeps every item of this quote (qty · rate · days, and groups) to paste into another quote */
+  const copyAllItems = () => {
+    const c = copyQuoteItems({ groups: printGroups, itemPrices, bundles, eventId: event.id, from: event.clientName || 'this quote' });
+    const n = clipItemCount(c);
+    if (!n) { showToast('This quote has no items to copy', 'error'); return; }
+    if (!writeClip(tenantId, c)) { showToast('Couldn’t copy on this device', 'error'); return; }
+    showToast(`Copied ${n} item${n === 1 ? '' : 's'} — open another quotation and choose Paste items`);
+  };
+
+  /** Paste: straight in when this quote has one event; otherwise ask which event (or each into the matching one) */
+  const pasteItems = () => {
+    if (!clip) return;
+    if (isSuspended) { askUnlock(); return; }
+    if (printGroups.length === 1) { applyPaste(clip.sections.map((_, from) => ({ from, to: printGroups[0].id }))); return; }
+    setSheet('paste');
+  };
+
+  const applyPaste = (plan) => {
+    setSheet(null);
+    const r = pasteQuoteItems({ sectionItems, itemPrices, bundles }, clip, plan);
+    if (!r.added) { showToast(r.skipped ? 'All these items are already in this quote' : 'Nothing to paste', 'error'); return; }
+    setSectionItems(r.sectionItems);
+    setItemPrices(r.itemPrices);
+    setBundles(r.bundles);
+    showToast(`Pasted ${r.added} item${r.added === 1 ? '' : 's'}${r.skipped ? ` · ${r.skipped} already here, skipped` : ''}`);
+  };
+
+  // ------------------------------------------------------------
   // EVENT HANDLERS — PRINT / SHARE
   // ------------------------------------------------------------
 
@@ -974,6 +1016,7 @@ export default function QuotationGenerator() {
     onSave: handleSave, saveState,
     hasPhone: !!(event.clientWhatsapp || event.clientPhone), onWhatsApp: handleWhatsApp,
     onContract: () => navigate(`/contract/${event.id}`), onPrint: handlePrint,
+    onCopyItems: copyAllItems, onPasteItems: pasteItems, clipCount: clip ? clipItemCount(clip) : 0, clipFrom: clip?.from || '',
     pdfNode: !isPhone ? <PdfButton docRef={pdfRef} fileName={`${docTitle()}.pdf`} variant="laptop" /> : null,
     // laptop editor: in-place add, bin, group ⋯ menu, Group (n)
     newItemNames, setNewItemName: (sec, v) => setNewItemNames(n => ({ ...n, [sec]: v })), addItem: handleAddItem,
@@ -1428,7 +1471,22 @@ export default function QuotationGenerator() {
             return <MenuRow icon={allFolded ? ChevronsUpDown : ChevronsDownUp} title={allFolded ? 'Open all events' : 'Fold all events'}
               onClick={() => { setSheet(null); setFolded(allFolded ? new Set() : new Set(printGroups.map(g => g.id))); }} testId="opt-fold" />;
           })()}
+          <MenuRow icon={Copy} title="Copy all items" sub="To paste into another quotation" onClick={() => { setSheet(null); copyAllItems(); }} testId="opt-copy" />
+          <MenuRow icon={ClipboardPaste} title="Paste items" disabled={!clip}
+            sub={clip ? `${clipItemCount(clip)} items from ${clip.from}` : 'Copy items from a quotation first'} onClick={pasteItems} testId="opt-paste" />
           <MenuRow icon={FileSignature} title="Make contract" sub="Uses this quote" onClick={() => navigate(`/contract/${event.id}`)} testId="opt-contract" />
+        </BottomSheet>
+      )}
+      {sheet === 'paste' && clip && (
+        <BottomSheet open onClose={() => setSheet(null)} title="Paste items" sub={`${clipItemCount(clip)} items from ${clip.from} · items already here are skipped`} testId="paste-sheet">
+          {clip.sections.length === printGroups.length && clip.sections.length > 1 && (
+            <MenuRow icon={Layers} title="Each event into the matching event" sub={clip.sections.map((c, i) => `${c.name} → ${printGroups[i].name}`).join(' · ')}
+              onClick={() => applyPaste(clip.sections.map((_, i) => ({ from: i, to: printGroups[i].id })))} testId="paste-match" />
+          )}
+          {printGroups.map(g => (
+            <MenuRow key={g.id} icon={ClipboardPaste} title={`All into ${g.name}`} sub={g.date ? functionDateText(g) : 'No date yet'}
+              onClick={() => applyPaste(clip.sections.map((_, from) => ({ from, to: g.id })))} testId="paste-into" />
+          ))}
         </BottomSheet>
       )}
       {sheet === 'fit' && (() => { const Fit = isPhone ? FitBudgetSheet : FitBudgetLaptop; return (

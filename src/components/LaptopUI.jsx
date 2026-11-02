@@ -82,12 +82,13 @@ export function HeaderText({ icon: Icon, children, primary = false, className = 
 // ============================================================
 
 /** One row of a popover menu */
-export function PopItem({ icon: Icon, children, onClick, tone, testId }) {
+export function PopItem({ icon: Icon, children, onClick, tone, testId, disabled = false, sub }) {
   return (
-    <button onClick={onClick} data-testid={testId} role="menuitem"
-      className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left text-[13.5px] font-semibold cursor-pointer hover:bg-bb-bg
+    <button onClick={onClick} data-testid={testId} role="menuitem" disabled={disabled}
+      className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left text-[13.5px] font-semibold cursor-pointer hover:bg-bb-bg disabled:opacity-40 disabled:cursor-default disabled:hover:bg-transparent
         ${tone === 'red' ? 'text-red-600 mt-1 pt-2.5 rounded-none border-t border-bb-border hover:bg-red-50' : 'text-bb-text'}`}>
-      {Icon && <Icon size={16} className="shrink-0" />}<span className="flex-1">{children}</span>
+      {Icon && <Icon size={16} className="shrink-0" />}
+      <span className="flex-1 min-w-0">{children}{sub && <span className="block text-[11.5px] font-normal text-bb-muted truncate">{sub}</span>}</span>
     </button>
   );
 }

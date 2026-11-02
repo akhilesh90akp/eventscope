@@ -45,6 +45,7 @@ import { markStartup } from '../utils/startupTiming';
 import { requestPushToken, dropPushToken, rememberTokenId, savedTokenId, deviceLabel } from '../utils/push';
 import { useConfirm } from '../components/useConfirm';
 import { accessInfo, todayIST, pilotFields, paidFields, DEFAULT_PILOT, hasFeature, PLAN_INTEREST_KEY, cleanInterest } from '../utils/billing';
+import { duplicateEventData } from '../utils/copyPaste';
 
 // ============================================================
 // CONSTANTS
@@ -702,6 +703,12 @@ export function AppProvider({ children }) {
   };
 
   /**
+   * Duplicate: a new draft with the same client, events, items, prices and
+   * groups, named "<client> (Copy)" (utils/copyPaste.js). Returns addEvent's result.
+   */
+  const duplicateEvent = (ev) => addEvent(duplicateEventData(ev));
+
+  /**
    * Updates an existing event. Returns { success } or { success: false, error }.
    * Pass { touch: false } for bookkeeping writes that shouldn't bump
    * `updatedAt` (so they don't look like a fresh edit).
@@ -1257,7 +1264,7 @@ export function AppProvider({ children }) {
       createCompany, pendingInvite, acceptPendingInvite, declinePendingInvite, showPendingInvite,
       // Company data
       events, settings, categories, loaded,
-      addEvent, updateEvent, deleteEvent,
+      addEvent, duplicateEvent, updateEvent, deleteEvent,
       updateSettings,
       addCategory, updateCategory, deleteCategory, addItemToCat, removeItemFromCat,
       // Team
