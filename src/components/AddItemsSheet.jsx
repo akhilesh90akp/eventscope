@@ -15,10 +15,11 @@
 // IMPORTS
 // ============================================================
 import React, { useMemo, useRef, useState } from 'react';
-import { ChevronDown, Plus, TriangleAlert, X } from 'lucide-react';
+import { BookmarkPlus, ChevronDown, Plus, TriangleAlert, X } from 'lucide-react';
 import BottomSheet from './BottomSheet';
 import { serviceNames, suggestServices, formatRupees } from '../utils/helpers';
-import { findDefaultPrice, unitShort } from '../utils/servicePrices';
+import { findDefaultPrice, unitShort, isService } from '../utils/servicePrices';
+import SaveToServicesSheet from './SaveToServicesSheet';
 
 // ============================================================
 // AddItemsSheet — MAIN COMPONENT
@@ -32,7 +33,7 @@ import { findDefaultPrice, unitShort } from '../utils/servicePrices';
 /** "₹650 / person" when the item has a default price (Settings → Services) */
 const DefaultPrice = ({ price }) => (price ? <span className="text-[13px] text-gray-600 tabular-nums whitespace-nowrap">{formatRupees(price.rate)} / {unitShort(price.unit)}</span> : null);
 
-export default function AddItemsSheet({ events, categories, onSave, onClose }) {
+export default function AddItemsSheet({ events, categories, onSave, onClose, canSave = false }) {
   const [eventId, setEventId] = useState(events.length === 1 ? events[0].id : '');
   const [text, setText] = useState('');
   const [names, setNames] = useState([]);
@@ -45,6 +46,9 @@ export default function AddItemsSheet({ events, categories, onSave, onClose }) {
   const inEvent = event ? event.items : [];
   const services = useMemo(() => serviceNames(categories), [categories]);
   const chips = suggestServices(services, text, [...names, ...inEvent]);
+  const [saving, setSaving] = useState(null);       // a typed name being saved to services
+  const typed = text.trim();
+  const offerSave = canSave && typed.length > 1 && !isService(categories, typed);
 
   /** Adds one name to the list; says why when it can't */
   const addName = (raw) => {
@@ -109,6 +113,13 @@ export default function AddItemsSheet({ events, categories, onSave, onClose }) {
             </button>
           </div>
           {note && <p className="text-[12.5px] text-amber-800 mt-1.5">{note}</p>}
+          {offerSave && (
+            <button type="button" onClick={() => setSaving(typed)} data-testid="add-save-service"
+              className="mt-2 w-full flex items-center gap-2 text-left text-[13.5px] text-bb-accent-hover font-semibold min-h-[40px] cursor-pointer">
+              <BookmarkPlus size={17} className="shrink-0" />
+              <span className="min-w-0">“{typed}” isn’t in your services · <span className="underline">Save it</span></span>
+            </button>
+          )}
         </div>
 
         {chips.length > 0 && (
@@ -143,6 +154,10 @@ export default function AddItemsSheet({ events, categories, onSave, onClose }) {
           )}
         </div>
       </div>
+      {saving && (
+        <SaveToServicesSheet name={saving} isPhone onClose={() => setSaving(null)}
+          onSaved={(name) => { setSaving(null); if (addName(name)) setText(''); }} />
+      )}
     </BottomSheet>
   );
 }

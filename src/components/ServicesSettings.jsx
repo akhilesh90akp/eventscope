@@ -37,8 +37,8 @@ const iconCls = `w-14 shrink-0 text-center ${boxCls}`;   // emoji box beside a n
 /** Digits only, shown with Indian commas ("140000" → "1,40,000") */
 const groupDigits = (v) => { const d = String(v ?? '').replace(/\D/g, '').replace(/^0+/, ''); return d ? Number(d).toLocaleString('en-IN') : ''; };
 
-/** ₹ price box + unit select, side by side */
-function PriceInputs({ rate, unit, onRate, onUnit, big, testId = 'price' }) {
+/** ₹ price box + unit select, side by side (also used by SaveToServicesSheet) */
+export function PriceInputs({ rate, unit, onRate, onUnit, big, testId = 'price' }) {
   const h = big ? 'h-12 text-[16px]' : 'h-10 text-[14px]';
   return (
     <div className="flex gap-2 min-w-0">

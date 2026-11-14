@@ -87,3 +87,29 @@ test('saveCategoryRows: names, prices, new rows; empty rows dropped; twice refus
   assert.equal(r.category.icon, '🎬');
   assert.ok(saveCategoryRows(CATS[0], { name: 'X', rows: [{ name: 'A' }, { name: 'a' }] }).error);
 });
+
+// ============================================================
+// SUGGESTIONS / ADD TO SERVICES
+// ============================================================
+import { serviceMatches, isService, addServiceItem, suggestCategoryId } from '../src/utils/servicePrices.js';
+
+test('serviceMatches: word starts first, then contains; taken left out; with price', () => {
+  const cats = [{ id: 'a', name: 'AV', items: ['LED Wall', 'Projector', 'Wireless Mic', 'Mic Stand'], prices: { 'Mic Stand': { rate: 300, unit: 'day' } } }];
+  assert.deepEqual(serviceMatches(cats, 'mic').map(m => m.name), ['Wireless Mic', 'Mic Stand']);
+  assert.deepEqual(serviceMatches(cats, 'ro').map(m => m.name), ['Projector']);
+  assert.deepEqual(serviceMatches(cats, 'mic', ['mic stand']).map(m => m.name), ['Wireless Mic']);
+  assert.deepEqual(serviceMatches(cats, 'stand')[0].price, { rate: 300, unit: 'day' });
+  assert.deepEqual(serviceMatches(cats, ''), []);
+  assert.equal(isService(cats, ' led wall '), true);
+  assert.equal(isService(cats, 'Drone'), false);
+});
+
+test('addServiceItem: adds with price; duplicate refused; suggestCategoryId prefers Miscellaneous', () => {
+  const cats = [{ id: 'a', name: 'AV', items: ['Mic'] }, { id: 'm', name: 'Miscellaneous', items: [] }];
+  const r = addServiceItem(cats, { catId: 'm', name: ' Drone Shoot ', rate: '12,000', unit: 'event' });
+  assert.deepEqual(r.categories[1], { id: 'm', name: 'Miscellaneous', items: ['Drone Shoot'], prices: { 'Drone Shoot': { rate: 12000, unit: 'event' } } });
+  assert.deepEqual(addServiceItem(cats, { catId: 'a', name: 'Drone', rate: '' }).categories[0].items, ['Mic', 'Drone']);
+  assert.ok(addServiceItem(cats, { catId: 'a', name: 'mic' }).error);
+  assert.equal(suggestCategoryId(cats), 'm');
+  assert.equal(suggestCategoryId([{ id: 'x', name: 'Decor' }]), 'x');
+});

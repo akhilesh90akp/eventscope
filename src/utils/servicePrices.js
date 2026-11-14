@@ -88,6 +88,43 @@ export function startingPricesFor(categories, sections, existing = {}) {
 }
 
 // ============================================================
+// SUGGESTIONS (quote "Add an item" box)
+// ============================================================
+
+/** Is this name one of the company's services? (case ignored) */
+export const isService = (categories, name) => {
+  const n = norm(name);
+  return !!n && (categories || []).some(c => (c.items || []).some(i => norm(i) === n));
+};
+
+/**
+ * Services matching what is typed: names starting with it first, then names
+ * containing it; names already in the event left out. Nothing until 1 letter.
+ * → [{ name, cat, price }]
+ */
+export function serviceMatches(categories, typed, taken = [], limit = 8) {
+  const q = norm(typed);
+  if (!q) return [];
+  const takenSet = new Set((taken || []).map(norm));
+  const starts = [];
+  const contains = [];
+  const seen = new Set();
+  (categories || []).forEach(cat => (cat.items || []).forEach(name => {
+    const n = norm(name);
+    if (seen.has(n) || takenSet.has(n)) return;
+    seen.add(n);
+    const hit = { name, cat, price: priceOf(cat, name) };
+    if (n.startsWith(q) || n.split(/[\s/(&-]+/).some(w => w.startsWith(q))) starts.push(hit);
+    else if (n.includes(q)) contains.push(hit);
+  }));
+  return [...starts, ...contains].slice(0, limit);
+}
+
+/** A category to suggest for a new service: "Miscellaneous" / "Other" if there is one, else the first */
+export const suggestCategoryId = (categories) =>
+  ((categories || []).find(c => /misc|other/i.test(c.name)) || (categories || [])[0])?.id || '';
+
+// ============================================================
 // EDITING (return new category lists — saving is AppContext's job)
 // ============================================================
 
@@ -131,6 +168,17 @@ export function editServiceItem(categories, { fromCat, oldName, toCat, name, rat
     return tidy({ ...c, items, prices });
   });
   return { categories: next };
+}
+
+/** Add a new service item (with an optional price) to a category → { categories } or { error } */
+export function addServiceItem(categories, { catId, name, rate, unit }) {
+  const n = String(name || '').trim();
+  if (!n) return { error: 'Type the item name' };
+  const cat = (categories || []).find(c => c.id === catId);
+  if (!cat) return { error: 'Choose a category' };
+  if ((cat.items || []).some(i => norm(i) === norm(n))) return { error: `“${n}” is already in ${cat.name}` };
+  const price = cleanPrice(rate, unit);
+  return { categories: categories.map(c => (c.id !== catId ? c : { ...c, items: [...(c.items || []), n], prices: { ...(c.prices || {}), ...(price ? { [n]: price } : {}) } })) };
 }
 
 /**

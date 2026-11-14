@@ -54,6 +54,8 @@ src/
     JobEventLaptop (a completed event's costs & income as a laptop pop-up), JobLogColumnsEditor (Settings tab),
     ServicesSettings (Settings → Services: search, categories that fold open, items with default price,
       Edit item and Edit category pop-ups — laptop and phone),
+    ItemSuggestInput (laptop quote "Add an item" box: matching services with price as you type, ↑↓ Enter),
+    SaveToServicesSheet (save a typed item to a category with an optional price — laptop box and phone Add items),
     ImportCompanyDialog (Admin: create a company from an old app's backup),
     AdminTeamDialog (Admin: a company's members/invites — change role, remove),
     InstallButton ("Install app": one tap on Android / Chrome, Add to Home Screen steps on iPhone — sign-in screen and phone Home; logic in utils/install.js),

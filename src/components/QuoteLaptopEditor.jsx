@@ -30,6 +30,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { GripVertical, Trash2, Plus, ListPlus, Layers, Ungroup, EyeOff, Eye, Wand2, History, Pencil, MessageSquare, ChevronUp, ChevronDown, FileSignature, Printer, TriangleAlert, Copy, ClipboardPaste } from 'lucide-react';
 import { IconButton, SectionLabel } from './PhoneUI';
 import { MorePopover, PopItem, Seg, Switch } from './LaptopUI';
+import ItemSuggestInput from './ItemSuggestInput';
 import { formatRupees, buildLineEntries, lineAmount, itemDays, functionDateText } from '../utils/helpers';
 
 // ============================================================
@@ -304,9 +305,9 @@ export default function QuoteLaptopEditor({ q }) {
 
             {/* Add an item, in place */}
             <div className="mt-3 flex items-center gap-2">
-              <input value={q.newItemNames[group.id] || ''} placeholder={`Add an item to ${group.name}…`} aria-label={`Add an item to ${group.name}`}
-                onChange={e => q.setNewItemName(group.id, e.target.value)} onKeyDown={e => e.key === 'Enter' && q.addItem(group.id)}
-                className="flex-1 min-w-0 h-[38px] rounded-xl border border-bb-border bg-bb-input px-3 text-[13.5px] text-bb-text placeholder:text-bb-muted/70 focus:outline-none focus:ring-2 focus:ring-bb-accent/40" />
+              <ItemSuggestInput value={q.newItemNames[group.id] || ''} onChange={v => q.setNewItemName(group.id, v)} onAdd={name => q.addItem(group.id, name)}
+                categories={q.categories} taken={group.items} canSave={q.canSaveServices}
+                placeholder={`Add an item to ${group.name}…`} ariaLabel={`Add an item to ${group.name}`} />
               <button onClick={() => q.addItem(group.id)} className="shrink-0 h-[38px] px-3.5 rounded-xl bg-bb-accent text-white text-[13.5px] font-semibold inline-flex items-center gap-1.5 cursor-pointer hover:bg-bb-accent-hover" data-testid="add-item">
                 <Plus size={16} />Add
               </button>

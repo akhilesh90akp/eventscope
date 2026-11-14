@@ -112,7 +112,7 @@ const newPrice = (days) => ({ qty: 1, rate: 0, days: days || 1 });
 /** Builds and previews a printable quotation document for an event */
 export default function QuotationGenerator() {
   const { eventId } = useParams();
-  const { events, settings, categories, updateEvent, showToast, isSuspended, askUnlock, tenant, tenantId } = useApp();
+  const { events, settings, categories, updateEvent, showToast, isSuspended, askUnlock, tenant, tenantId, canEditSettings } = useApp();
   // Premium: the company's own colour on the document and no EventScope mark
   const brand = docBrandColor(tenant?.plan, settings);
   const showMark = showsEventScopeMark(tenant?.plan);
@@ -468,8 +468,8 @@ export default function QuotationGenerator() {
   // ------------------------------------------------------------
 
   /** Adds a custom free-text item to the given section's quotation (main event or a specific sub-event) */
-  const handleAddItem = (sectionId) => {
-    const name = (newItemNames[sectionId] || '').trim();
+  const handleAddItem = (sectionId, picked) => {
+    const name = (picked ?? newItemNames[sectionId] ?? '').trim();   // a picked suggestion, or what is typed
     if (!name) return;
     if ((sectionItems[sectionId] || []).includes(name)) {   // say so instead of doing nothing (e.g. a duplicated quote already has it)
       showToast(`“${name}” is already in ${printGroups.find(g => g.id === sectionId)?.name || 'this event'} — change its qty instead`, 'error');
@@ -1024,6 +1024,7 @@ export default function QuotationGenerator() {
     pdfNode: !isPhone ? <PdfButton docRef={pdfRef} fileName={`${docTitle()}.pdf`} variant="laptop" /> : null,
     // laptop editor: in-place add, bin, group ⋯ menu, Group (n)
     newItemNames, setNewItemName: (sec, v) => setNewItemNames(n => ({ ...n, [sec]: v })), addItem: handleAddItem,
+    canSaveServices: canEditSettings,
     removeItem: askRemoveItem, tickedCount,
     renameGroup: (b) => setRenaming({ kind: 'group', bundleId: b.id, name: b.name, value: b.name }),
     ungroupGroup: dissolveGroup, deleteGroup: askDeleteGroup,
@@ -1546,7 +1547,7 @@ export default function QuotationGenerator() {
         </BottomSheet>
       )}
       {addOpen && (
-        <AddItemsSheet events={printGroups.map(g => ({ id: g.id, name: g.name, items: g.items }))} categories={categories}
+        <AddItemsSheet events={printGroups.map(g => ({ id: g.id, name: g.name, items: g.items }))} categories={categories} canSave={canEditSettings}
           onSave={addItemsToEvent} onClose={() => setAddOpen(false)} />
       )}
 
