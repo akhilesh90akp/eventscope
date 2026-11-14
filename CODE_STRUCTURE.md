@@ -52,6 +52,8 @@ src/
       PdfButton variant="laptop" ("⤓ PDF" in a title row),
     Badge, Toggle, ErrorBoundary,
     JobEventLaptop (a completed event's costs & income as a laptop pop-up), JobLogColumnsEditor (Settings tab),
+    ServicesSettings (Settings → Services: search, categories that fold open, items with default price,
+      Edit item and Edit category pop-ups — laptop and phone),
     ImportCompanyDialog (Admin: create a company from an old app's backup),
     AdminTeamDialog (Admin: a company's members/invites — change role, remove),
     InstallButton ("Install app": one tap on Android / Chrome, Add to Home Screen steps on iPhone — sign-in screen and phone Home; logic in utils/install.js),
@@ -95,6 +97,10 @@ src/
     copyPaste.js            Duplicate event (new draft "<client> (Copy)"; bill, contract and versions left
                             out) and Copy / Paste quote items (kept in this device's localStorage per company;
                             paste skips names already in that event; groups come along)
+    servicePrices.js        Default prices for service items (category.prices = { item: { rate, unit } }):
+                            units (per day / event / person…), the price an added item starts at
+                            (per day counts the function's days, other units 1 day), Edit item /
+                            Edit category list changes (no Firestore)
     push.js                 This device's push token (Firebase Cloud Messaging); saving is in AppContext
     install.js              "Install app": keeps the browser's install prompt (Android / Chrome / Edge), says if this device can install, shows iPhone steps instead
     startupTiming.js        Records how long opening the app took (shown at the bottom of Settings)
@@ -109,7 +115,7 @@ tests/
   firestore.rules.test.mjs  Rules tests (emulator; also run on GitHub)
   helpers.test.mjs          Unit tests for money/bill math
   tenantImport.test.mjs     Unit tests for reading backup files (old export, Drive and owner backups)
-  pdfExport / contract / calendar / purchases / billing / quoteFit .test.mjs   Unit tests for page breaks, contract
+  pdfExport / contract / calendar / purchases / billing / quoteFit / copyPaste / servicePrices .test.mjs   Unit tests for page breaks, contract
                             figures, calendar math, purchases
 website/                    The marketing site at eventscope.in: plain HTML/CSS/JS, no build step.
                             index.html (home), whats-new.html, get-started.html;

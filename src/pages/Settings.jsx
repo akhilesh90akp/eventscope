@@ -31,13 +31,12 @@ import Card from '../components/Card';
 import StickyBar from '../components/StickyBar';
 import Button from '../components/Button';
 import Input from '../components/Input';
-import Modal from '../components/Modal';
 import JobLogColumnsEditor from '../components/JobLogColumnsEditor';
+import ServicesSettings from '../components/ServicesSettings';
 import { resizeImageFile } from '../utils/helpers';
 import { lastStartupText } from '../utils/startupTiming';
 import { PageHeader, HeaderText } from '../components/LaptopUI';
-import { suggestServiceEmoji } from '../utils/serviceEmoji';
-import { Save, Plus, Trash2, Edit2, X, Building2, Landmark, FileText, Layers, Users, Table2, UserPlus, DatabaseBackup, Download, FileSignature, CalendarDays, Bell } from 'lucide-react';
+import { Save, Plus, X, Building2, Landmark, FileText, Layers, Users, Table2, UserPlus, DatabaseBackup, Download, FileSignature, CalendarDays, Bell } from 'lucide-react';
 import Toggle from '../components/Toggle';
 import ReminderSwitch from '../components/ReminderSwitch';
 import { DEFAULT_CONTRACT_TERMS } from '../constants/contract';
@@ -57,7 +56,7 @@ const TAB_HELP = {
   invoice: 'How quotations and bills are numbered and worded: GST rate, terms and your signature.',
   contract: 'Your standard terms. They fill in every client agreement (Contract button on a confirmed event). Have your advocate check the agreement once before first use.',
   calendar: 'Helps you avoid overbooking, and reminds you before each event so nothing is missed.',
-  services: 'The services and items you offer. They appear as choices when you build a quote, so you don’t type them every time.',
+  services: 'The services and items you offer. They appear as choices when you build a quote, so you don’t type them every time. Add a default price to fill the rate automatically (optional).',
   team: 'Who can use EventScope for your company. Staff handle events; owners also see settings, reports and profit.',
   joblog: 'The cost and income columns in your Job Log. Add what you track, and each event’s profit is worked out for you.',
   backup: 'A copy of all your company’s data that you keep yourself, on top of the automatic daily backup.',
@@ -69,7 +68,7 @@ const TAB_HELP = {
 
 /** Multi-tab settings page for company, bank, invoice, and service configuration */
 export default function Settings() {
-  const { settings, categories, updateSettings, addCategory, deleteCategory, addItemToCat, removeItemFromCat, logout, user, showToast, canEditSettings, isOwner, isSuspended, team, invites, inviteTeammate, cancelInvite, removeTeammate, promoteToOwner, downloadCompanyBackup, tenant, canUse } = useApp();
+  const { settings, updateSettings, logout, user, showToast, canEditSettings, isOwner, isSuspended, team, invites, inviteTeammate, cancelInvite, removeTeammate, promoteToOwner, downloadCompanyBackup, tenant, canUse } = useApp();
   const confirm = useConfirm();
   const navigate = useNavigate();
   const [backingUp, setBackingUp] = useState(false);
@@ -85,10 +84,6 @@ export default function Settings() {
   const tab = section || tabState;
   const setTab = (key) => (isPhone ? navigate(`/settings/${key}`) : setTabState(key));
   const [form, setForm] = useState({ ...settings, bankDetails: { ...settings.bankDetails } });
-  const [catModal, setCatModal] = useState(null); // category id for item management modal
-  const [newCatName, setNewCatName] = useState('');
-  const [newCatIcon, setNewCatIcon] = useState('📦');
-  const [newItemInput, setNewItemInput] = useState('');
   const [newTerm, setNewTerm] = useState('');
   const [saving, setSaving] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
@@ -159,21 +154,6 @@ export default function Settings() {
     } finally {
       setSaving(false);
     }
-  };
-
-  /** Creates a new service category */
-  const handleAddCategory = () => {
-    if (!newCatName.trim()) return;
-    addCategory({ name: newCatName.trim(), icon: newCatIcon || '📦', items: [] });
-    setNewCatName('');
-    setNewCatIcon('📦');
-  };
-
-  /** Adds a new item to the currently open category */
-  const handleAddItemToCat = (catId) => {
-    if (!newItemInput.trim()) return;
-    addItemToCat(catId, newItemInput.trim());
-    setNewItemInput('');
   };
 
   /** Appends a new term to the terms & conditions list */
@@ -255,8 +235,6 @@ export default function Settings() {
     { key: 'joblog', label: 'Job Log columns', icon: Table2 },
     ...(isOwner ? [{ key: 'backup', label: 'Backup', icon: DatabaseBackup }] : []),
   ];
-
-  const openCat = categories.find(c => c.id === catModal);
 
   // Phones: the section's name in the title bar, Save on the right (editable sections)
   const savable = canEditSettings && !['services', 'team', 'joblog', 'backup'].includes(tab);
@@ -530,71 +508,8 @@ export default function Settings() {
         </div>
       )}
 
-      {/* Services Tab */}
-      {tab === 'services' && (
-        <div className="space-y-3">
-          {/* Category List */}
-          {categories.map(cat => (
-            <Card key={cat.id} hover>
-              <div className="flex items-center justify-between">
-                <button onClick={() => { setCatModal(cat.id); setNewItemInput(''); }} className="flex items-center gap-2 text-sm font-medium text-bb-text cursor-pointer">
-                  <span className="text-lg">{cat.icon}</span>
-                  {cat.name}
-                  <span className="text-xs text-bb-muted">({cat.items.length} items)</span>
-                </button>
-                <div className="flex gap-1">
-                  <button onClick={() => { setCatModal(cat.id); setNewItemInput(''); }} className="p-1.5 rounded text-bb-muted hover:text-bb-accent cursor-pointer">
-                    <Edit2 size={16} />
-                  </button>
-                  <button onClick={async () => (await confirm({ title: `Delete “${cat.name}”?`, message: `The category and its ${cat.items.length} items will be removed. Existing quotations aren’t affected.`, confirmLabel: 'Delete', tone: 'danger' })) && deleteCategory(cat.id)} className="p-1.5 rounded text-bb-muted hover:text-red-400 cursor-pointer" title="Delete category">
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              </div>
-            </Card>
-          ))}
-
-          {/* Add Category */}
-          <Card>
-            <h3 className="text-sm font-semibold text-bb-muted uppercase mb-3">Add Category</h3>
-            <div className="flex gap-2">
-              <Input placeholder="Icon (emoji)" value={newCatIcon} onChange={e => setNewCatIcon(e.target.value)} className="w-20" />
-              <Input placeholder="Category name" value={newCatName}
-                onChange={e => {
-                  setNewCatName(e.target.value);
-                  // suggest an emoji until the user picks their own
-                  if (!newCatIcon || newCatIcon === '📦' || newCatIcon === suggestServiceEmoji(newCatName)) setNewCatIcon(suggestServiceEmoji(e.target.value));
-                }} className="flex-1"
-                onKeyDown={e => e.key === 'Enter' && handleAddCategory()}
-              />
-              <Button icon={Plus} onClick={handleAddCategory}>Add</Button>
-            </div>
-          </Card>
-
-          {/* Category Items Modal - manage items within a category */}
-          <Modal isOpen={!!catModal} onClose={() => setCatModal(null)} title={openCat ? `${openCat.icon} ${openCat.name}` : ''} size="md">
-            {openCat && (
-              <div className="space-y-3 max-h-[60vh] overflow-y-auto">
-                {openCat.items.map(item => (
-                  <div key={item} className="flex items-center justify-between p-2 bg-bb-input rounded-lg">
-                    <span className="text-sm text-bb-text">{item}</span>
-                    <button onClick={() => removeItemFromCat(openCat.id, item)} className="text-red-400 hover:text-red-300 cursor-pointer">
-                      <X size={16} />
-                    </button>
-                  </div>
-                ))}
-
-                <div className="flex gap-2 pt-2 border-t border-bb-border">
-                  <Input placeholder="New item..." value={newItemInput} onChange={e => setNewItemInput(e.target.value)} className="flex-1"
-                    onKeyDown={e => e.key === 'Enter' && handleAddItemToCat(openCat.id)}
-                  />
-                  <Button size="sm" icon={Plus} onClick={() => handleAddItemToCat(openCat.id)}>Add</Button>
-                </div>
-              </div>
-            )}
-          </Modal>
-        </div>
-      )}
+      {/* Services Tab — categories, items and default prices (components/ServicesSettings) */}
+      {tab === 'services' && <ServicesSettings isPhone={isPhone} canEdit={canEditSettings} />}
 
       </fieldset>
 

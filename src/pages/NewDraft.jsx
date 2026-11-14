@@ -23,7 +23,8 @@ import EventFormPhone from '../components/EventFormPhone';
 import EventFormLaptop from '../components/EventFormLaptop';
 import { useIsPhone } from '../components/useIsPhone';
 import { EVENT_TYPES } from '../constants/data';
-import { functionDatesProblem, functionDatesToSave, genId } from '../utils/helpers';
+import { functionDatesProblem, functionDatesToSave, genId, functionDays } from '../utils/helpers';
+import { startingPricesFor } from '../utils/servicePrices';
 import { Lock } from 'lucide-react';
 
 // ============================================================
@@ -193,7 +194,11 @@ export default function NewDraft() {
           location: s.location.trim(),
           items: s.items,
         })),
-        itemPrices: {},
+        // Items with a default price (Settings → Services) start at that price
+        itemPrices: startingPricesFor(categories, [
+          { id: 'main', items: mainEvent.items, days: functionDays({ ...mainEvent, ...functionDatesToSave(mainEvent) }) },
+          ...subEvents.map(s => ({ id: s.id, items: s.items, days: functionDays({ ...s, ...functionDatesToSave(s) }) })),
+        ]),
       });
 
       if (result.success) {

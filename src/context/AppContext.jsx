@@ -857,7 +857,15 @@ export function AppProvider({ children }) {
   const addItemToCat = (catId, item) => saveCategories(categories.map(c => (c.id === catId ? { ...c, items: [...c.items, item] } : c)));
 
   /** Removes one item from a category. Returns the saveCategories() result. */
-  const removeItemFromCat = (catId, item) => saveCategories(categories.map(c => (c.id === catId ? { ...c, items: c.items.filter(i => i !== item) } : c)));
+  const removeItemFromCat = (catId, item) => saveCategories(categories.map(c => {
+    if (c.id !== catId) return c;
+    const prices = { ...(c.prices || {}) };
+    delete prices[item];                      // its default price goes with it
+    return { ...c, items: c.items.filter(i => i !== item), prices };
+  }));
+
+  /** Saves a whole new category list (Settings → Services: Edit item / Edit category, made with utils/servicePrices.js). */
+  const replaceCategories = (cats) => saveCategories(cats);
 
   // ------------------------------------------------------------
   // JOB LOG / FINANCIALS
@@ -1266,7 +1274,7 @@ export function AppProvider({ children }) {
       events, settings, categories, loaded,
       addEvent, duplicateEvent, updateEvent, deleteEvent,
       updateSettings,
-      addCategory, updateCategory, deleteCategory, addItemToCat, removeItemFromCat,
+      addCategory, updateCategory, deleteCategory, addItemToCat, removeItemFromCat, replaceCategories,
       // Team
       team, invites, inviteTeammate, cancelInvite, removeTeammate, promoteToOwner,
       // Job Log

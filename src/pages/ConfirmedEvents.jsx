@@ -31,6 +31,7 @@ import { PageHeader, HeaderText } from '../components/LaptopUI';
 import EventCardPhone, { EventItemsSheet, EventMoreSheet } from '../components/EventCardPhone';
 import { useIsPhone } from '../components/useIsPhone';
 import { sortByActiveDate, openJobLog, functionDays, lineAmount, getAllEventDates } from '../utils/helpers';
+import { startingPrice } from '../utils/servicePrices';
 import { Search, PackageOpen, ArrowLeftRight, ExternalLink } from 'lucide-react';
 import { PlanTag } from '../components/UpgradeCard';
 import AddItemPhoneSheet from '../components/AddItemPhoneSheet';
@@ -124,7 +125,7 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
         if (!mainItems.includes(item.trim())) {
           mainItems.push(item.trim());
           // Also add keyed price entry
-          const newPrices = { ...(ev.itemPrices || {}), [`main::${item.trim()}`]: { qty: 1, rate: 0, days: functionDays(ev.mainEvent) } };
+          const newPrices = { ...(ev.itemPrices || {}), [`main::${item.trim()}`]: startingPrice(categories, item.trim(), functionDays(ev.mainEvent)) };
           result = await updateEvent(eventId, { mainEvent: { ...ev.mainEvent, items: mainItems }, itemPrices: newPrices });
         }
       } else {
@@ -139,9 +140,10 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
           }
           return s;
         });
-        // Also add keyed price entry
-        const target = (ev.subEvents || []).find(s => s.id === target);
-        const newPrices = { ...(ev.itemPrices || {}), [`${target}::${item.trim()}`]: { qty: 1, rate: 0, days: functionDays(target) } };
+        // Also add keyed price entry. (Bug fix: this used to declare a second
+        // `target` that shadowed the parameter, so adding to a sub event threw.)
+        const sub = (ev.subEvents || []).find(s => s.id === target);
+        const newPrices = { ...(ev.itemPrices || {}), [`${target}::${item.trim()}`]: startingPrice(categories, item.trim(), functionDays(sub)) };
         result = await updateEvent(eventId, { subEvents, itemPrices: newPrices });
       }
     } else {
@@ -149,7 +151,7 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
       const items = [...(ev.items || [])];
       if (!items.includes(item.trim())) {
         items.push(item.trim());
-        const newPrices = { ...(ev.itemPrices || {}), [`main::${item.trim()}`]: { qty: 1, rate: 0 } };
+        const newPrices = { ...(ev.itemPrices || {}), [`main::${item.trim()}`]: startingPrice(categories, item.trim(), 1) };
         result = await updateEvent(eventId, { items, itemPrices: newPrices });
       }
     }

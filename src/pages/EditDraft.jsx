@@ -22,6 +22,7 @@ import EventFormLaptop from '../components/EventFormLaptop';
 import { useIsPhone } from '../components/useIsPhone';
 import { EVENT_TYPES } from '../constants/data';
 import { functionDatesProblem, functionDatesToSave, genId, functionDays } from '../utils/helpers';
+import { startingPricesFor } from '../utils/servicePrices';
 
 // ============================================================
 // EditDraft — MAIN COMPONENT
@@ -262,6 +263,15 @@ export default function EditDraft() {
         }
       });
     });
+
+    // Items added on this screen start at their default price (Settings → Services);
+    // items the event already had keep what they have.
+    const had = (id) => (id === 'main' ? (event.mainEvent?.items || event.items || []) : ((event.subEvents || []).find(s => s.id === id)?.items || []));
+    const fresh = (id, items) => (items || []).filter(i => !had(id).includes(i));
+    Object.assign(newPrices, startingPricesFor(categories, [
+      { id: 'main', items: fresh('main', mainEvent.items), days: functionDays({ ...mainEvent, ...functionDatesToSave(mainEvent) }) },
+      ...subEvents.map(s => ({ id: s.id, items: fresh(s.id, s.items), days: functionDays({ ...s, ...functionDatesToSave(s) }) })),
+    ], newPrices));
 
     setSaving(true);
     try {

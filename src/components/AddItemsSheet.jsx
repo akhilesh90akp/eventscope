@@ -17,7 +17,8 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { ChevronDown, Plus, TriangleAlert, X } from 'lucide-react';
 import BottomSheet from './BottomSheet';
-import { serviceNames, suggestServices } from '../utils/helpers';
+import { serviceNames, suggestServices, formatRupees } from '../utils/helpers';
+import { findDefaultPrice, unitShort } from '../utils/servicePrices';
 
 // ============================================================
 // AddItemsSheet — MAIN COMPONENT
@@ -28,6 +29,9 @@ import { serviceNames, suggestServices } from '../utils/helpers';
  * @param categories the company's service categories
  * @param onSave     (eventId, names[]) — adds the names to that event
  */
+/** "₹650 / person" when the item has a default price (Settings → Services) */
+const DefaultPrice = ({ price }) => (price ? <span className="text-[13px] text-gray-600 tabular-nums whitespace-nowrap">{formatRupees(price.rate)} / {unitShort(price.unit)}</span> : null);
+
 export default function AddItemsSheet({ events, categories, onSave, onClose }) {
   const [eventId, setEventId] = useState(events.length === 1 ? events[0].id : '');
   const [text, setText] = useState('');
@@ -121,7 +125,7 @@ export default function AddItemsSheet({ events, categories, onSave, onClose }) {
 
         {/* 3 · What will be added */}
         <div>
-          <p className="flex justify-between text-[12px] font-bold uppercase tracking-wider text-gray-600 mb-1.5"><span>Added ({names.length})</span>{names.length > 0 && <span className="normal-case tracking-normal font-medium">Price them after saving</span>}</p>
+          <p className="flex justify-between text-[12px] font-bold uppercase tracking-wider text-gray-600 mb-1.5"><span>Added ({names.length})</span>{names.length > 0 && <span className="normal-case tracking-normal font-medium">Change prices after saving</span>}</p>
           {names.length === 0 ? (
             <div className={`rounded-xl border-[1.5px] border-dashed p-4 text-center text-[13.5px] leading-snug ${error === 'items' ? 'border-red-400 text-red-700' : 'border-gray-300 text-bb-muted'}`}>
               {error === 'items' ? 'Add at least one item first' : <>Items you add show up here.<br />Add as many as you need, then save.</>}
@@ -131,6 +135,7 @@ export default function AddItemsSheet({ events, categories, onSave, onClose }) {
               {names.map(n => (
                 <li key={n} className="flex items-center gap-2 min-h-[46px]">
                   <span className="flex-1 min-w-0 font-bold text-[14.5px] break-words">{n}</span>
+                  <DefaultPrice price={findDefaultPrice(categories, n)} />
                   <button onClick={() => setNames(l => l.filter(x => x !== n))} aria-label={`Remove ${n}`} className="w-10 h-10 -mr-2 flex items-center justify-center text-bb-muted cursor-pointer"><X size={18} /></button>
                 </li>
               ))}

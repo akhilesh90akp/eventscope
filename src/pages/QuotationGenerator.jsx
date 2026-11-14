@@ -85,6 +85,7 @@ import QuoteRevisionsSheet from '../components/QuoteRevisionsSheet';
 import { FitBudgetLaptop, QuoteRevisionsLaptop } from '../components/QuoteDialogsLaptop';
 import { fitUnits, applyFit, makeRevision, addRevision } from '../utils/quoteFit';
 import { copyQuoteItems, pasteQuoteItems, clipItemCount, readClip, writeClip, CLIP_EVENT } from '../utils/copyPaste';
+import { startingPrice } from '../utils/servicePrices';
 import {
   Wand2, History, FileSignature, ChevronsDownUp, ChevronsUpDown, Copy, ClipboardPaste, Type, FolderInput, FolderOutput, Trash2, Undo2, Pencil,
 } from 'lucide-react';
@@ -101,7 +102,7 @@ const sectionDaysOf = (ev) => {
   return out;
 };
 
-/** A fresh price for an item added to a section: 1 × ₹0 × the function's days */
+/** A blank price: 1 × ₹0 × days (items added from now on start at their default price — utils/servicePrices.startingPrice) */
 const newPrice = (days) => ({ qty: 1, rate: 0, days: days || 1 });
 
 // ============================================================
@@ -475,7 +476,7 @@ export default function QuotationGenerator() {
       return;
     }
     setSectionItems(s => ({ ...s, [sectionId]: [...(s[sectionId] || []), name] }));
-    setItemPrices(p => ({ ...p, [`${sectionId}::${name}`]: newPrice(sectionDaysOf(event)[sectionId]) }));
+    setItemPrices(p => ({ ...p, [`${sectionId}::${name}`]: startingPrice(categories, name, sectionDaysOf(event)[sectionId]) }));
     setNewItemNames(n => ({ ...n, [sectionId]: '' }));
   };
 
@@ -483,7 +484,7 @@ export default function QuotationGenerator() {
   const handleAddFromCategory = (sectionId, itemName) => {
     if ((sectionItems[sectionId] || []).includes(itemName)) return;
     setSectionItems(s => ({ ...s, [sectionId]: [...(s[sectionId] || []), itemName] }));
-    setItemPrices(p => ({ ...p, [`${sectionId}::${itemName}`]: newPrice(sectionDaysOf(event)[sectionId]) }));
+    setItemPrices(p => ({ ...p, [`${sectionId}::${itemName}`]: startingPrice(categories, itemName, sectionDaysOf(event)[sectionId]) }));
   };
 
   /** Asks first (app pop-up), then removes the item from this quotation */
@@ -802,7 +803,7 @@ export default function QuotationGenerator() {
     setAddOpen(false);
     if (!fresh.length) { showToast('Those items are already in this event', 'error'); return; }
     setSectionItems(s => ({ ...s, [sectionId]: [...(s[sectionId] || []), ...fresh] }));
-    setItemPrices(p => ({ ...p, ...Object.fromEntries(fresh.map(n => [`${sectionId}::${n}`, newPrice(sectionDaysOf(event)[sectionId])])) }));
+    setItemPrices(p => ({ ...p, ...Object.fromEntries(fresh.map(n => [`${sectionId}::${n}`, startingPrice(categories, n, sectionDaysOf(event)[sectionId])])) }));
     const keys = fresh.map(n => `${sectionId}::${n}`);
     setFolded(f => { if (!f.has(sectionId)) return f; const n = new Set(f); n.delete(sectionId); return n; });
     setFlash(new Set(keys));
