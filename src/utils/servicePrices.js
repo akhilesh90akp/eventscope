@@ -97,27 +97,36 @@ export const isService = (categories, name) => {
   return !!n && (categories || []).some(c => (c.items || []).some(i => norm(i) === n));
 };
 
+/** A typed name in the service's own spelling when it is a service ("entrance arch" → "Entrance Arch") */
+export const serviceName = (categories, typed) => {
+  const n = norm(typed);
+  for (const c of categories || []) { const hit = (c.items || []).find(i => norm(i) === n); if (hit) return hit; }
+  return String(typed || '').trim();
+};
+
 /**
- * Services matching what is typed: names starting with it first, then names
- * containing it; names already in the event left out. Nothing until 1 letter.
- * → [{ name, cat, price }]
+ * Services matching what is typed: the exact name first, then names with a
+ * word starting with it, then names containing it. Names already in the event
+ * come last, marked added (shown as "Already added", not hidden — a hidden
+ * match looked like a missing service). Nothing until 1 letter.
+ * → [{ name, cat, price, added }]
  */
 export function serviceMatches(categories, typed, taken = [], limit = 8) {
   const q = norm(typed);
   if (!q) return [];
   const takenSet = new Set((taken || []).map(norm));
-  const starts = [];
-  const contains = [];
+  const groups = [[], [], [], []];      // exact · word starts · contains · already added
   const seen = new Set();
   (categories || []).forEach(cat => (cat.items || []).forEach(name => {
     const n = norm(name);
-    if (seen.has(n) || takenSet.has(n)) return;
+    if (seen.has(n)) return;
     seen.add(n);
-    const hit = { name, cat, price: priceOf(cat, name) };
-    if (n.startsWith(q) || n.split(/[\s/(&-]+/).some(w => w.startsWith(q))) starts.push(hit);
-    else if (n.includes(q)) contains.push(hit);
+    const hit = { name, cat, price: priceOf(cat, name), added: takenSet.has(n) };
+    const rank = n === q ? 0 : (n.startsWith(q) || n.split(/[\s/(&-]+/).some(w => w.startsWith(q))) ? 1 : n.includes(q) ? 2 : -1;
+    if (rank < 0) return;
+    groups[hit.added ? 3 : rank].push(hit);
   }));
-  return [...starts, ...contains].slice(0, limit);
+  return [...groups[0], ...groups[1], ...groups[2]].slice(0, limit).concat(groups[3].slice(0, 3));
 }
 
 /** A category to suggest for a new service: "Miscellaneous" / "Other" if there is one, else the first */

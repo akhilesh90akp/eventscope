@@ -91,17 +91,22 @@ test('saveCategoryRows: names, prices, new rows; empty rows dropped; twice refus
 // ============================================================
 // SUGGESTIONS / ADD TO SERVICES
 // ============================================================
-import { serviceMatches, isService, addServiceItem, suggestCategoryId } from '../src/utils/servicePrices.js';
+import { serviceMatches, isService, addServiceItem, suggestCategoryId, serviceName } from '../src/utils/servicePrices.js';
 
 test('serviceMatches: word starts first, then contains; taken left out; with price', () => {
   const cats = [{ id: 'a', name: 'AV', items: ['LED Wall', 'Projector', 'Wireless Mic', 'Mic Stand'], prices: { 'Mic Stand': { rate: 300, unit: 'day' } } }];
   assert.deepEqual(serviceMatches(cats, 'mic').map(m => m.name), ['Wireless Mic', 'Mic Stand']);
   assert.deepEqual(serviceMatches(cats, 'ro').map(m => m.name), ['Projector']);
-  assert.deepEqual(serviceMatches(cats, 'mic', ['mic stand']).map(m => m.name), ['Wireless Mic']);
+  const t = serviceMatches(cats, 'mic', ['mic stand']);
+  assert.deepEqual(t.map(m => [m.name, m.added]), [['Wireless Mic', false], ['Mic Stand', true]]);   // already in the event: last, marked
+  const arch = [{ id: 'd', name: 'Decor', items: ['Church Entrance Arch', 'Entrance Arch'] }];
+  assert.deepEqual(serviceMatches(arch, 'entrance arch').map(m => m.name), ['Entrance Arch', 'Church Entrance Arch']);   // exact first
   assert.deepEqual(serviceMatches(cats, 'stand')[0].price, { rate: 300, unit: 'day' });
   assert.deepEqual(serviceMatches(cats, ''), []);
   assert.equal(isService(cats, ' led wall '), true);
   assert.equal(isService(cats, 'Drone'), false);
+  assert.equal(serviceName(cats, ' led wall '), 'LED Wall');
+  assert.equal(serviceName(cats, 'Drone shoot '), 'Drone shoot');
 });
 
 test('addServiceItem: adds with price; duplicate refused; suggestCategoryId prefers Miscellaneous', () => {

@@ -15,10 +15,10 @@
 // IMPORTS
 // ============================================================
 import React, { useMemo, useRef, useState } from 'react';
-import { BookmarkPlus, ChevronDown, Plus, TriangleAlert, X } from 'lucide-react';
+import { BookmarkPlus, Check, ChevronDown, Plus, TriangleAlert, X } from 'lucide-react';
 import BottomSheet from './BottomSheet';
 import { serviceNames, suggestServices, formatRupees } from '../utils/helpers';
-import { findDefaultPrice, unitShort, isService } from '../utils/servicePrices';
+import { findDefaultPrice, unitShort, isService, serviceMatches } from '../utils/servicePrices';
 import SaveToServicesSheet from './SaveToServicesSheet';
 
 // ============================================================
@@ -43,19 +43,28 @@ export default function AddItemsSheet({ events, categories, onSave, onClose, can
   const inputRef = useRef(null);
 
   const event = events.find(e => e.id === eventId);
-  const inEvent = event ? event.items : [];
+  const inEvent = useMemo(() => (event ? event.items : []), [event]);
   const services = useMemo(() => serviceNames(categories), [categories]);
-  const chips = suggestServices(services, text, [...names, ...inEvent]);
+  // Typed: matching services (exact name first); names already in the event or
+  // the list show as a ticked "added" chip instead of disappearing.
+  const matches = useMemo(() => serviceMatches(categories, text, [...names, ...inEvent], 8), [categories, text, names, inEvent]);
+  const chips = text.trim() ? matches.filter(m => !m.added).map(m => m.name) : suggestServices(services, text, [...names, ...inEvent]);
+  const addedChips = text.trim() ? matches.filter(m => m.added).map(m => m.name) : [];
   const [saving, setSaving] = useState(null);       // a typed name being saved to services
   const typed = text.trim();
   const offerSave = canSave && typed.length > 1 && !isService(categories, typed);
 
+  // Names compare without case ("entrance arch" = "Entrance Arch"), and a typed
+  // service takes the service's own spelling.
+  const has = (list, n) => list.some(x => x.toLowerCase() === n.toLowerCase());
+  const asService = (n) => services.find(x => x.toLowerCase() === n.toLowerCase()) || n;
+
   /** Adds one name to the list; says why when it can't */
   const addName = (raw) => {
-    const name = (raw || '').trim();
+    const name = asService((raw || '').trim());
     if (!name) return false;
-    if (names.includes(name)) { setNote('Already in your list'); return false; }
-    if (inEvent.includes(name)) { setNote(`Already in ${event.name}`); return false; }
+    if (has(names, name)) { setNote('Already in your list'); return false; }
+    if (has(inEvent, name)) { setNote(`Already in ${event.name}`); return false; }
     setNames(n => [name, ...n]);
     setNote('');
     setError(e => (e === 'items' ? '' : e));
@@ -66,13 +75,13 @@ export default function AddItemsSheet({ events, categories, onSave, onClose, can
   const save = () => {
     if (!eventId) { setError('event'); selectRef.current?.focus(); return; }
     let list = names;
-    const typed = text.trim();
-    if (typed && !list.includes(typed) && !inEvent.includes(typed)) list = [typed, ...list];   // a name still in the box counts
+    const typed = asService(text.trim());
+    if (typed && !has(list, typed) && !has(inEvent, typed)) list = [typed, ...list];   // a name still in the box counts
     if (!list.length) { setError('items'); inputRef.current?.focus(); return; }
-    onSave(eventId, list.filter(n => !inEvent.includes(n)));
+    onSave(eventId, list.filter(n => !has(inEvent, n)));
   };
 
-  const count = names.length + (text.trim() && !names.includes(text.trim()) ? 1 : 0);
+  const count = names.length + (typed && !has(names, typed) && !has(inEvent, typed) ? 1 : 0);
 
   return (
     <BottomSheet open onClose={onClose} title="Add items" testId="add-items-sheet"
@@ -122,13 +131,18 @@ export default function AddItemsSheet({ events, categories, onSave, onClose, can
           )}
         </div>
 
-        {chips.length > 0 && (
+        {(chips.length > 0 || addedChips.length > 0) && (
           <div>
-            <p className="text-[12px] font-bold uppercase tracking-wider text-gray-600 mb-2">{text.trim().length >= 2 ? 'Matching your services' : 'From your services'}</p>
+            <p className="text-[12px] font-bold uppercase tracking-wider text-gray-600 mb-2">{text.trim() ? 'Matching your services' : 'From your services'}</p>
             <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-1 px-1" data-testid="add-chips">
               {chips.map(n => (
                 <button key={n} onClick={() => { if (addName(n)) setText(''); }}
                   className="shrink-0 min-h-[40px] px-3.5 rounded-full border border-gray-300 bg-white text-[14px] font-semibold whitespace-nowrap cursor-pointer">{n}</button>
+              ))}
+              {addedChips.map(n => (
+                <span key={`added-${n}`} data-testid="add-chip-added" className="shrink-0 min-h-[40px] px-3.5 rounded-full border border-emerald-200 bg-emerald-50 text-[14px] font-semibold text-emerald-700 whitespace-nowrap inline-flex items-center gap-1.5">
+                  <Check size={15} />{n} · added
+                </span>
               ))}
             </div>
           </div>

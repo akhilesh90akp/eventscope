@@ -85,7 +85,7 @@ import QuoteRevisionsSheet from '../components/QuoteRevisionsSheet';
 import { FitBudgetLaptop, QuoteRevisionsLaptop } from '../components/QuoteDialogsLaptop';
 import { fitUnits, applyFit, makeRevision, addRevision } from '../utils/quoteFit';
 import { copyQuoteItems, pasteQuoteItems, clipItemCount, readClip, writeClip, CLIP_EVENT } from '../utils/copyPaste';
-import { startingPrice } from '../utils/servicePrices';
+import { startingPrice, serviceName } from '../utils/servicePrices';
 import {
   Wand2, History, FileSignature, ChevronsDownUp, ChevronsUpDown, Copy, ClipboardPaste, Type, FolderInput, FolderOutput, Trash2, Undo2, Pencil,
 } from 'lucide-react';
@@ -469,9 +469,10 @@ export default function QuotationGenerator() {
 
   /** Adds a custom free-text item to the given section's quotation (main event or a specific sub-event) */
   const handleAddItem = (sectionId, picked) => {
-    const name = (picked ?? newItemNames[sectionId] ?? '').trim();   // a picked suggestion, or what is typed
-    if (!name) return;
-    if ((sectionItems[sectionId] || []).includes(name)) {   // say so instead of doing nothing (e.g. a duplicated quote already has it)
+    const typed = (picked ?? newItemNames[sectionId] ?? '').trim();   // a picked suggestion, or what is typed
+    if (!typed) return;
+    const name = serviceName(categories, typed);                       // "entrance arch" → "Entrance Arch"
+    if ((sectionItems[sectionId] || []).some(n => n.toLowerCase() === name.toLowerCase())) {   // say so instead of doing nothing (e.g. a duplicated quote already has it)
       showToast(`“${name}” is already in ${printGroups.find(g => g.id === sectionId)?.name || 'this event'} — change its qty instead`, 'error');
       return;
     }

@@ -3,7 +3,8 @@
  *
  * As you type, a list opens under the box with matching services (name,
  * category, default price). ↑ ↓ move, Enter or a click adds the highlighted
- * service; with nothing highlighted Enter adds what is typed. When the typed
+ * service; with nothing highlighted Enter adds what is typed. Services already
+ * in this event are listed last as "Already added" (not pickable). When the typed
  * name isn't a service, the last row offers "Add and save to services…"
  * (owners only), which opens SaveToServicesSheet.
  *
@@ -36,8 +37,10 @@ export default function ItemSuggestInput({ value, onChange, onAdd, categories, t
   const typed = (value || '').trim();
   const matches = useMemo(() => serviceMatches(categories, typed, taken, 6), [categories, typed, taken]);
   const offerSave = canSave && typed.length > 1 && !isService(categories, typed) && !(taken || []).some(t => t.toLowerCase() === typed.toLowerCase());
-  const rows = [...matches.map(m => ({ kind: 'service', ...m })), ...(offerSave ? [{ kind: 'save', name: typed }] : [])];
-  const show = open && typed && rows.length > 0;
+  const free = matches.filter(m => !m.added);
+  const added = matches.filter(m => m.added);       // already in this event: shown, not pickable
+  const rows = [...free.map(m => ({ kind: 'service', ...m })), ...(offerSave ? [{ kind: 'save', name: typed }] : [])];
+  const show = open && typed && (rows.length > 0 || added.length > 0);
 
   // Add a just-saved service only after the page has the updated services,
   // so the quote picks up the default price that was typed with it.
@@ -70,7 +73,7 @@ export default function ItemSuggestInput({ value, onChange, onAdd, categories, t
         className="w-full h-[38px] rounded-xl border border-bb-border bg-bb-input px-3 text-[13.5px] text-bb-text placeholder:text-bb-muted/70 focus:outline-none focus:ring-2 focus:ring-bb-accent/40" />
       {show && (
         <ul role="listbox" data-testid="item-suggest" className="absolute left-0 right-0 top-full mt-1.5 z-30 bg-white border border-bb-border rounded-xl shadow-lg py-1 max-h-72 overflow-y-auto">
-          {matches.length > 0
+          {free.length > 0 || added.length > 0
             ? <li className="px-3 pt-1.5 pb-1 text-[11px] font-bold uppercase tracking-wider text-bb-muted">From your services</li>
             : <li className="px-3 pt-1.5 pb-1 text-[12px] text-bb-muted">Not in your services yet. Press Enter to add it to this quote only.</li>}
           {rows.map((r, i) => (
@@ -95,6 +98,13 @@ export default function ItemSuggestInput({ value, onChange, onAdd, categories, t
                   </>
                 )}
               </button>
+            </li>
+          ))}
+          {added.map(m => (
+            <li key={`added-${m.name}`} data-testid="suggest-added" className="flex items-center gap-2.5 px-3 py-2 text-bb-muted">
+              <span className="text-[15px] leading-none opacity-60">{m.cat.icon}</span>
+              <span className="flex-1 min-w-0 text-[13.5px] truncate">{m.name}</span>
+              <span className="text-[12px] font-semibold whitespace-nowrap">Already added</span>
             </li>
           ))}
         </ul>
