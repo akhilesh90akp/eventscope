@@ -113,3 +113,25 @@ test('addServiceItem: adds with price; duplicate refused; suggestCategoryId pref
   assert.equal(suggestCategoryId(cats), 'm');
   assert.equal(suggestCategoryId([{ id: 'x', name: 'Decor' }]), 'x');
 });
+
+// ============================================================
+// FILE IMPORT / EXPORT
+// ============================================================
+import { parseServicesFile, servicesToCsv } from '../src/utils/servicePrices.js';
+
+test('parseServicesFile: CSV with quotes, units, blank prices; duplicates skipped', () => {
+  const csv = 'Category,Icon,Item,Price,Unit\nLighting,💡,Serial Lights,70,item\nLighting,💡,"Oil, Lamp Wick, Match box",,\nScreens,🔊,LED Wall,110,sq ft\nScreens,🔊,serial lights,5,\nPower,⚡,Generator 3KV,"1,400",per day\n';
+  const r = parseServicesFile(csv);
+  assert.equal(r.categories.length, 3);
+  assert.deepEqual(r.categories[0], { name: 'Lighting', icon: '💡', items: ['Serial Lights', 'Oil, Lamp Wick, Match box'], prices: { 'Serial Lights': { rate: 70, unit: 'item' } } });
+  assert.deepEqual(r.categories[1].prices, { 'LED Wall': { rate: 110, unit: 'sqft' } });
+  assert.deepEqual(r.categories[2].prices['Generator 3KV'], { rate: 1400, unit: 'day' });
+  assert.ok(parseServicesFile('Name,Price\nx,1').error);
+  assert.ok(parseServicesFile('').error);
+});
+
+test('servicesToCsv → parseServicesFile gives the same services back', () => {
+  const cats = [{ name: 'A, B', icon: '🎨', items: ['X "big"', 'Y'], prices: { 'X "big"': { rate: 500, unit: 'sqft' } } }];
+  const back = parseServicesFile(servicesToCsv(cats)).categories;
+  assert.deepEqual(back, [{ name: 'A, B', icon: '🎨', items: ['X "big"', 'Y'], prices: { 'X "big"': { rate: 500, unit: 'sqft' } } }]);
+});

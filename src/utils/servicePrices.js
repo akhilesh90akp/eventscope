@@ -200,3 +200,75 @@ export function saveCategoryRows(cat, { icon, name, rows }) {
   }
   return { category: { ...cat, icon: icon || cat.icon || '📦', name: catName, items, prices } };
 }
+
+// ============================================================
+// FILE IMPORT / EXPORT (Settings → Services → "Replace from file" / "Download list")
+// ============================================================
+
+/** Unit words a file may use → unit id ("sq ft", "per day", "Day" …) */
+const UNIT_WORDS = { item: 'item', day: 'day', hour: 'hour', event: 'event', package: 'package', person: 'person', plate: 'person', sqft: 'sqft', 'sq ft': 'sqft', sqrft: 'sqft', rft: 'rft', 'running ft': 'rft', night: 'night', km: 'km' };
+const unitFrom = (s) => {
+  const w = norm(s).replace(/^per\s+/, '').replace(/\s*\/\s*plate$/, '');
+  return UNIT_WORDS[w] || UNIT_WORDS[w.replace(/\s+/g, '')] || DEFAULT_UNIT;
+};
+
+/** Splits CSV text into rows of cells (quotes and commas inside quotes handled) */
+function csvRows(text) {
+  const rows = [];
+  let row = [], cell = '', quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (quoted) {
+      if (ch === '"' && text[i + 1] === '"') { cell += '"'; i++; }
+      else if (ch === '"') quoted = false;
+      else cell += ch;
+    } else if (ch === '"') quoted = true;
+    else if (ch === ',') { row.push(cell); cell = ''; }
+    else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && text[i + 1] === '\n') i++;
+      row.push(cell); rows.push(row); row = []; cell = '';
+    } else cell += ch;
+  }
+  if (cell || row.length) { row.push(cell); rows.push(row); }
+  return rows.filter(r => r.some(c => c.trim()));
+}
+
+/**
+ * Reads a services file → { categories: [{ name, icon, items, prices }] } or { error }.
+ * CSV with a header row: Category, Icon (optional), Item, Price (optional), Unit (optional).
+ * Names already used in another category are skipped (a service lives in one category).
+ */
+export function parseServicesFile(text) {
+  const rows = csvRows(String(text || '').replace(/^﻿/, ''));
+  if (rows.length < 2) return { error: 'The file has no services in it' };
+  const head = rows[0].map(h => norm(h));
+  const col = (name) => head.indexOf(name);
+  const cCat = col('category'), cItem = col('item'), cIcon = col('icon'), cPrice = col('price'), cUnit = col('unit');
+  if (cCat < 0 || cItem < 0) return { error: 'The first row needs the columns Category and Item' };
+  const cats = [];
+  const seen = new Set();
+  rows.slice(1).forEach(r => {
+    const catName = (r[cCat] || '').trim();
+    const item = (r[cItem] || '').trim();
+    if (!catName || !item || seen.has(norm(item))) return;
+    seen.add(norm(item));
+    let cat = cats.find(c => norm(c.name) === norm(catName));
+    if (!cat) { cat = { name: catName, icon: (cIcon >= 0 && r[cIcon]?.trim()) || '📦', items: [], prices: {} }; cats.push(cat); }
+    cat.items.push(item);
+    const p = cleanPrice(cPrice >= 0 ? r[cPrice] : '', cUnit >= 0 ? unitFrom(r[cUnit]) : DEFAULT_UNIT);
+    if (p) cat.prices[item] = p;
+  });
+  if (!cats.length) return { error: 'The file has no services in it' };
+  return { categories: cats };
+}
+
+/** The company's services as CSV text (same columns parseServicesFile reads) */
+export function servicesToCsv(categories) {
+  const q = (s) => (/[",\n]/.test(String(s)) ? `"${String(s).replace(/"/g, '""')}"` : String(s));
+  const lines = ['Category,Icon,Item,Price,Unit'];
+  (categories || []).forEach(c => (c.items || []).forEach(i => {
+    const p = priceOf(c, i);
+    lines.push([c.name, c.icon || '', i, p ? p.rate : '', p ? unitShort(p.unit) : ''].map(q).join(','));
+  }));
+  return lines.join('\n') + '\n';
+}

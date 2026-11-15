@@ -8,7 +8,10 @@
  *     "+ Add price", ✎ Edit item and × remove; an "Add new item…" box;
  *   - ✎ on a category opens Edit category: icon, name and every item's name,
  *     price and unit in one list (Save changes);
- *   - Edit item: name, category, default price + unit (Save item).
+ *   - Edit item: name, category, default price + unit (Save item);
+ *   - owners: "Download list" (CSV) and "Replace from file…" (a CSV with
+ *     Category, Icon, Item, Price, Unit — asks first, then replaces every
+ *     category; quotes already made keep their own items and prices).
  * Laptops show items two to a row; phones one per row (tap the row to edit).
  * Pop-ups are BottomSheets (a dialog on laptops). Saving goes through
  * AppContext (categories are saved at once, as before — no Save button).
@@ -17,14 +20,14 @@
 // ============================================================
 // IMPORTS
 // ============================================================
-import React, { useMemo, useState } from 'react';
-import { ChevronRight, Edit2, Trash2, X, Plus, Search } from 'lucide-react';
+import React, { useMemo, useRef, useState } from 'react';
+import { ChevronRight, Edit2, Trash2, X, Plus, Search, Upload, Download } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useConfirm } from './useConfirm';
 import BottomSheet from './BottomSheet';
 import { suggestServiceEmoji } from '../utils/serviceEmoji';
-import { formatRupees } from '../utils/helpers';
-import { PRICE_UNITS, DEFAULT_UNIT, priceOf, unitShort, editServiceItem, saveCategoryRows } from '../utils/servicePrices';
+import { formatRupees, genId } from '../utils/helpers';
+import { PRICE_UNITS, DEFAULT_UNIT, priceOf, unitShort, editServiceItem, saveCategoryRows, parseServicesFile, servicesToCsv } from '../utils/servicePrices';
 
 // ============================================================
 // SMALL PARTS
@@ -79,6 +82,7 @@ export default function ServicesSettings({ isPhone, canEdit }) {
   const [newCatIcon, setNewCatIcon] = useState('📦');
   const [itemEdit, setItemEdit] = useState(null);        // { catId, name }
   const [catEdit, setCatEdit] = useState(null);          // catId
+  const fileRef = useRef(null);
 
   // Search: categories whose name matches show all items; others show matching items only
   const q = query.trim().toLowerCase();
@@ -127,6 +131,32 @@ export default function ServicesSettings({ isPhone, canEdit }) {
     const { icon, name, items, prices } = r.category;
     const res = await updateCategory(cat.id, { icon, name, items, prices });
     if (res?.success) { showToast('Category saved'); setCatEdit(null); }
+  };
+
+  /** Owners: replace every category with the services in a CSV file (asks first) */
+  const replaceFromFile = async (file) => {
+    if (!file) return;
+    const r = parseServicesFile(await file.text());
+    if (r.error) { showToast(r.error, 'error'); return; }
+    const items = r.categories.reduce((n, c) => n + c.items.length, 0);
+    const priced = r.categories.reduce((n, c) => n + Object.keys(c.prices).length, 0);
+    const nowItems = categories.reduce((n, c) => n + (c.items || []).length, 0);
+    const ok = await confirm({
+      title: 'Replace your services?',
+      message: `Your ${categories.length} categories (${nowItems} items) will be replaced by ${r.categories.length} categories with ${items} items (${priced} with a price) from “${file.name}”. Quotes you already made don’t change.`,
+      confirmLabel: 'Replace', tone: 'danger',
+    });
+    if (!ok) return;
+    const res = await replaceCategories(r.categories.map(c => ({ id: genId(), ...c })));
+    if (res?.success) { setOpen(new Set()); showToast(`Services replaced: ${r.categories.length} categories, ${items} items`); }
+  };
+
+  /** Owners: the services as a CSV file (also the format "Replace from file" reads) */
+  const downloadList = () => {
+    const url = URL.createObjectURL(new Blob(['\uFEFF' + servicesToCsv(categories)], { type: 'text/csv;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = 'services.csv'; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   // ------------------------------------------------------------
@@ -225,6 +255,17 @@ export default function ServicesSettings({ isPhone, canEdit }) {
           <button type="button" onClick={addCat} className={`rounded-xl bg-bb-accent text-white font-semibold px-4 flex items-center gap-1.5 cursor-pointer ${isPhone ? 'h-12' : 'h-10 text-[14px]'}`}><Plus size={16} />Add</button>
         </div>
       </div>
+
+      {/* Owners: download / replace the whole list */}
+      {canEdit && (
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 px-1 text-[13.5px]">
+          <button type="button" onClick={downloadList} data-testid="services-download" className="min-h-[40px] inline-flex items-center gap-1.5 font-semibold text-bb-accent cursor-pointer"><Download size={15} />Download list</button>
+          <button type="button" onClick={() => fileRef.current?.click()} data-testid="services-replace" className="min-h-[40px] inline-flex items-center gap-1.5 font-semibold text-bb-accent cursor-pointer"><Upload size={15} />Replace from file…</button>
+          <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" data-testid="services-file"
+            onChange={e => { replaceFromFile(e.target.files?.[0]); e.target.value = ''; }} />
+          <span className="text-[12.5px] text-gray-500">CSV columns: Category, Icon, Item, Price, Unit</span>
+        </div>
+      )}
 
       {itemEdit && editingItemCat && (
         <ItemSheet key={`${itemEdit.catId}::${itemEdit.name}`} isPhone={isPhone} canEdit={canEdit} categories={categories} cat={editingItemCat} item={itemEdit.name}

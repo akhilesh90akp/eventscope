@@ -53,7 +53,7 @@ src/
     Badge, Toggle, ErrorBoundary,
     JobEventLaptop (a completed event's costs & income as a laptop pop-up), JobLogColumnsEditor (Settings tab),
     ServicesSettings (Settings → Services: search, categories that fold open, items with default price,
-      Edit item and Edit category pop-ups — laptop and phone),
+      Edit item and Edit category pop-ups, owners' Download list / Replace from file (CSV) — laptop and phone),
     ItemSuggestInput (laptop quote "Add an item" box: matching services with price as you type, ↑↓ Enter),
     SaveToServicesSheet (save a typed item to a category with an optional price — laptop box and phone Add items),
     ImportCompanyDialog (Admin: create a company from an old app's backup),
@@ -102,7 +102,7 @@ src/
     servicePrices.js        Default prices for service items (category.prices = { item: { rate, unit } }):
                             units (per day / event / person…), the price an added item starts at
                             (per day counts the function's days, other units 1 day), Edit item /
-                            Edit category list changes (no Firestore)
+                            Edit category list changes, services CSV read/write (no Firestore)
     push.js                 This device's push token (Firebase Cloud Messaging); saving is in AppContext
     install.js              "Install app": keeps the browser's install prompt (Android / Chrome / Edge), says if this device can install, shows iPhone steps instead
     startupTiming.js        Records how long opening the app took (shown at the bottom of Settings)
