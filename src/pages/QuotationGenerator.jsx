@@ -1207,7 +1207,8 @@ export default function QuotationGenerator() {
                   <span style={{fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: brand}}>BILL TO/ CLIENT</span><br/>
                   <span style={{fontSize: '14px', fontWeight: '700', color: '#1f2937', lineHeight: '2'}}>{event.clientName}</span><br/>
                   {event.clientPhone && <span style={{fontSize: '11px', color: '#6b7280'}}>Phone: {event.clientPhone}</span>}
-                  {event.clientAddress && <><br/><span style={{fontSize: '11px', color: '#6b7280'}}>{event.clientAddress}</span></>}
+                  {event.clientAddress && <><br/><span style={{fontSize: '11px', color: '#6b7280', whiteSpace: 'pre-line'}}>{event.clientAddress}</span></>}
+                  {event.clientGstin && <><br/><span style={{fontSize: '11px', color: '#374151', fontWeight: '600'}}>GSTIN: {event.clientGstin}</span></>}
                 </div>
               </td>
               <td colSpan="2" style={{verticalAlign: 'top', padding: '16px 24px 12px', width: '40%'}}>

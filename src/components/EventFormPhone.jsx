@@ -27,7 +27,7 @@ import VenueInput from './VenueInput';
 import { useConfirm } from './useConfirm';
 import { FunctionRow, SectionLabel, SwitchRow, DateField, TextField, IconButton } from './PhoneUI';
 import { EVENT_TYPES } from '../constants/data';
-import { functionDatesProblem, functionDays } from '../utils/helpers';
+import { functionDatesProblem, functionDays, cleanGstin } from '../utils/helpers';
 
 // ============================================================
 // CONSTANTS
@@ -263,7 +263,8 @@ export default function EventFormPhone({ f }) {
           </div>
           <SwitchRow title="WhatsApp is the same number" checked={waSame} onChange={setWaSameOn} testId="wa-same" />
           {!waSame && <TextField label="WhatsApp" placeholder="WhatsApp number" inputMode="tel" value={f.form.clientWhatsapp} onChange={e => f.set('clientWhatsapp', e.target.value)} />}
-          <TextField label="Address" placeholder="Client address (optional)" value={f.form.clientAddress} onChange={e => f.set('clientAddress', e.target.value)} />
+          <TextField label="Client GSTIN" placeholder="Optional, e.g. 32ABCDE1234F1Z5" autoCapitalize="characters" value={f.form.clientGstin || ''} onChange={e => f.set('clientGstin', cleanGstin(e.target.value))} data-testid="client-gstin" />
+          <TextField label="Address" as="textarea" rows={3} placeholder="Client address (optional)" value={f.form.clientAddress} onChange={e => f.set('clientAddress', e.target.value)} data-testid="client-address" />
         </div>
         {f.mode !== 'edit' && pastClients.length > 0 && (
           <p className="text-center text-[14px] text-gray-600">Already a client?{' '}
@@ -397,6 +398,7 @@ export default function EventFormPhone({ f }) {
               f.set('clientWhatsapp', c.clientWhatsapp && c.clientWhatsapp !== c.clientPhone ? c.clientWhatsapp : '');
               setWaSame(!c.clientWhatsapp || c.clientWhatsapp === c.clientPhone);
               f.set('clientAddress', c.clientAddress || '');
+              f.set('clientGstin', c.clientGstin || '');
               setClientsOpen(false);
             }} className="w-full flex items-center gap-3 min-h-[58px] border-b border-bb-border text-left cursor-pointer">
               <Users size={18} className="text-bb-accent shrink-0" />

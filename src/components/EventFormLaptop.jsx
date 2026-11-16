@@ -19,11 +19,11 @@
 // ============================================================
 import React, { useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, Plus, Search, Trash2, Users, X } from 'lucide-react';
-import { PageHeader, Field, Switch } from './LaptopUI';
+import { PageHeader, Field, FieldArea, Switch } from './LaptopUI';
 import VenueInput from './VenueInput';
 import { useConfirm } from './useConfirm';
 import { EVENT_TYPES } from '../constants/data';
-import { functionDatesProblem, functionDays, formatDateReadable } from '../utils/helpers';
+import { functionDatesProblem, functionDays, formatDateReadable, cleanGstin } from '../utils/helpers';
 
 // ============================================================
 // CONSTANTS
@@ -238,7 +238,8 @@ export default function EventFormLaptop({ f }) {
                 <input type="checkbox" checked={waSame} onChange={e => setWaSameOn(e.target.checked)} className="w-4 h-4 accent-bb-accent" data-testid="wa-same" />Same as phone
               </label>
             </div>
-            <Field label="Address" placeholder="Client address (optional)" value={f.form.clientAddress} onChange={e => f.set('clientAddress', e.target.value)} />
+            <Field label="Client GSTIN" placeholder="Optional, e.g. 32ABCDE1234F1Z5" value={f.form.clientGstin || ''} onChange={e => f.set('clientGstin', cleanGstin(e.target.value))} data-testid="client-gstin" />
+            <FieldArea label="Address" className="col-span-2" placeholder="Client address (optional)" value={f.form.clientAddress} onChange={e => f.set('clientAddress', e.target.value)} data-testid="client-address" />
           </div>
           {!edit && pastClients.length > 0 && (
             <div>
@@ -253,6 +254,7 @@ export default function EventFormLaptop({ f }) {
                         f.set('clientWhatsapp', c.clientWhatsapp && c.clientWhatsapp !== c.clientPhone ? c.clientWhatsapp : '');
                         setWaSame(!c.clientWhatsapp || c.clientWhatsapp === c.clientPhone);
                         f.set('clientAddress', c.clientAddress || '');
+                        f.set('clientGstin', c.clientGstin || '');
                         setClientsOpen(false);
                       }} className="w-full text-left px-3 py-2 border-b border-gray-100 last:border-0 hover:bg-violet-50 cursor-pointer">
                         <b className="block text-[13.5px]">{c.clientName}</b><span className="text-[12.5px] text-gray-600">{c.clientPhone} · {c.eventType}</span>

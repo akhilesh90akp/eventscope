@@ -150,6 +150,9 @@ export const roundOff = (amt) => {
  */
 export const genId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 9);
 
+/** A GSTIN as typed → capitals, no spaces, at most 15 characters */
+export const cleanGstin = (v) => String(v || '').toUpperCase().replace(/[^0-9A-Z]/g, '').slice(0, 15);
+
 /** Invites are keyed by the invitee's Google email, lower-cased. */
 export const inviteKey = (email) => (email || '').trim().toLowerCase();
 

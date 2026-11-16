@@ -202,6 +202,17 @@ export function Field({ label, id, className = '', ...rest }) {
   );
 }
 
+/** Labelled multi-line box (addresses); any <textarea> props pass through */
+export function FieldArea({ label, id, className = '', rows = 3, ...rest }) {
+  return (
+    <label className={`block min-w-0 ${className}`} htmlFor={id}>
+      <span className="block text-[12.5px] font-semibold text-gray-700 mb-1">{label}</span>
+      <textarea id={id} rows={rows} {...rest}
+        className="w-full rounded-xl border border-bb-border bg-bb-input px-3 py-2 text-[13.5px] leading-snug text-bb-text placeholder:text-bb-muted/70 resize-y focus:outline-none focus:ring-2 focus:ring-bb-accent/40" />
+    </label>
+  );
+}
+
 /** One labelled column inside a form card */
 export function FormCol({ title, children, className = '' }) {
   return (

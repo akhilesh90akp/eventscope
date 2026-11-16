@@ -27,7 +27,7 @@ import { useApp } from '../context/AppContext';
 import Button from '../components/Button';
 import PdfButton from '../components/PdfButton';
 import DaysCell from '../components/DaysCell';
-import { formatRupees, formatCurrency, formatDateReadable, calcGST, roundOff, nextInvoiceNo, waLink, buildLineEntries, computeSectionTotal, getEventSections, functionDateText, itemDays, lineAmount, usesDays, getEventBill } from '../utils/helpers';
+import { formatRupees, formatCurrency, formatDateReadable, calcGST, roundOff, nextInvoiceNo, waLink, buildLineEntries, computeSectionTotal, getEventSections, functionDateText, itemDays, lineAmount, usesDays, getEventBill, cleanGstin } from '../utils/helpers';
 import { DEFAULT_SAC_CODE } from '../constants/data';
 import { Printer, MessageSquare, Save } from 'lucide-react';
 import { docBrandColor, showsEventScopeMark } from '../utils/billing';
@@ -37,7 +37,7 @@ import ActionBar from '../components/ActionBar';
 import DocFit from '../components/DocFit';
 import StickyBar from '../components/StickyBar';
 import { SegmentedTabs, SectionLabel, SwitchRow, DateField, TextField, IconButton } from '../components/PhoneUI';
-import { PageHeader, HeaderIcon, Field, FormCol, Seg, Switch } from '../components/LaptopUI';
+import { PageHeader, HeaderIcon, Field, FieldArea, FormCol, Seg, Switch } from '../components/LaptopUI';
 
 // ============================================================
 // BillGenerator — MAIN COMPONENT
@@ -67,6 +67,7 @@ export default function BillGenerator() {
   const [invoiceDate, setInvoiceDate] = useState(() => bd.invoiceDate ?? new Date().toISOString().split('T')[0]);
   const [billToName, setBillToName] = useState(() => bd.billToName ?? event?.clientName ?? '');
   const [billToAddress, setBillToAddress] = useState(() => bd.billToAddress ?? event?.clientAddress ?? '');
+  const [billToGstin, setBillToGstin] = useState(() => bd.billToGstin ?? event?.clientGstin ?? '');   // client's GSTIN, printed under Bill to
   // A new bill starts with the discount given on the quote (if any)
   const quoteDiscount = (ev) => (ev ? getEventBill({ ...ev, billDetails: undefined }).discount : 0);
   const [discount, setDiscount] = useState(() => bd.discount ?? quoteDiscount(event));
@@ -113,6 +114,7 @@ export default function BillGenerator() {
       invoiceDate: loaded.invoiceDate ?? invoiceDate,
       billToName: loaded.billToName ?? billToName,
       billToAddress: loaded.billToAddress ?? billToAddress,
+      billToGstin: loaded.billToGstin ?? event.clientGstin ?? billToGstin,
       discount: loaded.discount ?? quoteDiscount(event),
       advance: loaded.advance ?? advance,
       gstEnabled: loaded.gstEnabled ?? event.quoteDetails?.gstEnabled ?? gstEnabled,
@@ -123,6 +125,7 @@ export default function BillGenerator() {
     setInvoiceDate(hydrated.invoiceDate);
     setBillToName(hydrated.billToName);
     setBillToAddress(hydrated.billToAddress);
+    setBillToGstin(hydrated.billToGstin);
     setDiscount(hydrated.discount);
     setAdvance(hydrated.advance);
     setGstEnabled(hydrated.gstEnabled);
@@ -157,7 +160,7 @@ export default function BillGenerator() {
   // after an edit is undone back to the saved value).
   useEffect(() => {
     if (lastSavedRef.current === null) return;
-    const current = { invoiceNo, invoiceDate, billToName, billToAddress, discount, advance, gstEnabled, gstRate, interState };
+    const current = { invoiceNo, invoiceDate, billToName, billToAddress, billToGstin, discount, advance, gstEnabled, gstRate, interState };
     const currentStr = JSON.stringify(current);
     if (currentStr === lastSavedRef.current) {
       setHasUnsavedChanges(false);
@@ -170,11 +173,11 @@ export default function BillGenerator() {
     }, 1000);
     return () => clearTimeout(saveTimeoutRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [invoiceNo, invoiceDate, billToName, billToAddress, discount, advance, gstEnabled, gstRate, interState]);
+  }, [invoiceNo, invoiceDate, billToName, billToAddress, billToGstin, discount, advance, gstEnabled, gstRate, interState]);
 
   /** Manual Save button — saves immediately if there's a pending edit not yet auto-saved, otherwise just confirms it's already saved. */
   const handleManualSave = () => {
-    const current = { invoiceNo, invoiceDate, billToName, billToAddress, discount, advance, gstEnabled, gstRate, interState };
+    const current = { invoiceNo, invoiceDate, billToName, billToAddress, billToGstin, discount, advance, gstEnabled, gstRate, interState };
     const currentStr = JSON.stringify(current);
     if (lastSavedRef.current === currentStr) {
       showToast('Already saved');
@@ -325,7 +328,8 @@ export default function BillGenerator() {
           </FormCol>
           <FormCol title="Bill to">
             <Field label="Name" id="bill-name" value={billToName} onChange={e => setBillToName(e.target.value)} />
-            <Field label="Address" id="bill-address" value={billToAddress} placeholder="Client address" onChange={e => setBillToAddress(e.target.value)} />
+            <FieldArea label="Address" id="bill-address" rows={2} value={billToAddress} placeholder="Client address" onChange={e => setBillToAddress(e.target.value)} />
+            <Field label="Client GSTIN" id="bill-gstin" value={billToGstin} placeholder="Optional" onChange={e => setBillToGstin(cleanGstin(e.target.value))} />
           </FormCol>
           <FormCol title="Payment & GST">
             <div className="grid grid-cols-2 gap-3">
@@ -359,7 +363,8 @@ export default function BillGenerator() {
               <SectionLabel>Bill to</SectionLabel>
               <div className="bg-white border border-bb-border rounded-2xl p-[18px] space-y-4">
                 <TextField label="Name" value={billToName} onChange={e => setBillToName(e.target.value)} />
-                <TextField label="Address" value={billToAddress} onChange={e => setBillToAddress(e.target.value)} placeholder="Client address" />
+                <TextField label="Address" as="textarea" rows={3} value={billToAddress} onChange={e => setBillToAddress(e.target.value)} placeholder="Client address" />
+                <TextField label="Client GSTIN" value={billToGstin} autoCapitalize="characters" onChange={e => setBillToGstin(cleanGstin(e.target.value))} placeholder="Optional, e.g. 32ABCDE1234F1Z5" data-testid="bill-gstin" />
               </div>
 
               <SectionLabel>Money</SectionLabel>
@@ -455,7 +460,8 @@ export default function BillGenerator() {
                   <span style={{fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: brand}}>BILL TO/ CLIENT</span><br/>
                   <span style={{fontSize: '14px', fontWeight: '700', color: '#1f2937', lineHeight: '2'}}>{billToName}</span><br/>
                   {event.clientPhone && <span style={{fontSize: '11px', color: '#6b7280'}}>Phone: {event.clientPhone}</span>}
-                  {billToAddress && <><br/><span style={{fontSize: '11px', color: '#6b7280'}}>{billToAddress}</span></>}
+                  {billToAddress && <><br/><span style={{fontSize: '11px', color: '#6b7280', whiteSpace: 'pre-line'}}>{billToAddress}</span></>}
+                  {billToGstin && <><br/><span style={{fontSize: '11px', color: '#374151', fontWeight: '600'}}>GSTIN: {billToGstin}</span></>}
                 </div>
               </td>
               <td style={{verticalAlign: 'top', padding: '16px 24px 12px', width: '40%'}} colSpan="3">

@@ -43,7 +43,7 @@ export default function EditDraft() {
 
   // Form state
   const [form, setForm] = useState({
-    clientName: '', clientPhone: '', clientWhatsapp: '', clientAddress: '',
+    clientName: '', clientPhone: '', clientWhatsapp: '', clientAddress: '', clientGstin: '',
     eventType: '', budget: '', notes: '',
   });
 
@@ -79,6 +79,7 @@ export default function EditDraft() {
         clientPhone: event.clientPhone || '',
         clientWhatsapp: event.clientWhatsapp || '',
         clientAddress: event.clientAddress || '',
+        clientGstin: event.clientGstin || '',
         eventType: event.eventType || '',
         budget: event.budget ? String(event.budget) : '',
         notes: event.notes || '',
@@ -280,6 +281,7 @@ export default function EditDraft() {
         clientPhone: form.clientPhone.trim(),
         clientWhatsapp: form.clientWhatsapp.trim(),
         clientAddress: form.clientAddress.trim(),
+        clientGstin: (form.clientGstin || '').trim(),
         eventType: form.eventType,
         budget: form.budget ? Number(form.budget) : null,
         notes: form.notes.trim(),

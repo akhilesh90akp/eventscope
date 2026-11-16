@@ -43,7 +43,7 @@ export default function NewDraft() {
 
   // Form state
   const [form, setForm] = useState({
-    clientName: '', clientPhone: '', clientWhatsapp: '', clientAddress: '',
+    clientName: '', clientPhone: '', clientWhatsapp: '', clientAddress: '', clientGstin: '',
     eventType: '', budget: '', notes: '',
   });
 
@@ -176,6 +176,7 @@ export default function NewDraft() {
         clientPhone: form.clientPhone.trim(),
         clientWhatsapp: form.clientWhatsapp.trim(),
         clientAddress: form.clientAddress.trim(),
+        clientGstin: (form.clientGstin || '').trim(),
         eventType: form.eventType,
         budget: form.budget ? Number(form.budget) : null,
         notes: form.notes.trim(),
