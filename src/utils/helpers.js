@@ -577,6 +577,43 @@ export const getEventSections = (event) => {
 /** Number of items on an event (every function) */
 export const eventItemCount = (ev) => getEventSections(ev).eventGroups.reduce((n, g) => n + (g.items || []).length, 0);
 
+/** "18:00" → "6:00 PM" (blank stays blank) */
+const time12 = (t) => {
+  const m = /^(\d{1,2}):(\d{2})/.exec(t || '');
+  if (!m) return '';
+  const h = Number(m[1]);
+  return `${h % 12 || 12}:${m[2]} ${h < 12 ? 'AM' : 'PM'}`;
+};
+
+/**
+ * The items on an event as plain text, to paste into WhatsApp for the team.
+ * No prices: one block per function (name, date, time, venue), then its items
+ * with qty (and days when more than 1). Groups are listed under their name.
+ * WhatsApp shows *text* in bold.
+ */
+export const eventItemsText = (ev) => {
+  if (!ev) return '';
+  const prices = ev.itemPrices || {};
+  const { eventGroups } = getEventSections(ev);
+  const qty = (p) => { const d = itemDays(p); return `× ${p.qty || 1}${d > 1 ? ` · ${d} days` : ''}`; };
+  const out = [`*${[ev.clientName, ev.eventType].filter(Boolean).join(' · ')}*`];
+  eventGroups.forEach(g => {
+    const when = [g.date ? formatDateRange(g.date, g.endDate) : '', time12(g.time)].filter(Boolean).join(', ');
+    out.push('', `*${g.name}*${when ? ` — ${when}` : ''}`);
+    if (g.location) out.push(`Venue: ${g.location}`);
+    buildLineEntries(g.id, g.items, ev.bundles).forEach(en => {
+      if (en.type === 'bundle') {
+        out.push(`• ${en.bundle.name || 'Group'}:`);
+        en.bundle.itemKeys.filter(k => k.startsWith(`${g.id}::`)).forEach(k => out.push(`   – ${k.slice(g.id.length + 2)} ${qty(prices[k] || {})}`));
+      } else {
+        out.push(`• ${en.name} ${qty(prices[en.key] || prices[en.name] || {})}`);
+      }
+    });
+  });
+  if (ev.notes) out.push('', `Notes: ${ev.notes}`);
+  return out.join('\n');
+};
+
 // ============================================================
 // REVENUE & JOB LOG MATH
 // ============================================================

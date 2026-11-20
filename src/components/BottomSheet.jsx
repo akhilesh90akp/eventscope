@@ -60,7 +60,8 @@ function useKeyboardInset(on) {
 // BottomSheet — MAIN COMPONENT
 // ============================================================
 
-export default function BottomSheet({ open, onClose, title, sub, children, footer, testId = 'bottom-sheet', wide = false }) {
+/** actions: optional small buttons shown in the header, left of the × (e.g. Copy) */
+export default function BottomSheet({ open, onClose, title, sub, actions, children, footer, testId = 'bottom-sheet', wide = false }) {
   const body = useRef(null);
   useScrollLock(open);
   const kb = useKeyboardInset(open);
@@ -100,6 +101,7 @@ export default function BottomSheet({ open, onClose, title, sub, children, foote
               {title && <h2 className="text-[17px] font-bold text-bb-text">{title}</h2>}
               {sub && <p className="text-[13px] text-gray-600 mt-0.5">{sub}</p>}
             </div>
+            {actions}
             <button onClick={onClose} aria-label="Close" className="w-10 h-10 -mr-2 -mt-1 rounded-xl flex items-center justify-center text-bb-muted hover:bg-gray-100 cursor-pointer">
               <X size={20} />
             </button>

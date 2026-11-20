@@ -36,7 +36,7 @@ src/
       BottomSheet (slides up on phones, a dialog on laptops), DocFit (A4 document fitted to the
         phone width, "Actual size" switch), PhoneUI (IconButton, SectionLabel, SegmentedTabs,
         MenuRow, SwitchRow, UnderlineTabs (tabs attached to the purple bar), NumberBox, DateField "Sat, 12 Sep 2026", TextField, DateBlock, FunctionRow),
-      EventCardPhone (+ EventItemsSheet, EventMoreSheet — Home/Drafts/Confirmed/Completed cards),
+      EventCardPhone (+ EventItemsSheet with Copy for WhatsApp, EventMoreSheet — Home/Drafts/Confirmed/Completed cards),
       QuotePhoneEditor (quote Details tab), AddItemsSheet (phone quote: pick an event, add many item names, save), AddItemPhoneSheet + SetPricesSheet (phone Add item / Set prices on Confirmed and Completed), FitBudgetSheet + QuoteRevisionsSheet (Fit to budget,
         versions — also on laptops), EventFormPhone (New/Edit event in 3 steps) + VenueInput
         (saved venues first, then OpenStreetMap, then "use as typed"),
@@ -79,7 +79,7 @@ src/
     legal.js                Business details shown on the legal pages
     contract.js             Default contract terms + payment modes
   utils/
-    helpers.js              Formatting, GST, IDs/links, dates (incl. multi-day functions:
+    helpers.js              Formatting, GST, IDs/links, eventItemsText (copy list), dates (incl. multi-day functions:
                             functionDays / formatDateRange), pricing (qty × rate × days), bill &
                             Job Log math, countdownText / countdownTone (days-left chip),
                             image resizing (no Firestore here)

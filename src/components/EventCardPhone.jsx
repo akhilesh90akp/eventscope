@@ -5,7 +5,9 @@
  * fold-open cards on those pages.
  *   - EventCardPhone   name, chips, amount, every function (main + sub events)
  *                      or date + venue, "N items added · View", one action row
- *   - EventItemsSheet  the items on this event, by function, with groups
+ *   - EventItemsSheet  the items on this event, by function, with groups;
+ *                      Copy (header, next to ×) puts the event and its items on the
+ *                      clipboard as WhatsApp text, without prices
  *   - EventMoreSheet   everything else (Edit, Add items, Set prices, Contract,
  *                      Move to…, Mark done) with Delete last, in red
  * Pure UI: the page passes the handlers (and does the saving).
@@ -25,13 +27,25 @@ import { IconButton, FunctionRow, MenuRow } from './PhoneUI';
 import {
   formatRupees, formatDateRange, eventCountdown, telLink, waLink, getEventSections, getAllEventDates,
   buildLineEntries, computeSectionTotal, lineAmount, itemDays, getEventBill, functionEnd, eventFunctions, eventItemCount,
-  countdownText, countdownTone,
+  countdownText, countdownTone, eventItemsText,
 } from '../utils/helpers';
 
 // ============================================================
 // HELPERS
 // ============================================================
 
+/** Copy text; falls back to a hidden textarea where the clipboard API is blocked */
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; } catch { /* fall back below */ }
+  try {
+    const t = document.createElement('textarea');
+    t.value = text; t.setAttribute('readonly', ''); t.style.position = 'fixed'; t.style.opacity = '0';
+    document.body.appendChild(t); t.select();
+    const ok = document.execCommand('copy');
+    t.remove();
+    return ok;
+  } catch { return false; }
+}
 
 // ============================================================
 // SUB-COMPONENTS
@@ -169,6 +183,8 @@ export default function EventCardPhone({ ev, variant = ev?.status, on = {}, lock
 // ============================================================
 
 export function EventItemsSheet({ ev, onClose, onEdit }) {
+  const [copied, setCopied] = React.useState(null); // null | 'ok' | 'fail'
+  React.useEffect(() => { if (!copied) return; const t = setTimeout(() => setCopied(null), 2000); return () => clearTimeout(t); }, [copied]);
   if (!ev) return null;
   const { eventGroups } = getEventSections(ev);
   const prices = ev.itemPrices || {};
@@ -188,6 +204,13 @@ export function EventItemsSheet({ ev, onClose, onEdit }) {
 
   return (
     <BottomSheet open onClose={onClose} title="Items" sub={`${ev.clientName} · ${count} item${count === 1 ? '' : 's'}${total ? ` · ${formatRupees(total)}` : ''}`} testId="items-sheet" wide
+      actions={count > 0 && (
+        <button onClick={async () => setCopied((await copyText(eventItemsText(ev))) ? 'ok' : 'fail')} data-testid="items-copy" aria-live="polite"
+          title="Copy the event and its items (no prices) to paste in WhatsApp"
+          className="h-10 -mt-1 px-3 rounded-xl border border-gray-300 inline-flex items-center gap-1.5 text-[14px] font-semibold text-bb-text hover:bg-gray-50 cursor-pointer shrink-0">
+          {copied === 'ok' ? <><CheckCircle2 size={17} className="text-emerald-600" />Copied</> : copied === 'fail' ? 'Couldn’t copy' : <><Copy size={17} />Copy</>}
+        </button>
+      )}
       footer={<div className="flex gap-2.5">
         <button onClick={onClose} className="flex-1 min-h-[46px] rounded-xl border border-gray-300 font-semibold cursor-pointer">Close</button>
         <button onClick={onEdit} className="flex-[1.6] min-h-[46px] rounded-xl bg-bb-accent text-white font-semibold inline-flex items-center justify-center gap-2 cursor-pointer"><FileText size={18} />Edit in quote</button>
