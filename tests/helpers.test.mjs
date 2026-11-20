@@ -288,19 +288,19 @@ test('validateMoneyInput: explains wrong Job Log values', () => {
 
 test('eventItemsText: WhatsApp list by function, groups indented, no prices', () => {
   const ev = {
-    clientName: 'Test Client', eventType: 'Wedding', notes: 'Reach by 8 am',
+    clientName: 'Test Client', clientPhone: '9000000099', eventType: 'Wedding', notes: 'Reach by 8 am',
     mainEvent: { name: 'Wedding', date: '2026-05-16', time: '10:00', location: 'Sample Hall', items: ['Stage', 'Chairs', 'Lights'] },
     subEvents: [{ id: 's1', name: 'Haldi', date: '2026-05-15', time: '17:30', location: 'Home', items: ['Flowers'] }, { id: 's2', name: 'Empty', items: [] }],
     itemPrices: { 'main::Stage': { qty: 1, rate: 50000 }, 'main::Chairs': { qty: 100, rate: 20, days: 2 }, 'main::Lights': { qty: 10, rate: 500 }, 's1::Flowers': { qty: 5, rate: 600 } },
     bundles: [{ id: 'b1', name: 'Stage pack', itemKeys: ['main::Stage', 'main::Lights'], amount: 52000 }],
   };
   const t = eventItemsText(ev);
-  assert.ok(t.startsWith('*Test Client · Wedding*'));
+  assert.ok(t.startsWith('*Test Client · Wedding*\nPhone: 9000000099'));
   assert.ok(t.includes('*Wedding* — '));
   assert.ok(t.includes('10:00 AM'));
   assert.ok(t.includes('5:30 PM'));
   assert.ok(t.includes('Venue: Sample Hall'));
-  assert.ok(t.includes('• Stage pack:\n   – Stage × 1\n   – Lights × 10'));
+  assert.ok(t.includes('• *Stage pack*\n   – Stage × 1\n   – Lights × 10'));
   assert.ok(t.includes('• Chairs × 100 · 2 days'));
   assert.ok(t.includes('• Flowers × 5'));
   assert.ok(!t.includes('Empty'), 'functions with no items are left out');

@@ -588,7 +588,8 @@ const time12 = (t) => {
 /**
  * The items on an event as plain text, to paste into WhatsApp for the team.
  * No prices: one block per function (name, date, time, venue), then its items
- * with qty (and days when more than 1). Groups are listed under their name.
+ * with qty (and days when more than 1). Groups are listed (in bold) with their
+ * items under them. The client's phone goes under the name.
  * WhatsApp shows *text* in bold.
  */
 export const eventItemsText = (ev) => {
@@ -597,13 +598,14 @@ export const eventItemsText = (ev) => {
   const { eventGroups } = getEventSections(ev);
   const qty = (p) => { const d = itemDays(p); return `× ${p.qty || 1}${d > 1 ? ` · ${d} days` : ''}`; };
   const out = [`*${[ev.clientName, ev.eventType].filter(Boolean).join(' · ')}*`];
+  if (ev.clientPhone) out.push(`Phone: ${ev.clientPhone}`);
   eventGroups.forEach(g => {
     const when = [g.date ? formatDateRange(g.date, g.endDate) : '', time12(g.time)].filter(Boolean).join(', ');
     out.push('', `*${g.name}*${when ? ` — ${when}` : ''}`);
     if (g.location) out.push(`Venue: ${g.location}`);
     buildLineEntries(g.id, g.items, ev.bundles).forEach(en => {
       if (en.type === 'bundle') {
-        out.push(`• ${en.bundle.name || 'Group'}:`);
+        out.push(`• *${en.bundle.name || 'Group'}*`);
         en.bundle.itemKeys.filter(k => k.startsWith(`${g.id}::`)).forEach(k => out.push(`   – ${k.slice(g.id.length + 2)} ${qty(prices[k] || {})}`));
       } else {
         out.push(`• ${en.name} ${qty(prices[en.key] || prices[en.name] || {})}`);
