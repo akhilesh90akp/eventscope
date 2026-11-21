@@ -70,24 +70,25 @@ export const firstDates = (events = []) => {
 
 /**
  * { [date]: [eventId…] } — events that share each day's costs: confirmed or
- * completed, with a function that day, whose FIRST day is on/after `from`.
- * Order = the day's function order (time), each event once per day.
+ * completed, with a function that day. Order = the day's function order
+ * (time), each event once per day. An event that started before the Day
+ * sheets start date still takes its share of a later day (so nothing is
+ * counted twice as running cost), but that share is not shown — its Job Log
+ * keeps the typed values, which already cover it.
  */
-export const eventsByDate = (events = [], from = '') => {
-  const first = firstDates(events);
+export const eventsByDate = (events = []) => {
   const out = {};
   eventDays(events).forEach(f => {
-    if (from && (first[f.eventId] || '') < from) return;
     const list = out[f.date] || (out[f.date] = []);
     if (!list.includes(f.eventId)) list.push(f.eventId);
   });
   return out;
 };
 
-/** Event ids that use Day sheets (first day on/after the start date) */
+/** Event ids that use Day sheets: confirmed/completed, first day on/after the start date */
 export const daySheetEventIds = (events = [], from = '') => {
   if (!from) return new Set();
-  const first = firstDates(events);
+  const first = firstDates(events.filter(e => e.status === 'confirmed' || e.status === 'completed'));
   return new Set(Object.keys(first).filter(id => first[id] >= from));
 };
 
@@ -113,7 +114,7 @@ export const monthsBetween = (a, b) => {
  */
 export const allShares = ({ cfg, staff = [], sheets = {}, events = [], columnOrder, today }) => {
   if (!cfg.enabled || !cfg.startDate || today < cfg.startDate) return {};
-  const byDate = eventsByDate(events, cfg.startDate);
+  const byDate = eventsByDate(events);
   const shares = {};
   monthsBetween(cfg.startDate, today).forEach(month => {
     const m = computeMonth({ month, staff, sheets, eventsByDate: byDate, upTo: today, from: cfg.startDate, staffColumn: cfg.staffColumn, columnOrder });
@@ -133,23 +134,35 @@ export const allShares = ({ cfg, staff = [], sheets = {}, events = [], columnOrd
  * Lays Day sheet shares over the typed Job Log values (a new object; the
  * stored financials are not touched).
  *   onSheets: Set of event ids using Day sheets · colIds: Day sheet column ids
- *   hideCols: columns to blank instead (e.g. staff pay for non-owners)
- * Each merged event gets fromDaySheet: [colIds] so pages show those cells read-only.
- * An event with no share yet (its days not filled) shows those cells blank.
+ *   staffColumn: worked out only, never typed (read-only) — typed labour would count staff twice
+ *   other Day sheet columns: typed amount (costs for just this event, e.g. a hired truck) + the share
+ *   hideCols: columns to blank instead (staff pay for non-owners)
+ * Each merged event gets:
+ *   fromDaySheet: [staffColumn] read-only cells · addsDaySheet: [cols] typed + share
+ *   daySheetShare: { col: rupees } · typed: the stored values (what the input boxes show)
  */
-export const mergeDaySheetShares = (financials = {}, { onSheets, shares = {}, colIds = [], hideCols = [] }) => {
+export const mergeDaySheetShares = (financials = {}, { onSheets, shares = {}, colIds = [], staffColumn = 'labour', hideCols = [] }) => {
   if (!onSheets || !onSheets.size || !colIds.length) return financials;
   const out = { ...financials };
   onSheets.forEach(id => {
     const raw = financials[id] || {};
-    const mine = shares[id];
-    const values = { ...(raw.values || {}) };
+    const typed = raw.values || {};
+    const mine = shares[id] || {};
+    const values = { ...typed };
     const formulas = { ...(raw.formulas || {}) };
+    const blank = (v) => v === null || v === undefined || v === '';
     colIds.forEach(c => {
-      values[c] = hideCols.includes(c) ? null : mine ? (mine[c] || 0) : null;
-      delete formulas[c];
+      const share = mine[c];
+      if (c === staffColumn || hideCols.includes(c)) {
+        values[c] = hideCols.includes(c) ? null : (share ?? null);
+        delete formulas[c];
+      } else if (!blank(typed[c]) || share !== undefined) {
+        values[c] = (blank(typed[c]) ? 0 : Number(typed[c]) || 0) + (share || 0);
+      }
     });
-    out[id] = { ...raw, values, formulas, fromDaySheet: colIds };
+    out[id] = { ...raw, values, formulas, typed, daySheetShare: mine,
+      fromDaySheet: colIds.filter(c => c === staffColumn || hideCols.includes(c)),
+      addsDaySheet: colIds.filter(c => c !== staffColumn && !hideCols.includes(c)) };
   });
   return out;
 };
@@ -170,7 +183,7 @@ export const periodStaffCosts = ({ cfg, staff = [], sheets = {}, events = [], pa
   const start = from && from > cfg.startDate ? from : cfg.startDate;
   const end = to && to < today ? to : today;
   if (end < start) return out;
-  const byDate = eventsByDate(events, cfg.startDate);
+  const byDate = eventsByDate(events);
   monthsBetween(start, end).forEach(month => {
     const m = computeMonth({ month, staff, sheets, eventsByDate: byDate, upTo: end, from: start, staffColumn: cfg.staffColumn, columnOrder });
     out.running += m.running; out.office += m.office; out.eventDay += m.eventDay; out.days += m.days.length;

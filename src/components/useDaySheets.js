@@ -28,7 +28,7 @@ export function useDaySheets() {
   // Owners see full staff (with pay); fillers see the roster (names only)
   const people = useMemo(() => (isOwner ? staff : (staffRoster.people || [])), [isOwner, staff, staffRoster]);
 
-  const byDate = useMemo(() => eventsByDate(events, cfg.startDate), [events, cfg.startDate]);
+  const byDate = useMemo(() => eventsByDate(events), [events]);
   /** { [date]: [{ eventId, client, name, location, time, eventType }] } — function-days that share costs */
   const fnsByDate = useMemo(() => {
     const out = {};

@@ -126,7 +126,16 @@ export const computeDay = ({ date, staff = [], sheet = null, eventIds = [], staf
   eventIds.forEach(id => { shares[id] = {}; });
   if (eventDay && cols.length) {
     const last = cols[cols.length - 1];
-    cols.slice(0, -1).forEach(col => { splitRupees(colTotals.get(col), n).forEach((v, i) => { shares[eventIds[i]][col] = v; }); });
+    // each column's spare rupees continue where the previous column's stopped, so no
+    // event collects them all and the last column never goes below zero
+    let start = 0;
+    cols.slice(0, -1).forEach(col => {
+      const total = colTotals.get(col);
+      const base = Math.floor(total / n);
+      const rest = total - base * n;
+      eventIds.forEach((id, i) => { shares[id][col] = base + (((i - start + n) % n) < rest ? 1 : 0); });
+      start = (start + rest) % n;
+    });
     eventIds.forEach((id, i) => { const others = Object.values(shares[id]).reduce((t, v) => t + v, 0); shares[id][last] = each[i] - others; });
   }
   return { date, filled, rows, staffAtEvents, running, shared, eventDay, total: eventDay + running, each, shares };
@@ -156,7 +165,9 @@ export const staffMonth = (p, month, sheets = {}, payments = [], from = '') => {
       ot += overtimePay(p, entry.otHours);
     }
   });
-  const mine = payments.filter(x => x.staffId === p.id && (!from || x.date >= from));
+  // payments count in the month they're for (forMonth), so a December salary paid on 30 Nov still counts
+  const counts = (x) => !from || (x.forMonth ? x.forMonth >= monthOf(from) : x.date >= from);
+  const mine = payments.filter(x => x.staffId === p.id && counts(x));
   const inMonth = mine.filter(x => (x.forMonth || monthOf(x.date)) === month);   // a pay made on 2 Dec for November counts in November
   const sum = (arr, k = 'amount') => arr.reduce((t, x) => t + Math.round(Number(x[k]) || 0), 0);
   const paidEarly = sum(inMonth.filter(x => x.type === 'early'));
@@ -219,7 +230,7 @@ export const computeMonth = ({ month, staff = [], sheets = {}, eventsByDate = {}
       shares[id] = shares[id] || {};
       Object.entries(cols).forEach(([c, v]) => { shares[id][c] = (shares[id][c] || 0) + v; });
     });
-    staff.filter(p => p.worksIn === 'office' && isActiveOn(p, date)).forEach(p => { office += dayPay(p, date); });
+    staff.filter(p => p.worksIn === 'office' && p.pay === 'monthly' && isActiveOn(p, date)).forEach(p => { office += dayPay(p, date); });
   });
   const sum = (k) => days.reduce((t, d) => t + d[k], 0);
   return { days, total: sum('total'), eventDay: sum('eventDay'), running: sum('running'), office, shares };

@@ -63,8 +63,11 @@ export default function JobEvent() {
   // DERIVED DATA
   // ------------------------------------------------------------
   const fin = financials[event.id] || {};
-  const values = fin.values || {};
+  const values = fin.values || {};          // what counts (typed + Day sheet shares)
+  const typed = fin.typed || values;        // what the boxes show and save
   const formulas = fin.formulas || {};
+  const adds = fin.addsDaySheet || [];      // Day sheet columns where this event's own costs are typed on top
+  const share = fin.daySheetShare || {};
   const bill = getEventBill(event);
   const calc = computeEventFinancials(bill.revenue, values, jobLogColumns);
   const money = jobLogColumns.filter(c => c.type !== 'text');
@@ -86,12 +89,12 @@ export default function JobEvent() {
     let change;
     if (col.type === 'text') {
       const value = text.trim() || null;
-      if (value === (values[col.id] || null)) return;
+      if (value === (typed[col.id] || null)) return;
       change = { eventId: event.id, columnId: col.id, value };
     } else {
       const parsed = parseMoneyExpr(text);
       if (!parsed) { showToast(`“${text}” isn’t a number or a sum — not saved`, 'error'); return; }
-      const cur = values[col.id];
+      const cur = typed[col.id];
       if (parsed.value === (cur === null || cur === undefined ? null : Number(cur)) && parsed.formula === (formulas[col.id] || null)) return;
       change = { eventId: event.id, columnId: col.id, value: parsed.value, formula: parsed.formula };
     }
@@ -102,11 +105,11 @@ export default function JobEvent() {
 
   const shownText = (col) => {
     if (col.id in drafts) return drafts[col.id];
-    const v = values[col.id];
+    const v = typed[col.id];
     if (v === null || v === undefined) return '';
     return col.type === 'text' ? v : (formulas[col.id] || Number(v).toLocaleString('en-IN'));
   };
-  const startEdit = (col) => setDrafts(d => ({ ...d, [col.id]: col.type === 'text' ? (values[col.id] || '') : (formulas[col.id] || (values[col.id] ?? '')) + '' }));
+  const startEdit = (col) => setDrafts(d => ({ ...d, [col.id]: col.type === 'text' ? (typed[col.id] || '') : (formulas[col.id] || (typed[col.id] ?? '')) + '' }));
 
   // ------------------------------------------------------------
   // RENDER
@@ -164,14 +167,15 @@ export default function JobEvent() {
                   onBlur={() => commit(col)} onKeyDown={e => e.key === 'Enter' && e.currentTarget.blur()}
                   className={`w-[150px] min-h-[46px] rounded-xl border px-3 text-right text-[16px] tabular-nums focus:outline-none focus:ring-2 focus:ring-bb-accent/40 ${col.type === 'income' ? 'bg-emerald-50 border-emerald-200' : 'bg-bb-input border-bb-border'}`} />
               </span>
-              {formula && <span className="block text-right text-[12.5px] text-gray-600 mt-1">= {formatRupees(values[col.id])}</span>}
+              {formula && <span className="block text-right text-[12.5px] text-gray-600 mt-1">= {formatRupees(typed[col.id])}</span>}
+              {adds.includes(col.id) && share[col.id] > 0 && <span className="block text-right text-[12.5px] text-violet-700 mt-1" data-testid={`job-${col.id}-share`}>+ {formatRupees(share[col.id])} from Day sheet = {formatRupees(values[col.id])}</span>}
             </label>
           );
         })}
         {money.length > 0 && <Row label={<b>Total costs</b>} value={formatRupees(calc.totalCost)} className="border-t-2 border-bb-border mt-1" />}
       </div>
 
-      {fromDay.length > 0 && <p className="text-[13px] text-gray-600 -mt-2">“From Day sheet” amounts are this event’s equal share of each day’s staff and shared costs. Change them on the Day sheet{fnDates.length ? <> — <button className="font-semibold text-bb-accent-hover hover:underline cursor-pointer" onClick={() => navigate(`/day-sheets/${fnDates[0]}`)}>open {fnDates.length === 1 ? 'the day' : 'the first day'}</button></> : ''}.</p>}
+      {fromDay.length > 0 && <p className="text-[13px] text-gray-600 -mt-2">“From Day sheet” is this event’s equal share of each day’s staff. Food, fuel and other shared costs are added to what you type here for this event alone. Change shares on the Day sheet{fnDates.length ? <> — <button className="font-semibold text-bb-accent-hover hover:underline cursor-pointer" onClick={() => navigate(`/day-sheets/${fnDates[0]}`)}>open {fnDates.length === 1 ? 'the day' : 'the first day'}</button></> : ''}.</p>}
 
       {boughtFor.length > 0 && <>
         <SectionLabel right={<span className="text-[12.5px] text-gray-600 normal-case tracking-normal font-medium">not in this event’s costs</span>}>New stock bought for it</SectionLabel>

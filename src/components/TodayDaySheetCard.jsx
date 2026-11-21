@@ -16,7 +16,7 @@ export default function TodayDaySheetCard() {
   const navigate = useNavigate();
   const today = isoDate(new Date());
   if (!daySheetsOn || !canFillDaySheets || !daySheetCfg.startDate || today < daySheetCfg.startDate) return null;
-  const n = (eventsByDate(events, daySheetCfg.startDate)[today] || []).length;
+  const n = (eventsByDate(events)[today] || []).length;
   const filled = !!daySheets[today];
   return (
     <button onClick={() => navigate(`/day-sheets/${today}`)} data-testid="home-daysheet"

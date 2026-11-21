@@ -186,6 +186,9 @@ function JobLogGrid() {
         values,
         formulas: financials[e.id]?.formulas || {},
         fromDay: financials[e.id]?.fromDaySheet || [],   // worked out from Day sheets — read only
+        typed: financials[e.id]?.typed || values,         // what the boxes show and save (Day sheet shares are added on top)
+        adds: financials[e.id]?.addsDaySheet || [],
+        share: financials[e.id]?.daySheetShare || {},
         calc: computeEventFinancials(bill.revenue, values, jobLogColumns),
       };
     }), [completed, period, typeFilter, financials, jobLogColumns]);
@@ -246,7 +249,7 @@ function JobLogGrid() {
     setDrafts(d => { const n = { ...d }; delete n[key]; return n; });
     if (col.type === 'text') {
       const value = text.trim() || null;
-      if (value === (row.values[col.id] || null)) return;
+      if (value === (row.typed[col.id] || null)) return;
       save([{ eventId: row.id, columnId: col.id, value }]);
       return;
     }
@@ -256,7 +259,7 @@ function JobLogGrid() {
       return;
     }
     const { value, formula } = parsed;
-    const current = row.values[col.id];
+    const current = row.typed[col.id];
     const currentNum = current === null || current === undefined || current === '' ? null : Number(current);
     if (value === currentNum && formula === (row.formulas[col.id] || null)) return;
     save([{ eventId: row.id, columnId: col.id, value, formula }]);
@@ -356,9 +359,14 @@ function JobLogGrid() {
         showToast('This file has no “Event ID” column. Download the Job Log first, fill it in, and upload that file.', 'error');
         return;
       }
-      // Only values that actually differ from what's saved
-      const changes = res.changes.filter(ch => {
-        const cur = financials[ch.eventId]?.values?.[ch.columnId];
+      // The downloaded file shows totals (typed + Day sheet share): take the share back off
+      // so only this event's own amount is saved, then keep values that actually differ
+      const changes = res.changes.map(ch => {
+        const fin = financials[ch.eventId];
+        const sh = fin?.addsDaySheet?.includes(ch.columnId) ? (fin.daySheetShare?.[ch.columnId] || 0) : 0;
+        return sh && typeof ch.value === 'number' ? { ...ch, value: Math.max(0, ch.value - sh), formula: null } : ch;
+      }).filter(ch => {
+        const cur = (financials[ch.eventId]?.typed || financials[ch.eventId]?.values)?.[ch.columnId];
         return (cur === null || cur === undefined ? null : Number(cur)) !== ch.value;
       });
       if (!changes.length) {
@@ -434,7 +442,7 @@ function JobLogGrid() {
   /** One editable cell (money or text) */
   const renderInput = (row, col, r, c) => {
     const key = draftKey(row.id, col.id);
-    const stored = row.values[col.id];
+    const stored = row.typed[col.id];
     const isText = col.type === 'text';
     const formula = isText ? null : row.formulas[col.id] || null;
     const shown = key in drafts ? drafts[key] : (isText ? (stored || '') : rupees(stored));
@@ -444,7 +452,7 @@ function JobLogGrid() {
         <td key={col.id} title="From Day sheets — this event’s share of each day’s staff and shared costs. Change it on the Day sheet."
           className={lap ? 'border-b border-bb-border/60 px-2 py-2.5 align-top bg-white' : 'border-b border-r border-gray-100 p-0 bg-violet-50/50'} data-testid="cell-daysheet">
           <span data-r={r} data-c={c} tabIndex={-1} className={`flex items-center justify-end h-9 px-2.5 tabular-nums text-gray-700 ${lap ? 'min-w-[104px] rounded-lg border border-dashed border-violet-300 bg-violet-50/60' : 'min-w-[96px]'}`}>
-            {stored === null || stored === undefined ? '—' : rupees(stored)}
+            {row.values[col.id] === null || row.values[col.id] === undefined ? '—' : rupees(row.values[col.id])}
           </span>
         </td>
       );
@@ -475,6 +483,7 @@ function JobLogGrid() {
             className={`w-full h-9 px-2.5 rounded-lg border outline-none placeholder:text-gray-300 focus:ring-2 focus:ring-bb-accent focus:border-transparent ${box} ${isText ? 'min-w-[240px] text-left' : 'min-w-[104px] text-right tabular-nums'}`}
           />
           {err && <p className="text-[11px] text-red-600 mt-1 leading-tight max-w-[180px]" data-testid="cell-error">{err}</p>}
+          {!err && row.adds.includes(col.id) && row.share[col.id] > 0 && <p className="text-[11px] text-violet-700 mt-1 text-right whitespace-nowrap" data-testid="cell-share">+ {rupees(row.share[col.id])} day sheet</p>}
         </td>
       );
     }

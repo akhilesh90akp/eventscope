@@ -472,6 +472,9 @@ test('day sheets: owner and listed fillers only; roster names readable by member
   await assertSucceeds(setDoc(doc(as('fill'), 'tenants/acme/daySheets/2026-11-15'), { staff: {}, costs: [{ label: 'Fuel', amount: 800 }] }));
   await assertSucceeds(setDoc(doc(as('alice'), 'tenants/acme/daySheets/2026-11-16'), { staff: {}, costs: [] }));
   await assertFails(setDoc(doc(as('fill'), 'tenants/acme/daySheets/not-a-date'), { staff: {} }));
+  await assertFails(setDoc(doc(as('fill'), 'tenants/acme/daySheets/2026-13-45'), { staff: {} }));
+  await assertFails(deleteDoc(doc(as('fill'), 'tenants/acme/daySheets/2026-11-14')));       // fillers can't clear a day
+  await assertSucceeds(deleteDoc(doc(as('alice'), 'tenants/acme/daySheets/2026-11-14')));
   await assertFails(getDoc(doc(as('sam'), 'tenants/acme/daySheets/2026-11-14')));   // not ticked
   await assertFails(setDoc(doc(as('sam'), 'tenants/acme/daySheets/2026-11-15'), { staff: {} }));
   await assertFails(getDoc(doc(as('zara'), 'tenants/acme/daySheets/2026-11-14')));  // other company

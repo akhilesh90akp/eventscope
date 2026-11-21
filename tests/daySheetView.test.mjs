@@ -13,10 +13,10 @@ test('which events share a day: confirmed/completed, first day on/after start, m
     ev('old', '2026-11-01', 'completed', { subs: [{ id: 's', date: '2026-11-14' }] }), // started before → keeps typed values
     ev('m', '2026-11-15', 'confirmed', { main: { multiDay: true, endDate: '2026-11-17' } }),
   ];
-  const by = eventsByDate(events, '2026-11-10');
-  assert.deepEqual(by['2026-11-14'], ['b', 'a']);  // time order
+  const by = eventsByDate(events);
+  assert.deepEqual(by['2026-11-14'], ['old', 'b', 'a']);  // time order; an event that started earlier still takes its share (shown nowhere)
   assert.deepEqual([by['2026-11-15'], by['2026-11-16'], by['2026-11-17']], [['m'], ['m'], ['m']]);
-  assert.deepEqual([...daySheetEventIds(events, '2026-11-10')].sort(), ['a', 'b', 'd', 'm']);
+  assert.deepEqual([...daySheetEventIds(events, '2026-11-10')].sort(), ['a', 'b', 'm']);   // drafts keep typed values
   assert.equal(daySheetEventIds(events, '').size, 0);
 });
 
@@ -42,11 +42,15 @@ test('14 Nov sample end to end: shares merged over typed values, typed values ke
   const shares = allShares({ cfg, staff, sheets, events, today: '2026-11-20', columnOrder: ['labour', 'transport', 'other'] });
   // staff at events 1200 + 1300 = 2500, costs 7000 → 9500, 4750 each
   assert.deepEqual(shares, { e1: { labour: 1250, transport: 2000, other: 1500 }, e2: { labour: 1250, transport: 2000, other: 1500 } });
-  const typed = { e1: { values: { labour: 99999, rental: 5000 }, formulas: { labour: '99999' } } };
+  const typed = { e1: { values: { labour: 99999, rental: 5000, transport: 8000 }, formulas: { labour: '99999' } } };
   const merged = mergeDaySheetShares(typed, { onSheets: new Set(['e1', 'e2', 'e3']), shares, colIds: ['labour', 'transport', 'other'] });
-  assert.deepEqual(merged.e1.values, { labour: 1250, rental: 5000, transport: 2000, other: 1500 });
+  // labour: share only (typed ignored) · transport: own truck 8,000 + share 2,000 · other: share
+  assert.deepEqual(merged.e1.values, { labour: 1250, rental: 5000, transport: 10000, other: 1500 });
   assert.deepEqual(merged.e1.formulas, {});
-  assert.deepEqual(merged.e3.values, { labour: null, transport: null, other: null }); // days not filled yet
+  assert.deepEqual(merged.e1.fromDaySheet, ['labour']);
+  assert.deepEqual(merged.e1.addsDaySheet, ['transport', 'other']);
+  assert.equal(merged.e1.typed.transport, 8000);
+  assert.deepEqual(merged.e3.values, { labour: null });       // days not filled yet: staff blank, nothing else added
   assert.equal(typed.e1.values.labour, 99999);   // stored values untouched
   const forStaff = mergeDaySheetShares(typed, { onSheets: new Set(['e1']), shares, colIds: ['labour'], hideCols: ['labour'] });
   assert.equal(forStaff.e1.values.labour, null);
@@ -69,4 +73,18 @@ test('period costs for Reports: running, office, bonus — clipped to start date
   // 10–20 Nov = 11 days: 10 days running (1,000) + 14 Nov at the event (1,000 + 500 shared)
   assert.deepEqual(r, { running: 10000, office: 6600, bonus: 700, eventDay: 1500, days: 11 });
   assert.equal(periodStaffCosts({ cfg, staff, sheets, events, payments, from: '2026-10-01', to: '2026-10-31', today: '2026-11-20' }).days, 0);
+});
+
+test('an event that started before the start date takes its share of a shared day, but it shows nowhere (no double count)', () => {
+  const cfg = daySheetConfig({ daySheets: { enabled: true, startDate: '2026-12-01' } });
+  const staff = [{ id: 'm', name: 'M', pay: 'monthly', amount: 31000, worksIn: 'events' }];   // 1,000/day in Dec
+  const events = [
+    ev('wed', '2026-11-30', 'completed', { main: { multiDay: true, endDate: '2026-12-02' } }),   // typed labour covers its crew
+    ev('rec', '2026-12-01', 'confirmed', { time: '19:00' }),
+  ];
+  const sheets = { '2026-12-01': { date: '2026-12-01', staff: { m: { where: 'events' } }, costs: [] }, '2026-12-02': { date: '2026-12-02', staff: { m: { where: 'events' } }, costs: [] } };
+  const shares = allShares({ cfg, staff, sheets, events, today: '2026-12-02' });
+  assert.deepEqual(shares.rec, { labour: 500 });          // half of 1 Dec, not all of it
+  const onSheets = daySheetEventIds(events, cfg.startDate);
+  assert.deepEqual([...onSheets], ['rec']);                // the wedding keeps its typed costs
 });

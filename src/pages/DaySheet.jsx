@@ -94,18 +94,20 @@ export default function DaySheet() {
   // ------------------------------------------------------------
   // SAVING (by itself, about 2 s after the last change — design system)
   // ------------------------------------------------------------
+  const saveRef = useRef(saveDaySheet);
+  saveRef.current = saveDaySheet;   // AppContext makes a new function each render; flush stays the same
   const flush = useCallback(async () => {
     clearTimeout(timer.current);
     const p = pending.current;
     if (!p) return;
     pending.current = null;
     setStatus('saving');
-    const res = await saveDaySheet(p.date, p.sheet);
+    const res = await saveRef.current(p.date, p.sheet);
     if (!res.success && !pending.current) pending.current = p;   // keep it for "Retry"
     dirty.current = !!pending.current;                         // typed again while saving → still waiting
     setStatus(!res.success ? 'error' : pending.current ? 'waiting' : 'saved');
     if (res.success && pending.current) timer.current = setTimeout(flush, 2000);
-  }, [saveDaySheet]);
+  }, []);
 
   const change = (fn) => {
     const base = draftRef.current || blankSheet(team, fns.length > 0, cfg.costRows);

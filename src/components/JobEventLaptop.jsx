@@ -36,7 +36,10 @@ export default function JobEventLaptop({ event, onClose }) {
   }, [onClose]);
 
   const fin = financials[event.id] || {};
-  const values = fin.values || {};
+  const values = fin.values || {};          // what counts (typed + Day sheet shares)
+  const typed = fin.typed || values;        // what the boxes show and save
+  const adds = fin.addsDaySheet || [];
+  const share = fin.daySheetShare || {};
   const formulas = fin.formulas || {};
   const bill = getEventBill(event);
   const calc = computeEventFinancials(bill.revenue, values, jobLogColumns);
@@ -59,13 +62,13 @@ export default function JobEventLaptop({ event, onClose }) {
     if (col.type === 'text') {
       const value = text.trim() || null;
       clearDraft(col.id);
-      if (value === (values[col.id] || null)) return;
+      if (value === (typed[col.id] || null)) return;
       change = { eventId: event.id, columnId: col.id, value };
     } else {
       const check = validateMoneyInput(text);
       if (!check.ok) { setErrors(e => ({ ...e, [col.id]: check.message })); return; }
       clearDraft(col.id);
-      const cur = values[col.id];
+      const cur = typed[col.id];
       if (check.value === (cur === null || cur === undefined ? null : Number(cur)) && check.formula === (formulas[col.id] || null)) return;
       change = { eventId: event.id, columnId: col.id, value: check.value, formula: check.formula };
     }
@@ -77,11 +80,11 @@ export default function JobEventLaptop({ event, onClose }) {
 
   const shown = (col) => {
     if (col.id in drafts) return drafts[col.id];
-    const v = values[col.id];
+    const v = typed[col.id];
     if (v === null || v === undefined) return '';
     return col.type === 'text' ? v : (formulas[col.id] || Number(v).toLocaleString('en-IN'));
   };
-  const startEdit = (col) => setDrafts(d => (col.id in d ? d : { ...d, [col.id]: col.type === 'text' ? (values[col.id] || '') : String(formulas[col.id] || (values[col.id] ?? '')) }));
+  const startEdit = (col) => setDrafts(d => (col.id in d ? d : { ...d, [col.id]: col.type === 'text' ? (typed[col.id] || '') : String(formulas[col.id] || (typed[col.id] ?? '')) }));
   const type = (col, v) => { setDrafts(d => ({ ...d, [col.id]: v })); setErrors(e => { if (!(col.id in e)) return e; const n = { ...e }; delete n[col.id]; return n; }); };
 
   // ------------------------------------------------------------
@@ -152,7 +155,8 @@ export default function JobEventLaptop({ event, onClose }) {
                           className={`w-[180px] h-9 px-2.5 rounded-lg border text-right tabular-nums outline-none focus:ring-2 focus:ring-bb-accent focus:border-transparent ${err ? 'border-red-400 bg-red-50 text-red-700' : col.type === 'income' ? 'border-emerald-300 bg-white' : 'border-bb-border bg-white'}`} />
                       </label>
                       {err && <p className="text-[11.5px] text-red-600 text-right mt-1" data-testid="job-error">{err}</p>}
-                      {!err && formula && <p className="text-[12px] text-bb-muted text-right mt-1">= {formatRupees(values[col.id])}</p>}
+                      {!err && formula && <p className="text-[12px] text-bb-muted text-right mt-1">= {formatRupees(typed[col.id])}</p>}
+                      {adds.includes(col.id) && share[col.id] > 0 && <p className="text-[12px] text-violet-700 text-right mt-1">+ {formatRupees(share[col.id])} from Day sheet = {formatRupees(values[col.id])}</p>}
                     </div>
                   );
                 })}

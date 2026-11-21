@@ -120,6 +120,8 @@ export default function JobLogColumnsEditor() {
             {fromDay.includes(c.id) && <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 whitespace-nowrap">From Day sheet</span>}
             <select
               value={c.type}
+              disabled={fromDay.includes(c.id)}
+              title={fromDay.includes(c.id) ? 'Gets Day sheet costs, so it stays a cost column' : undefined}
               onChange={e => update(c.id, { type: e.target.value })}
               className={`text-xs font-bold rounded-full px-2 py-1 border-0 ${c.type === 'income' ? 'bg-emerald-100 text-emerald-800' : c.type === 'text' ? 'bg-slate-100 text-slate-700' : 'bg-amber-100 text-amber-800'}`}
             >
@@ -129,7 +131,13 @@ export default function JobLogColumnsEditor() {
             </select>
             <button
               type="button"
-              onClick={async () => (await confirm({ title: `Remove the “${c.label || 'untitled'}” column?`, message: 'Values already entered are kept, and you can bring the column back later.', confirmLabel: 'Remove', tone: 'danger' })) && update(c.id, { hidden: true })}
+              onClick={async () => {
+                if (fromDay.includes(c.id)) {   // its Day sheet shares would drop out of profit
+                  if (await confirm({ title: `“${c.label}” gets Day sheet costs`, message: 'Move those costs to another column in Settings → Day sheets first, then remove this one.', confirmLabel: 'Open Day sheets settings', tone: 'primary' })) navigate('/settings/daysheets', { state: { tab: 'daysheets' } });
+                  return;
+                }
+                if (await confirm({ title: `Remove the “${c.label || 'untitled'}” column?`, message: 'Values already entered are kept, and you can bring the column back later.', confirmLabel: 'Remove', tone: 'danger' })) update(c.id, { hidden: true });
+              }}
               className="p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
               title="Remove column"
               aria-label={`Remove ${c.label} column`}

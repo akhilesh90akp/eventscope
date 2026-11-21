@@ -56,7 +56,7 @@ export function StaffFormSheet({ open, onClose, editing, onSaved, onDelete, canD
     const data = {
       ...(editing ? { id: editing.id } : {}),
       name: f.name.trim(), phone: (f.phone || '').trim(), role: office ? (f.role || '').trim() : '',
-      worksIn: f.worksIn, pay: f.pay, amount: Math.round(Number(f.amount)),
+      worksIn: f.worksIn, pay: office ? 'monthly' : f.pay, amount: Math.round(Number(f.amount)),
       ot: office ? null : { mode: f.ot?.mode || 'hour', rate: Math.round(Number(f.ot?.rate) || 0) },
       payCycle: f.pay === 'daily' ? (f.payCycle || '') : '', startDate: f.startDate || '', endDate: f.endDate || '',
     };
@@ -73,14 +73,16 @@ export function StaffFormSheet({ open, onClose, editing, onSaved, onDelete, canD
         <TextField label="Phone" value={f.phone || ''} inputMode="tel" onChange={e => set('phone', e.target.value)} hint="For Call and WhatsApp" data-testid="staff-phone" />
         <div>
           <span className="block text-[13.5px] font-semibold text-gray-700 mb-2">Works in</span>
-          <SegmentedTabs options={[{ value: 'events', label: 'Events team' }, { value: 'office', label: 'Office' }]} value={f.worksIn} onChange={v => set('worksIn', v)} testId="staff-works" />
+          <SegmentedTabs options={[{ value: 'events', label: 'Events team' }, { value: 'office', label: 'Office' }]} value={f.worksIn} onChange={v => setF(x => ({ ...x, worksIn: v, ...(v === 'office' ? { pay: 'monthly' } : {}) }))} testId="staff-works" />
           <span className="block text-[12.5px] text-gray-600 mt-1.5">Events team: on Day sheets. Office (accountant, planner…): pay goes to office salaries, never to events.</span>
         </div>
         {office && <TextField label="Role" value={f.role || ''} onChange={e => set('role', e.target.value)} placeholder="e.g. Accountant" data-testid="staff-role" />}
-        <div>
-          <span className="block text-[13.5px] font-semibold text-gray-700 mb-2">Paid</span>
-          <SegmentedTabs options={[{ value: 'monthly', label: 'Monthly' }, { value: 'daily', label: 'Daily wage' }]} value={f.pay} onChange={v => set('pay', v)} testId="staff-pay" />
-        </div>
+        {!office && (
+          <div>
+            <span className="block text-[13.5px] font-semibold text-gray-700 mb-2">Paid</span>
+            <SegmentedTabs options={[{ value: 'monthly', label: 'Monthly' }, { value: 'daily', label: 'Daily wage' }]} value={f.pay} onChange={v => set('pay', v)} testId="staff-pay" />
+          </div>
+        )}
         <MoneyInput label={f.pay === 'monthly' ? 'Monthly salary' : 'Daily wage'} required value={f.amount} onChange={v => set('amount', v)} testId="staff-amount"
           hint={f.pay === 'monthly'
             ? (perDay ? `About ${rupees(perDay)} a day this month (salary ÷ days in the month)${office ? '' : ', added to every Day sheet'}` : 'Spread over the days of each month, so a month adds up to exactly the salary')

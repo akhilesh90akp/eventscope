@@ -505,6 +505,7 @@ export function AppProvider({ children }) {
   }, [daySheetCfg, daySheets, events, staff, jobLogColumns, todayIso]);
   const viewFinancials = useMemo(() => mergeDaySheetShares(financials, {
     ...daySheetView,
+    staffColumn: daySheetCfg.staffColumn,
     hideCols: role === 'owner' ? [] : [daySheetCfg.staffColumn],   // staff pay is owners-only
   }), [financials, daySheetView, role, daySheetCfg.staffColumn]);
 
@@ -891,7 +892,10 @@ export function AppProvider({ children }) {
     const id = person.id || genId();
     const now = new Date().toISOString();
     const { id: _drop, ...data } = person;
-    const next = [...staff.filter(p => p.id !== id), { id, ...data }];
+    // start from the saved name list too, so a slow-loading staff list never shortens it
+    const byId = new Map([...(staffRoster.people || []), ...staff].map(p => [p.id, p]));
+    byId.set(id, { ...(byId.get(id) || {}), id, ...data });
+    const next = [...byId.values()];
     const batch = writeBatch(db);
     batch.set(doc(db, 'tenants', tenantId, 'staff', id), { ...data, updatedAt: now, ...(person.id ? {} : { createdAt: now }) }, { merge: true });
     batch.set(doc(db, 'tenants', tenantId, 'config', 'staffRoster'), { people: rosterPeople(next), fillers: staffRoster.fillers || [] });
@@ -903,7 +907,8 @@ export function AppProvider({ children }) {
   const deleteStaffPerson = (id) => runWrite('remove the person', async () => {
     const batch = writeBatch(db);
     batch.delete(doc(db, 'tenants', tenantId, 'staff', id));
-    batch.set(doc(db, 'tenants', tenantId, 'config', 'staffRoster'), { people: rosterPeople(staff.filter(p => p.id !== id)), fillers: staffRoster.fillers || [] });
+    const left = [...new Map([...(staffRoster.people || []), ...staff].map(p => [p.id, p])).values()].filter(p => p.id !== id);
+    batch.set(doc(db, 'tenants', tenantId, 'config', 'staffRoster'), { people: rosterPeople(left), fillers: staffRoster.fillers || [] });
     await batch.commit();
   });
 
@@ -1025,9 +1030,12 @@ export function AppProvider({ children }) {
       showToast(blocked, 'error');
       return { success: false, error: blocked };
     }
-    // Day sheet columns of events on Day sheets are worked out, never typed —
+    // The staff column of events on Day sheets is worked out, never typed —
     // drop any such change so the typed value underneath stays as it was
-    changes = changes.filter(ch => !(daySheetView.onSheets.has(ch.eventId) && daySheetView.colIds.includes(ch.columnId)));
+    // (other Day sheet columns stay typeable: costs for just that event, added to its share)
+    const before = changes.length;
+    changes = changes.filter(ch => !(daySheetView.onSheets.has(ch.eventId) && ch.columnId === daySheetCfg.staffColumn && daySheetView.colIds.includes(ch.columnId)));
+    if (changes.length < before) showToast(`Staff pay comes from Day sheets — ${before - changes.length} ${before - changes.length === 1 ? 'cell wasn’t' : 'cells weren’t'} changed`, 'error');
     if (!changes.length) return { success: true };
 
     // a money cell typed as a sum ("12000+3500") also keeps that sum in
@@ -1384,6 +1392,8 @@ export function AppProvider({ children }) {
       batch.set(doc(db, 'tenants', newId, 'config', 'settings'), { ...DEFAULT_SETTINGS, ...backup.settings, companyName: backup.settings.companyName || name });
       batch.set(doc(db, 'tenants', newId, 'config', 'categories'), { list: backup.categories || DEFAULT_CATEGORIES });
       if (backup.jobLogColumns) batch.set(doc(db, 'tenants', newId, 'config', 'jobLog'), { columns: backup.jobLogColumns });
+      // Day sheets: the names-only staff list for fillers, rebuilt from the restored staff (no one ticked yet)
+      if (backup.dayData?.staff?.length) batch.set(doc(db, 'tenants', newId, 'config', 'staffRoster'), { people: rosterPeople(backup.dayData.staff.map(r => ({ id: r.id, ...r.data }))), fillers: [] });
       if (backup.contact) batch.set(doc(db, 'tenants', newId, 'private', 'contact'), backup.contact);
       people.forEach(([email, role]) => batch.set(doc(db, 'invites', email), {
         tenantId: newId, role, tenantName: name,

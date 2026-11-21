@@ -171,3 +171,24 @@ test('a pay made in early December for November counts in November', async () =>
   assert.equal(staffMonth(p, '2026-11', {}, pays).toPay, 0);
   assert.equal(staffMonth(p, '2026-12', {}, pays).toPay, 30000); // Dec: full salary, nothing paid
 });
+
+test('review fixes: rounding never makes a negative cell; office is monthly only; forMonth before the start date', async () => {
+  const { computeDay, computeMonth, staffMonth } = await import('../src/utils/staffCosts.js');
+  const sheet = { staff: {}, costs: [{ amount: 1, column: 'labour' }, { amount: 1, column: 'rental' }, { amount: 1, column: 'transport' }] };
+  const d = computeDay({ date: '2026-12-05', staff: [], sheet, eventIds: ['a', 'b', 'c'] });
+  assert.deepEqual(d.shares, { a: { labour: 1, rental: 0, transport: 0 }, b: { labour: 0, rental: 1, transport: 0 }, c: { labour: 0, rental: 0, transport: 1 } });
+  // many uneven columns: every cell ≥ 0, rows = each, columns = totals
+  const s2 = { staff: {}, costs: [7, 5, 4, 11, 2].map((amount, i) => ({ amount, column: ['labour', 'rental', 'material', 'transport', 'other'][i] })) };
+  const d2 = computeDay({ date: '2026-12-05', staff: [], sheet: s2, eventIds: ['a', 'b', 'c', 'd'] });
+  Object.values(d2.shares).forEach((cols, i) => {
+    assert.ok(Object.values(cols).every(v => v >= 0));
+    assert.equal(Object.values(cols).reduce((t, v) => t + v, 0), d2.each[i]);
+  });
+  ['labour', 'rental', 'material', 'transport', 'other'].forEach((c, k) => assert.equal(Object.values(d2.shares).reduce((t, x) => t + x[c], 0), [7, 5, 4, 11, 2][k]));
+  const office = [{ id: 'o', pay: 'daily', amount: 500, worksIn: 'office' }];
+  assert.equal(computeMonth({ month: '2026-12', staff: office, upTo: '2026-12-31' }).office, 0);
+  const p = { id: 'b', pay: 'monthly', amount: 31000, worksIn: 'events' };
+  const pays = [{ staffId: 'b', type: 'pay', date: '2026-11-30', forMonth: '2026-12', amount: 31000 }];
+  assert.equal(staffMonth(p, '2026-12', {}, pays, '2026-12-01').toPay, 0);
+  assert.equal(staffMonth(p, '2026-12', {}, [{ staffId: 'b', type: 'pay', date: '2026-11-30', amount: 500 }], '2026-12-01').toPay, 31000);
+});
