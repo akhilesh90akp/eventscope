@@ -8,7 +8,7 @@
 // IMPORTS
 // ============================================================
 import React, { useState } from 'react';
-import { Check, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, AlertCircle } from 'lucide-react';
 import { IconButton } from './PhoneUI';
 import { initials, parseRupees } from '../utils/staffFormat';
 
@@ -26,8 +26,8 @@ export function Pills({ options, value, onChange, size = 'md', disabled = false,
           <button key={o.value} type="button" role="radio" aria-checked={on} disabled={disabled} onClick={() => onChange(o.value)}
             data-testid={testId ? `${testId}-${o.value}` : undefined}
             className={`inline-flex items-center gap-1.5 rounded-full border font-semibold cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-default
-              ${size === 'sm' ? 'min-h-[34px] px-3 text-[13px]' : 'min-h-[42px] px-4 text-[14.5px]'}
-              ${on ? 'border-bb-accent bg-violet-50 text-bb-accent-hover' : 'border-bb-border bg-white text-bb-text hover:bg-bb-card-hover'}`}>
+              ${size === 'sm' ? 'min-h-[36px] px-3 text-[13.5px]' : 'min-h-[40px] px-3.5 text-[14px]'}
+              ${on ? 'border-bb-accent bg-violet-50 text-bb-accent-hover font-bold' : 'border-gray-300 bg-white text-bb-text hover:bg-bb-card-hover'}`}>
             {on && <Check size={size === 'sm' ? 14 : 16} />}{o.label}
           </button>
         );
@@ -97,7 +97,8 @@ export function StepSwitcher({ label, onPrev, onNext, prevDisabled, nextDisabled
 // DISPLAY
 // ============================================================
 
-export function Avatar({ name, size = 40 }) {
+/** Initials avatar: 34 in rows, 44 on a profile card (design system) */
+export function Avatar({ name, size = 34 }) {
   return (
     <span style={{ width: size, height: size }} className="shrink-0 rounded-full bg-violet-100 text-bb-accent-hover font-bold text-[13px] inline-flex items-center justify-center">
       {initials(name)}
@@ -116,9 +117,9 @@ export function Tag({ tone = 'violet', children, testId }) {
 /** Phone number card (same as Purchases' cards) */
 export function PhoneStat({ label, value, tone = 'text-bb-text', sub = '', testId }) {
   return (
-    <div className="bg-white border border-bb-border rounded-xl px-4 py-3 min-w-0" data-testid={testId}>
-      <p className="text-[13px] text-gray-600">{label}</p>
-      <p className={`text-[19px] font-bold truncate tabular-nums ${tone}`} data-testid={testId ? `${testId}-value` : undefined}>{value}</p>
+    <div className="bg-white border border-bb-border rounded-2xl px-4 py-3.5 min-w-0" data-testid={testId}>
+      <p className="text-[13.5px] text-gray-600">{label}</p>
+      <p className={`text-[21px] font-extrabold truncate tabular-nums ${tone}`} data-testid={testId ? `${testId}-value` : undefined}>{value}</p>
       {sub && <p className="text-[12.5px] text-gray-600 leading-snug">{sub}</p>}
     </div>
   );
@@ -130,8 +131,8 @@ export function PanelCard({ title, count, action, children, className = '', test
     <section className={`bg-white border border-bb-border rounded-2xl overflow-hidden ${className}`} data-testid={testId}>
       {(title || action) && (
         <div className="flex items-center gap-2.5 px-4 lg:px-5 py-3 bg-violet-50/60 border-b border-bb-border">
-          <h2 className="text-[15px] font-bold text-bb-text">{title}</h2>
-          {count !== undefined && <span className="inline-flex items-center justify-center min-w-[1.6rem] h-[22px] px-2 rounded-full bg-violet-100 text-violet-700 text-xs font-bold tabular-nums">{count}</span>}
+          <h2 className="text-[14px] lg:text-[15px] font-bold text-bb-text">{title}</h2>
+          {count !== undefined && <span className="inline-flex items-center justify-center min-w-[1.5rem] h-5 px-1.5 rounded-full bg-violet-100 text-violet-700 text-xs font-bold tabular-nums">{count}</span>}
           <span className="flex-1" />
           {action}
         </div>
@@ -145,7 +146,7 @@ export function PanelCard({ title, count, action, children, className = '', test
 export function LinkButton({ children, onClick, testId, disabled }) {
   return (
     <button type="button" onClick={onClick} disabled={disabled} data-testid={testId}
-      className="text-[14px] font-semibold text-bb-accent-hover hover:underline cursor-pointer disabled:opacity-40 disabled:no-underline">
+      className="text-[13px] font-semibold text-bb-accent-hover hover:underline cursor-pointer disabled:opacity-40 disabled:no-underline min-h-[44px] lg:min-h-0">
       {children}
     </button>
   );
@@ -178,6 +179,32 @@ export function DefaultOt({ value, onSave }) {
       <Pills options={[{ value: 'hour', label: 'Per hour' }, { value: 'night', label: 'Fixed per late night' }]} value={value.mode} onChange={m => onSave({ ...value, mode: m, rate: Number(rate) || 0 })} testId="default-ot-mode" />
       <MoneyInput value={rate} onChange={setRate} onBlur={() => Number(rate || 0) !== Number(value.rate || 0) && onSave({ ...value, rate: Number(rate) || 0 })}
         suffix={value.mode === 'night' ? 'a late night' : 'an hour'} testId="default-ot-rate" />
+    </div>
+  );
+}
+
+// ============================================================
+// NOTICE & EMPTY STATE (design system)
+// ============================================================
+
+/** Amber notice: warnings and "not filled yet" */
+export function Notice({ children, testId }) {
+  return (
+    <div className="flex gap-2.5 items-start rounded-xl bg-amber-100 px-3.5 py-2.5 text-[13px] text-amber-800" data-testid={testId}>
+      <AlertCircle size={17} className="shrink-0 mt-px" />
+      <div className="min-w-0">{children}</div>
+    </div>
+  );
+}
+
+/** Dashed empty box: icon, title, one line, one main button */
+export function EmptyState({ icon: Icon, title, line, action, testId }) {
+  return (
+    <div className="border border-dashed border-gray-300 rounded-2xl px-4 py-6 text-center bg-white/60" data-testid={testId}>
+      {Icon && <span className="mx-auto mb-2.5 w-14 h-14 rounded-full bg-violet-50 text-bb-accent flex items-center justify-center"><Icon size={26} /></span>}
+      <p className="text-[16px] font-bold text-bb-text">{title}</p>
+      {line && <p className="text-[13.5px] text-gray-600 mt-1">{line}</p>}
+      {action && <div className="mt-3.5 flex justify-center">{action}</div>}
     </div>
   );
 }

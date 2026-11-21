@@ -18,8 +18,7 @@
 // ============================================================
 import React, { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Download, Printer, ChevronRight, AlertCircle, ClipboardCheck, Settings as SettingsIcon } from 'lucide-react';
-import Card from '../components/Card';
+import { Plus, Download, Printer, ChevronRight, ClipboardCheck, Settings as SettingsIcon } from 'lucide-react';
 import Button from '../components/Button';
 import StickyBar from '../components/StickyBar';
 import { useIsPhone } from '../components/useIsPhone';
@@ -27,7 +26,7 @@ import { usePhoneHeader } from '../components/phoneScreens';
 import { HeaderIconButton } from '../components/PhoneHeader';
 import { SectionLabel } from '../components/PhoneUI';
 import { PageHeader, HeaderText, StatRow } from '../components/LaptopUI';
-import { StepSwitcher, PhoneStat, Tag } from '../components/StaffUI';
+import { StepSwitcher, PhoneStat, Tag, Notice, EmptyState } from '../components/StaffUI';
 import { rupees, monthLabel, addMonths, shortDay, dayMonth } from '../utils/staffFormat';
 import { useDaySheets } from '../components/useDaySheets';
 import { monthOf } from '../utils/staffCosts';
@@ -88,13 +87,10 @@ export default function DaySheets() {
   // ------------------------------------------------------------
   if (!daySheetsOn || !canFillDaySheets) {
     return (
-      <Card>
-        <div className="text-center py-10 space-y-3" data-testid="daysheets-off">
-          <ClipboardCheck size={36} className="mx-auto text-bb-muted" />
-          <p className="font-semibold text-bb-text">{!daySheetsOn ? 'Day sheets are switched off' : 'Ask the owner to let you fill Day sheets'}</p>
-          {!daySheetsOn && isOwner && <Button icon={SettingsIcon} onClick={() => navigate('/settings/daysheets')}>Switch on in Settings</Button>}
-        </div>
-      </Card>
+      <EmptyState icon={ClipboardCheck} testId="daysheets-off"
+        title={!daySheetsOn ? 'Day sheets are switched off' : 'Day sheets are filled by the owner'}
+        line={!daySheetsOn ? 'Switch them on to track each day’s staff, food and fuel.' : 'Ask the owner to tick “Can fill Day sheets” for you in Settings → Team.'}
+        action={!daySheetsOn && isOwner ? <Button icon={SettingsIcon} onClick={() => navigate('/settings/daysheets')}>Switch on in Settings</Button> : null} />
     );
   }
 
@@ -151,15 +147,12 @@ export default function DaySheets() {
       ))}
 
       {notFilled.length > 0 && (
-        <div className="flex gap-2.5 items-start rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-[14px] text-amber-900" data-testid="notfilled-note">
-          <AlertCircle size={18} className="shrink-0 mt-0.5" />
-          <span>{notFilled.length} {notFilled.length === 1 ? 'day is' : 'days are'} not filled yet. Monthly staff are counted for {notFilled.length === 1 ? 'it' : 'them'}; food, fuel and daily wages are missing.</span>
-        </div>
+        <Notice testId="notfilled-note">{notFilled.length} {notFilled.length === 1 ? 'day is' : 'days are'} not filled yet. Monthly staff are counted for {notFilled.length === 1 ? 'it' : 'them'}; food, fuel and daily wages are missing.</Notice>
       )}
 
       {/* === DAYS === */}
       {!daySheetsLoaded ? <p className="text-sm text-bb-muted">Loading…</p> : !days.length ? (
-        <Card><p className="text-center text-bb-muted py-8">No days in {monthLabel(ym)} yet.</p></Card>
+        <EmptyState icon={ClipboardCheck} title={`No days in ${monthLabel(ym)} yet`} line={`Day sheets start on ${shortDay(cfg.startDate)}.`} />
       ) : isPhone ? (
         <>
           <SectionLabel>{monthLabel(ym).split(' ')[0]} · {days.length} {days.length === 1 ? 'day' : 'days'}</SectionLabel>

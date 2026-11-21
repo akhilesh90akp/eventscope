@@ -92,7 +92,7 @@ export default function StaffPerson() {
 
   const nameCard = (
     <div className="bg-white border border-bb-border rounded-2xl p-4 flex items-center gap-3">
-      <Avatar name={person.name} size={48} />
+      <Avatar name={person.name} size={44} />
       <span className="flex-1 min-w-0">
         <b className="block text-[16px] truncate">{person.name}</b>
         <span className="flex gap-1.5 mt-1 flex-wrap">

@@ -17,14 +17,13 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Download, Printer, ChevronRight, Lock, Users } from 'lucide-react';
-import Card from '../components/Card';
 import Button from '../components/Button';
 import { useIsPhone } from '../components/useIsPhone';
 import { usePhoneHeader } from '../components/phoneScreens';
 import { HeaderIconButton } from '../components/PhoneHeader';
 import { SectionLabel } from '../components/PhoneUI';
 import { PageHeader, HeaderText, StatRow } from '../components/LaptopUI';
-import { StepSwitcher, PhoneStat, Avatar, Tag, DefaultOt } from '../components/StaffUI';
+import { StepSwitcher, PhoneStat, Avatar, Tag, DefaultOt, EmptyState } from '../components/StaffUI';
 import { rupees, monthLabel, addMonths, staffLine } from '../utils/staffFormat';
 import { StaffFormSheet, RecordPaymentSheet } from '../components/StaffSheets';
 import { useDaySheets, useStaffMonth } from '../components/useDaySheets';
@@ -73,10 +72,10 @@ export default function Staff() {
   // RENDER
   // ------------------------------------------------------------
   if (!isOwner) {
-    return <Card><div className="text-center py-10"><Lock size={36} className="mx-auto text-bb-muted mb-3" /><p className="font-semibold text-bb-text">Staff & wages are only visible to the account owner</p></div></Card>;
+    return <EmptyState icon={Lock} title="Staff & wages are only visible to the account owner" line="Pay and payments stay private to owners." />;
   }
   if (!daySheetsOn) {
-    return <Card><div className="text-center py-10 space-y-3"><Users size={36} className="mx-auto text-bb-muted" /><p className="font-semibold">Switch on Day sheets in Settings to use Staff & wages</p><Button onClick={() => navigate('/settings/daysheets')}>Open Settings</Button></div></Card>;
+    return <EmptyState icon={Users} title="Day sheets are switched off" line="Switch them on in Settings to use Staff & wages." action={<Button onClick={() => navigate('/settings/daysheets')}>Open Settings</Button>} />;
   }
 
   const monthSwitch = (compact) => (
@@ -126,7 +125,8 @@ export default function Staff() {
       </>}
 
       {!list.length ? (
-        <Card><p className="text-center text-bb-muted py-8">No staff yet. Add the people who work at your events.</p></Card>
+        <EmptyState icon={Users} title={`No staff in ${monthLabel(ym)}`} line="Add the people who work at your events. They don’t need to sign in." testId="staff-empty"
+          action={<Button icon={Plus} onClick={() => setForm(true)}>Add staff</Button>} />
       ) : isPhone ? <>
         {team.length > 0 && <>
           <SectionLabel right={<span className="text-[12.5px] text-gray-600">Day cost goes to events or running cost</span>}>Events team · {team.length}</SectionLabel>

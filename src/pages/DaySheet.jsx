@@ -21,7 +21,7 @@
 // ============================================================
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Download, Printer, X, Trash2 } from 'lucide-react';
+import { Download, Printer, Trash2 } from 'lucide-react';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import ActionBar, { ActionBarSpacer } from '../components/ActionBar';
@@ -30,9 +30,9 @@ import { useConfirm } from '../components/useConfirm';
 import { useIsPhone } from '../components/useIsPhone';
 import { usePhoneHeader } from '../components/phoneScreens';
 import { HeaderIconButton } from '../components/PhoneHeader';
-import { SectionLabel, TextField, SwitchRow } from '../components/PhoneUI';
+import { SectionLabel, TextField, SwitchRow, IconButton } from '../components/PhoneUI';
 import { PageHeader, HeaderText, StatRow } from '../components/LaptopUI';
-import { StepSwitcher, Pills, MoneyInput, HoursInput, PanelCard, LinkButton, SumRow, Tag } from '../components/StaffUI';
+import { StepSwitcher, Pills, MoneyInput, HoursInput, PanelCard, LinkButton, SumRow, Tag, Notice } from '../components/StaffUI';
 import { rupees } from '../utils/staffFormat';
 import { useDaySheets } from '../components/useDaySheets';
 import { addDays } from '../utils/calendar';
@@ -74,17 +74,25 @@ export default function DaySheet() {
   const [status, setStatus] = useState('');       // '' | 'saving' | 'saved' | 'error'
   const [addOpen, setAddOpen] = useState(false);
   const dirty = useRef(false);
+  const draftRef = useRef(null);     // latest sheet, so quick edits build on each other
   const timer = useRef(null);
   const pending = useRef(null);
 
-  // Load the stored sheet (or a blank one) when the day changes or a teammate saves — never over unsaved typing
+  // Load the stored sheet (or a blank one). A new day always loads fresh (any unsaved edits of the
+  // previous day are still saved — they carry their own date); the same day reloads when a
+  // teammate saves, but never over typing that hasn't been saved yet.
+  const loadedDate = useRef(null);
   useEffect(() => {
-    if (!daySheetsLoaded || dirty.current) return;
-    setDraft(stored ? { staff: {}, costs: [], notes: '', ...stored } : null);
+    if (!daySheetsLoaded) return;
+    if (loadedDate.current !== date) { loadedDate.current = date; dirty.current = false; setStatus(''); }
+    else if (dirty.current) return;
+    const next = stored ? { staff: {}, costs: [], notes: '', ...stored } : null;
+    draftRef.current = next;
+    setDraft(next);
   }, [stored, daySheetsLoaded, date]);
 
   // ------------------------------------------------------------
-  // SAVING (by itself, ~0.7 s after the last change)
+  // SAVING (by itself, about 2 s after the last change — design system)
   // ------------------------------------------------------------
   const flush = useCallback(async () => {
     clearTimeout(timer.current);
@@ -93,20 +101,22 @@ export default function DaySheet() {
     pending.current = null;
     setStatus('saving');
     const res = await saveDaySheet(p.date, p.sheet);
-    dirty.current = false;
-    setStatus(res.success ? 'saved' : 'error');
+    if (!res.success && !pending.current) pending.current = p;   // keep it for "Retry"
+    dirty.current = !!pending.current;                         // typed again while saving → still waiting
+    setStatus(!res.success ? 'error' : pending.current ? 'waiting' : 'saved');
+    if (res.success && pending.current) timer.current = setTimeout(flush, 2000);
   }, [saveDaySheet]);
 
   const change = (fn) => {
-    setDraft(prev => {
-      const base = prev || blankSheet(team, fns.length > 0, cfg.costRows);
-      const next = fn(structuredClone(base));
-      dirty.current = true;
-      pending.current = { date, sheet: next };
-      clearTimeout(timer.current);
-      timer.current = setTimeout(flush, 700);
-      return next;
-    });
+    const base = draftRef.current || blankSheet(team, fns.length > 0, cfg.costRows);
+    const next = fn(structuredClone(base));
+    draftRef.current = next;
+    setDraft(next);
+    dirty.current = true;
+    setStatus('waiting');
+    pending.current = { date, sheet: next };
+    clearTimeout(timer.current);
+    timer.current = setTimeout(flush, 2000);
   };
   useEffect(() => () => { flush(); }, [date, flush]);   // leaving the day (or the page) saves what's left
 
@@ -171,7 +181,7 @@ export default function DaySheet() {
     const ok = await confirm({ title: 'Clear this Day sheet?', message: `${formatDateWithDay(date)} goes back to “not filled”. Monthly staff stay counted as running cost.`, confirmLabel: 'Clear', tone: 'danger' });
     if (!ok) return;
     clearTimeout(timer.current); pending.current = null; dirty.current = false;
-    if ((await deleteDaySheet(date)).success) { setDraft(null); showToast('Day sheet cleared'); }
+    if ((await deleteDaySheet(date)).success) { draftRef.current = null; setDraft(null); setStatus(''); showToast('Day sheet cleared'); }
   };
 
   const exportDoc = () => dayDoc({ company: settings.companyName, d, sheet, fns, columnLabel });
@@ -196,7 +206,11 @@ export default function DaySheet() {
   }
   if (!daySheetsLoaded) return <p className="text-sm text-bb-muted">Loading…</p>;
 
-  const statusText = status === 'saving' ? 'Saving…' : status === 'error' ? 'Not saved' : filled ? '✓ Saved' : 'Not filled yet';
+  const statusText = status === 'saving' ? 'Saving…' : status === 'error' ? 'Couldn’t save. Retry' : status === 'waiting' ? 'Unsaved changes' : filled ? 'All changes saved' : 'Not filled yet';
+  const statusTone = status === 'error' ? 'text-rose-600' : status === 'waiting' ? 'text-amber-800' : status === 'saving' || !filled ? 'text-gray-500' : 'text-emerald-600';
+  const statusEl = status === 'error'
+    ? <button onClick={flush} className={`font-bold underline cursor-pointer ${statusTone}`} data-testid="save-status">{statusText}</button>
+    : <span className={`font-bold ${statusTone}`} data-testid="save-status">{status === 'saved' || (filled && !status) ? '✓ ' : ''}{statusText}</span>;
   const daySwitch = (compact) => (
     <StepSwitcher compact={compact} label={formatDateWithDay(date)} testId="day-switch" prevLabel="Previous day" nextLabel="Next day"
       onPrev={() => goDay(-1)} onNext={() => goDay(1)} prevDisabled={date <= cfg.startDate} nextDisabled={date >= today} />
@@ -308,7 +322,7 @@ export default function DaySheet() {
               <span className="block text-[12.5px] text-gray-600">{columnLabel(c.column)}</span>
             </span>
             <MoneyInput size="sm" value={c.amount} onChange={v => setCost(c.id, v)} className="w-[140px]" placeholder="—" aria-label={`${c.label} amount`} />
-            <button onClick={() => removeCost(c.id)} aria-label={`Remove ${c.label}`} className="w-8 h-8 rounded-lg flex items-center justify-center text-bb-muted hover:bg-gray-100 cursor-pointer"><X size={16} /></button>
+            <IconButton icon={Trash2} label={`Remove ${c.label}`} tone="red" size={isPhone ? 44 : 36} iconSize={isPhone ? 19 : 16} onClick={() => removeCost(c.id)} />
           </div>
         ))}
         {sheet.costs.length > 0 && <div className="flex justify-between px-4 lg:px-5 py-3 font-bold"><span>Total</span><span className="tabular-nums text-bb-accent-hover" data-testid="costs-total">{rupees(d.shared)}</span></div>}
@@ -401,7 +415,7 @@ export default function DaySheet() {
     <div className="space-y-4">
       {isPhone ? daySwitch(false) : <>
         <PageHeader title={`Day sheet · ${formatDateWithDay(date)}`} onBack={() => navigate('/day-sheets')}
-          sub={`${fns.length ? `${fns.length} ${fns.length === 1 ? 'event' : 'events'}` : 'No events'}${stored?.updatedByName ? ` · filled by ${stored.updatedByName}` : ''} · saves by itself · ${statusText}`}
+          sub={<>{fns.length ? `${fns.length} ${fns.length === 1 ? 'event' : 'events'}` : 'No events'}{stored?.updatedByName ? ` · filled by ${stored.updatedByName}` : ''} · saves by itself · {statusEl}</>}
           actions={isOwner && <>
             <HeaderText icon={Download} onClick={handleExcel} data-testid="day-excel">Excel</HeaderText>
             <HeaderText icon={Printer} onClick={() => printDoc(exportDoc())} data-testid="day-print">Print</HeaderText>
@@ -410,10 +424,10 @@ export default function DaySheet() {
       </>}
 
       {!filled && (
-        <p className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-[14px] text-amber-900" data-testid="not-filled">
+        <Notice testId="not-filled">
           Not filled yet. {isOwner ? 'Monthly staff are counted as running cost until it is.' : ''} Tick who worked and add the day’s costs — it saves by itself.
-          <button onClick={() => change(x => x)} className="block mt-2 font-bold text-bb-accent-hover hover:underline cursor-pointer" data-testid="fill-as-shown">Save the day as shown</button>
-        </p>
+          <button onClick={() => change(x => x)} className="block mt-1.5 font-bold text-bb-accent-hover hover:underline cursor-pointer min-h-[32px]" data-testid="fill-as-shown">Save the day as shown</button>
+        </Notice>
       )}
 
       {/* === NUMBERS (owners) === */}
@@ -445,13 +459,13 @@ export default function DaySheet() {
 
       {isOwner && filled && (
         <div className="flex justify-center">
-          <button onClick={clearDay} className="inline-flex items-center gap-1.5 text-[13.5px] font-semibold text-red-600 hover:underline cursor-pointer" data-testid="clear-day"><Trash2 size={15} />Clear this Day sheet</button>
+          <button onClick={clearDay} className="inline-flex items-center gap-2 min-h-[44px] px-4 rounded-xl border border-rose-200 bg-white text-[14.5px] font-semibold text-rose-600 hover:bg-rose-50 cursor-pointer active:scale-95 transition" data-testid="clear-day"><Trash2 size={16} />Clear this Day sheet</button>
         </div>
       )}
 
       {isPhone && <>
         <ActionBarSpacer />
-        <ActionBar label={isOwner ? 'Day costs' : formatDateWithDay(date)} status={statusText} value={isOwner ? rupees(d.total) : ''}>
+        <ActionBar label={<>{isOwner ? 'Day costs' : formatDateWithDay(date)} · {statusEl}</>} value={isOwner ? rupees(d.total) : ''}>
           <Button size="lg" onClick={async () => { await flush(); navigate('/day-sheets'); }} data-testid="day-done">Done</Button>
         </ActionBar>
       </>}
