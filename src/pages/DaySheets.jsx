@@ -16,7 +16,7 @@
 // ============================================================
 // IMPORTS
 // ============================================================
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Download, Printer, ChevronRight, AlertCircle, ClipboardCheck, Settings as SettingsIcon } from 'lucide-react';
 import Card from '../components/Card';
@@ -77,8 +77,10 @@ export default function DaySheets() {
     setBusy(false);
   };
 
+  const excelRef = useRef(handleExcel);
+  excelRef.current = handleExcel;   // the title-bar button always exports the latest numbers
   usePhoneHeader({
-    right: isOwner && daySheetsOn && m ? <HeaderIconButton icon={Download} label="Download Excel" onClick={handleExcel} disabled={busy || !days.length} data-testid="daysheets-excel" /> : null,
+    right: isOwner && daySheetsOn && m ? <HeaderIconButton icon={Download} label="Download Excel" onClick={() => excelRef.current()} disabled={busy || !days.length} data-testid="daysheets-excel" /> : null,
   }, [busy, days.length, ym, isOwner, daySheetsOn, m]);
 
   // ------------------------------------------------------------

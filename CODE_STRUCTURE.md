@@ -23,6 +23,10 @@ src/
     cells take sums like 12000+3500; laptop 1024px+: boxed cells, More columns switch, Loss / not-filled chips, wrong values explained via validateMoneyInput, Retry on failed save; tablets keep the classic grid), Purchases (owner; business purchases by financial year),
     Billing (owner: Plan & billing — plans, UPI pay, "I've paid", receipts),
     JobEvent (phones: the Job Log of one completed event — /job/:eventId; same data as JobLog; laptops show JobEventLaptop, a pop-up, from the card and from this route),
+    DaySheets (the month's days: cost, filled / not filled), DaySheet (one day — who worked where, overtime,
+      shared costs, notes; saves by itself; "Paid today" tick for daily-paid staff), Staff (Staff & wages: month
+      table / list, Default overtime, salary sheet Excel/Print), StaffPerson (one person: breakdown, payments,
+      advance, their days, Mark as paid) — all only when Settings → Day sheets is on,
     Settings, Admin (platform admins: companies, statuses, Actions ▾ — a bottom sheet on phones, collections, payment settings), CreateCompany (sign-up),
     JoinInvite (accept/decline an invite), Login,
     Legal (Terms / Privacy / Data protection — public)
@@ -72,7 +76,13 @@ src/
     UpgradeCard + PlanTag (a feature the plan doesn't include → "on the Standard plan" + See plans),
     AdminBillingDialog (Admin → Actions: pilot, confirm/record payment, plan, suspend, reactivate, history),
     PurchaseDialog (Add / Edit purchase: "Just the total" or "Item by item";
-      wide table on laptops, fold-open rows on phones)
+      wide table on laptops, fold-open rows on phones; "Bought for" an event when Day sheets are on),
+    DAY SHEETS & STAFF WAGES:
+      useDaySheets.js (settings, events per day, day()/month() calculators, useStaffMonth),
+      StaffUI (Pills ✓ choices, MoneyInput ₹, HoursInput, StepSwitcher ‹ month ›, Avatar, Tag, PhoneStat,
+        PanelCard, SumRow, DefaultOt), StaffSheets (StaffFormSheet, RecordPaymentSheet, MarkPaidSheet),
+      DaySheetSettings (Settings → Day sheets: switch, start date, where costs go, pay cycle, overtime),
+      TodayDaySheetCard (Home)
   constants/
     data.js                 Defaults: event types, service categories, new-company
                             settings, Job Log columns, plans
@@ -94,6 +104,14 @@ src/
     billing.js              Plans, prices, features/team limits, pilot & paid-until dates, grace days,
                             read-only state, admin status labels, UPI link (no Firestore)
     purchases.js            Purchases: financial year (Apr–Mar), totals, form cleaning, Excel download
+    staffCosts.js           Day sheet money rules: salary ÷ days in the month, equal split across the day's
+                            events (leftover ₹ to the first), running cost, office, overtime, advances,
+                            a person's month and carry-over (no Firestore)
+    daySheetView.js         Which events share each day, every event's share, the read-time Job Log merge
+                            (financials/ is never written by Day sheets), Reports' period costs
+    daySheetDocs.js         Day / month / salary-sheet tables for Excel and Print
+    staffExcel.js           Those tables → .xlsx (exceljs) or the browser's print dialog
+    staffFormat.js          ₹, month names, short dates, initials, "Monthly · ₹30,000 · OT ₹100/h"
     quoteFit.js             Fit to budget (lower prices evenly to a target, locks, rounding) and quote
                             revisions (event.quoteRevisions, newest first, max 10)
     copyPaste.js            Duplicate event (new draft "<client> (Copy)"; bill, contract and versions left
@@ -117,6 +135,7 @@ tests/
   firestore.rules.test.mjs  Rules tests (emulator; also run on GitHub)
   helpers.test.mjs          Unit tests for money/bill math
   tenantImport.test.mjs     Unit tests for reading backup files (old export, Drive and owner backups)
+  staffCosts / daySheetView .test.mjs   Day sheet money rules and the Job Log merge
   pdfExport / contract / calendar / purchases / billing / quoteFit / copyPaste / servicePrices .test.mjs   Unit tests for page breaks, contract
                             figures, calendar math, purchases
 website/                    The marketing site at eventscope.in: plain HTML/CSS/JS, no build step.

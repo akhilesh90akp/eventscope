@@ -113,7 +113,8 @@ export default function DaySheet() {
   // ------------------------------------------------------------
   // DERIVED
   // ------------------------------------------------------------
-  const sheet = draft || blankSheet(team, fns.length > 0, cfg.costRows);
+  const blank = useMemo(() => blankSheet(team, fns.length > 0, cfg.costRows), [team, fns.length, cfg.costRows]);
+  const sheet = draft || blank;
   const filled = !!draft;
   // money uses the sheet being typed, so numbers move as you type
   const { computeWith } = ds;
@@ -179,11 +180,13 @@ export default function DaySheet() {
     catch (err) { console.error('Day sheet Excel failed:', err); showToast('Couldn’t make the Excel file — please try again.', 'error'); }
   };
 
+  const excelRef = useRef(handleExcel);
+  excelRef.current = handleExcel;   // the title-bar button always exports the latest numbers
   usePhoneHeader({
     title: 'Day sheet',
     sub: `${formatDateWithDay(date)} · ${fns.length ? `${fns.length} ${fns.length === 1 ? 'event' : 'events'}` : 'no events'}`,
-    right: isOwner ? <HeaderIconButton icon={Download} label="Download Excel" onClick={handleExcel} data-testid="day-excel" /> : null,
-  }, [date, fns.length, isOwner, d.total, sheet]);
+    right: isOwner ? <HeaderIconButton icon={Download} label="Download Excel" onClick={() => excelRef.current()} data-testid="day-excel" /> : null,
+  }, [date, fns.length, isOwner]);   // Excel reads the latest sheet when tapped (handleExcel is recreated each render)
 
   // ------------------------------------------------------------
   // RENDER
