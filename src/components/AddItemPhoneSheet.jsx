@@ -11,6 +11,7 @@
 // IMPORTS
 // ============================================================
 import React, { useState } from 'react';
+import { Select } from './PhoneUI';
 import { Check, ChevronDown, Plus } from 'lucide-react';
 import BottomSheet from './BottomSheet';
 
@@ -41,10 +42,10 @@ export default function AddItemPhoneSheet({ title, targets, target, onTarget, ad
           <div>
             <label htmlFor="ai-target" className="block text-[13.5px] font-bold mb-1.5">Add to</label>
             <div className="relative">
-              <select id="ai-target" value={target} onChange={e => onTarget(e.target.value)} data-testid="add-item-target"
+              <Select id="ai-target" value={target} onChange={e => onTarget(e.target.value)} data-testid="add-item-target"
                 className="w-full min-h-[48px] appearance-none rounded-xl border border-bb-border bg-bb-input px-3 pr-10 text-[16px] font-semibold">
                 {targets.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-              </select>
+              </Select>
               <ChevronDown size={20} className="absolute right-3 top-1/2 -translate-y-1/2 text-bb-muted pointer-events-none" />
             </div>
           </div>

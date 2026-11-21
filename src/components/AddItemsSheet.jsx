@@ -15,6 +15,7 @@
 // IMPORTS
 // ============================================================
 import React, { useMemo, useRef, useState } from 'react';
+import { Select } from './PhoneUI';
 import { BookmarkPlus, Check, ChevronDown, Plus, TriangleAlert, X } from 'lucide-react';
 import BottomSheet from './BottomSheet';
 import { serviceNames, suggestServices, formatRupees } from '../utils/helpers';
@@ -96,14 +97,14 @@ export default function AddItemsSheet({ events, categories, onSave, onClose, can
         <div>
           <label htmlFor="add-event" className="block text-[13.5px] font-bold mb-1.5">Add to event</label>
           <div className="relative">
-            <select id="add-event" ref={selectRef} value={eventId} data-testid="add-event"
+            <Select id="add-event" ref={selectRef} value={eventId} data-testid="add-event"
               onChange={e => { setEventId(e.target.value); setError(er => (er === 'event' ? '' : er)); setNote(''); }}
               aria-invalid={error === 'event'}
               className={`w-full min-h-[48px] appearance-none rounded-xl px-3 pr-10 text-[16px] focus:outline-none focus:ring-2 focus:ring-bb-accent/40
                 ${error === 'event' ? 'border-2 border-red-600 bg-red-50' : 'border border-bb-border bg-bb-input'} ${eventId ? 'font-semibold text-bb-text' : 'text-bb-muted'}`}>
               <option value="">Choose an event</option>
               {events.map((e, i) => <option key={e.id} value={e.id}>{e.name}{events.length > 1 && i === 0 ? ' · Main' : ''}</option>)}
-            </select>
+            </Select>
             <ChevronDown size={20} className="absolute right-3 top-1/2 -translate-y-1/2 text-bb-muted pointer-events-none" />
           </div>
           {error === 'event' && <p className="flex items-center gap-1.5 text-[12.5px] font-semibold text-red-700 mt-1.5" role="alert"><TriangleAlert size={15} />Choose which event these items go to</p>}

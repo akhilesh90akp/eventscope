@@ -17,6 +17,7 @@
 // IMPORTS
 // ============================================================
 import React, { useState } from 'react';
+import { Select } from './PhoneUI';
 import { useApp } from '../context/AppContext';
 import BottomSheet from './BottomSheet';
 import { PriceInputs } from './ServicesSettings';
@@ -63,9 +64,9 @@ export default function SaveToServicesSheet({ name: startName, isPhone, onSaved,
           <input value={name} onChange={e => setName(e.target.value)} data-testid="save-service-name" className={field} />
         </label>
         <label className="block"><span className={lbl}>Category</span>
-          <select value={catId} onChange={e => setCatId(e.target.value)} data-testid="save-service-cat" className={`${field} cursor-pointer`}>
+          <Select value={catId} onChange={e => setCatId(e.target.value)} data-testid="save-service-cat" className={`${field} cursor-pointer`}>
             {categories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
-          </select>
+          </Select>
         </label>
         <div>
           <span className={lbl}>Default price <span className="font-medium text-gray-500">· optional</span></span>

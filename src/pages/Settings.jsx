@@ -20,6 +20,7 @@
 // IMPORTS
 // ============================================================
 import React, { useState, useEffect } from 'react';
+import { Select } from '../components/PhoneUI';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ChevronRight, ClipboardCheck } from 'lucide-react';
 import { useIsPhone } from '../components/useIsPhone';
@@ -299,7 +300,7 @@ export default function Settings() {
 
       {/* Tab Buttons — stay pinned while scrolling (laptops; phones open one section at a time) */}
       {!isPhone && <StickyBar>
-        <div className="flex gap-1.5 overflow-x-auto pb-1">
+        <div className="flex flex-wrap gap-1.5 pb-1">
           {tabs.map(t => (
             <button
               key={t.key}
@@ -322,7 +323,7 @@ export default function Settings() {
 
       {/* Read-only notice for staff / suspended accounts */}
       {!canEditSettings && tab !== 'team' && tab !== 'backup' && (
-        <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg px-4 py-3">
+        <div className="rounded-xl bg-amber-100 text-amber-800 text-[13px] px-3.5 py-2.5">
           {isSuspended
             ? 'This account is suspended, so settings can’t be changed.'
             : 'Only the account owner can change settings. You’re viewing them read-only.'}
@@ -549,7 +550,7 @@ export default function Settings() {
                         onKeyDown={e => e.key === 'Enter' && handleInvite()}
                       />
                     </div>
-                    <select
+                    <Select
                       value={inviteRole}
                       onChange={e => setInviteRole(e.target.value)}
                       aria-label="Role"
@@ -557,7 +558,7 @@ export default function Settings() {
                     >
                       <option value="staff">Staff</option>
                       <option value="owner">Owner</option>
-                    </select>
+                    </Select>
                     <Button icon={UserPlus} onClick={handleInvite} disabled={inviting || !canEditSettings}>
                       {inviting ? 'Adding…' : 'Add'}
                     </Button>

@@ -41,7 +41,8 @@ import { periodStaffCosts } from '../utils/daySheetView';
 import { isoDate } from '../utils/calendar';
 import { usePhoneHeader } from '../components/phoneScreens';
 import { HeaderIconButton } from '../components/PhoneHeader';
-import { IconButton } from '../components/PhoneUI';
+import { IconButton, EmptyState } from '../components/PhoneUI';
+import { PhoneStat } from '../components/StaffUI';
 import { PageHeader, HeaderText, StatRow, Seg } from '../components/LaptopUI';
 
 // ============================================================
@@ -61,7 +62,7 @@ function CategoryTag({ p }) {
 // Purchases — MAIN COMPONENT
 // ============================================================
 export default function Purchases() {
-  const { purchases, purchasesLoaded, deletePurchase, events, financials, jobLogColumns, allJobLogColumns, isOwner, settings, showToast, canUse, daySheetCfg, staff, daySheets, staffPayments } = useApp();
+  const { purchases, purchasesLoaded, deletePurchase, events, financials, jobLogColumns, allJobLogColumns, isOwner, settings, showToast, restoreDoc, canUse, daySheetCfg, staff, daySheets, staffPayments } = useApp();
   const confirm = useConfirm();
   const navigate = useNavigate();
 
@@ -110,10 +111,9 @@ export default function Purchases() {
     const ok = await confirm({
       title: 'Delete this purchase?',
       message: `${titleOf(p)} — ${rupees(p.amount)} on ${formatDateReadable(p.date)}.`,
-      note: 'This can’t be undone.',
       confirmLabel: 'Delete', tone: 'danger',
     });
-    if (ok && (await deletePurchase(p.id)).success) showToast('Purchase deleted');
+    if (ok && (await deletePurchase(p.id)).success) showToast('Purchase deleted', 'remove', { undo: () => restoreDoc('purchases', p.id, p) });
   };
 
   const handleDownload = async () => {
@@ -153,13 +153,8 @@ export default function Purchases() {
     );
   }
 
-  const stat = (label, value, cls = 'text-bb-text', sub = '') => (
-    <Card>
-      <p className="text-xs text-bb-muted">{label}</p>
-      <p className={`text-lg sm:text-xl font-bold truncate ${cls}`}>{value}</p>
-      {sub && <p className="text-[10px] text-bb-muted max-lg:text-[12.5px] max-lg:text-gray-600">{sub}</p>}
-    </Card>
-  );
+  // phone number cards (design system stat card: 13.5 label, 21 / 800 value)
+  const stat = (label, value, cls = 'text-bb-text', sub = '') => <PhoneStat label={label} value={value} tone={cls} sub={sub} />;
 
   return (
     <div className="space-y-4">
@@ -215,7 +210,7 @@ export default function Purchases() {
         {stat('Entries', sum.count)}
         {stat('Biggest category', sum.biggestCategory ? sum.biggestCategory.name : '—', 'text-bb-text', sum.biggestCategory ? rupees(sum.biggestCategory.amount) : '')}
         {enoughCosts
-          ? stat(afterLabel, formatRupees(afterPurchases), afterPurchases >= 0 ? 'text-emerald-500' : 'text-rose-600', afterHint)
+          ? stat(afterLabel, formatRupees(afterPurchases), afterPurchases >= 0 ? 'text-emerald-600' : 'text-rose-600', afterHint)
           : stat(afterLabel, '—', 'text-bb-muted', `Shows once most events have expenses added (${profit.profitEvents} of ${profit.completed} now)`)}
       </div>
       ) : (
@@ -234,12 +229,8 @@ export default function Purchases() {
       {!purchasesLoaded ? (
         <p className="text-sm text-bb-muted">Loading…</p>
       ) : list.length === 0 ? (
-        <Card>
-          <div className="text-center py-8">
-            <ShoppingBag size={40} className="mx-auto text-bb-muted mb-3" />
-            <p className="text-bb-muted">No purchases in {fyLabel(year)} yet.</p>
-          </div>
-        </Card>
+        <EmptyState icon={ShoppingBag} title={`No purchases in ${fyLabel(year)} yet`} line="Add chairs, lights and anything else you buy to keep and reuse."
+          action={<Button icon={Plus} onClick={() => setDialog({ editing: null })}>Add purchase</Button>} />
       ) : (
         <>
           {isPhone ? <>

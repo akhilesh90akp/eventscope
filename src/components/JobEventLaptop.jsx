@@ -129,7 +129,7 @@ export default function JobEventLaptop({ event, onClose }) {
               <p className="text-[12.5px] text-bb-muted mt-1.5">Costs are {costShare}% of revenue.</p>
             </div>
           )}
-          {!calc.hasAny && <p className="text-[13px] rounded-lg bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2" data-testid="job-nocosts">Not filled yet — add the costs on the right to see this event’s profit.</p>}
+          {!calc.hasAny && <p className="rounded-xl bg-amber-100 text-amber-800 text-[13px] px-3.5 py-2.5" data-testid="job-nocosts">Not filled yet — add the costs on the right to see this event’s profit.</p>}
 
           <div className="space-y-4">
             <section>

@@ -16,7 +16,7 @@ import { X } from 'lucide-react';
 import Button from './Button';
 import { useApp } from '../context/AppContext';
 import { useConfirm } from './useConfirm';
-import { SwitchRow, DateField, TextField } from './PhoneUI';
+import { SwitchRow, DateField, TextField, Select } from './PhoneUI';
 import { Pills, PanelCard, DefaultOt } from './StaffUI';
 import { isoDate } from '../utils/calendar';
 import { daySheetColumnIds } from '../utils/daySheetView';
@@ -79,24 +79,24 @@ export default function DaySheetSettings() {
           <div className="px-4 lg:px-5 py-2 divide-y divide-bb-border">
             <label className="flex items-center gap-3 py-2.5">
               <span className="flex-1 text-[15px]">Staff & overtime</span>
-              <select value={cfg.staffColumn} onChange={e => save({ staffColumn: e.target.value })} className={selectCls} data-testid="ds-staff-col">
+              <Select value={cfg.staffColumn} onChange={e => save({ staffColumn: e.target.value })} className={selectCls} data-testid="ds-staff-col">
                 {cols.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
-              </select>
+              </Select>
             </label>
             {cfg.costRows.map((r, i) => (
               <div key={`${r.label}-${i}`} className="flex items-center gap-3 py-2.5" data-testid={`ds-row-${i}`}>
                 <span className="flex-1 text-[15px]">{r.label} <span className="text-[12px] text-gray-500">· every day</span></span>
-                <select value={r.column} onChange={e => save({ costRows: cfg.costRows.map((x, j) => (j === i ? { ...x, column: e.target.value } : x)) })} className={selectCls}>
+                <Select value={r.column} onChange={e => save({ costRows: cfg.costRows.map((x, j) => (j === i ? { ...x, column: e.target.value } : x)) })} className={selectCls}>
                   {cols.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
-                </select>
+                </Select>
                 <button onClick={() => save({ costRows: cfg.costRows.filter((_, j) => j !== i) })} aria-label={`Remove ${r.label}`} className="w-9 h-9 rounded-lg flex items-center justify-center text-bb-muted hover:bg-gray-100 cursor-pointer"><X size={16} /></button>
               </div>
             ))}
             <div className="flex items-end gap-2 py-3 flex-wrap">
               <TextField className="flex-1 min-w-[160px]" label="Add an every-day cost" placeholder="e.g. Food, Truck fuel" value={newRow.label} onChange={e => setNewRow(n => ({ ...n, label: e.target.value }))} data-testid="ds-new-row" />
-              <select value={newRow.column} onChange={e => setNewRow(n => ({ ...n, column: e.target.value }))} className={`${selectCls} min-h-[48px]`} aria-label="Job Log column">
+              <Select value={newRow.column} onChange={e => setNewRow(n => ({ ...n, column: e.target.value }))} className={`${selectCls} min-h-[48px]`} aria-label="Job Log column">
                 {cols.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
-              </select>
+              </Select>
               <Button variant="secondary" onClick={addRow} disabled={!newRow.label.trim()} className="min-h-[48px]" data-testid="ds-add-row">Add</Button>
             </div>
             <p className="py-3 text-[12.5px] text-gray-600">

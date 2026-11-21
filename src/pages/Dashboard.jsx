@@ -26,7 +26,7 @@ import EventCardPhone, { EventItemsSheet, EventMoreSheet } from '../components/E
 import { PlanTag } from '../components/UpgradeCard';
 import InstallButton from '../components/InstallButton';
 import TodayDaySheetCard from '../components/TodayDaySheetCard';
-import { SectionLabel } from '../components/PhoneUI';
+import { SectionLabel, EmptyState } from '../components/PhoneUI';
 import { useIsPhone } from '../components/useIsPhone';
 import { sortByActiveDate, formatRupees } from '../utils/helpers';
 import { FileText, CheckCircle, PartyPopper, IndianRupee, CalendarDays, ChevronRight } from 'lucide-react';
@@ -139,13 +139,7 @@ export default function Dashboard() {
         )}>{isPhone ? 'Confirmed events' : 'Confirmed events · coming up'}</SectionLabel>
 
         {displayEvents.length === 0 ? (
-          <Card>
-            <div className="text-center py-8">
-              <CalendarDays size={40} className="mx-auto text-bb-muted mb-3" />
-              <p className="text-bb-muted">No confirmed events</p>
-              <p className="text-sm text-bb-muted/60 mt-1">Confirm a draft to see it here</p>
-            </div>
-          </Card>
+          <EmptyState icon={CalendarDays} title="No confirmed events" line="Confirm a draft to see it here." />
         ) : (
           isPhone ? (
           /* Phone: the same card as the Confirmed page, with Quote · Call · WhatsApp */

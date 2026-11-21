@@ -17,6 +17,7 @@
 // IMPORTS
 // ============================================================
 import React, { useEffect, useMemo, useState } from 'react';
+import { Select } from './PhoneUI';
 import { ChevronDown, ChevronUp, Edit2, Trash2, Plus } from 'lucide-react';
 import Modal from './Modal';
 import Button from './Button';
@@ -68,11 +69,11 @@ function CategoryField({ value, onChange, categories, className = '' }) {
     );
   }
   return (
-    <select value={value} onChange={e => (e.target.value === NEW_CAT ? (setTyping(true), onChange('')) : onChange(e.target.value))}
+    <Select value={value} onChange={e => (e.target.value === NEW_CAT ? (setTyping(true), onChange('')) : onChange(e.target.value))}
       className={`${fieldCls} ${className}`} aria-label="Category">
       {categories.map(c => <option key={c} value={c}>{c}</option>)}
       <option value={NEW_CAT}>＋ Type your own…</option>
-    </select>
+    </Select>
   );
 }
 
@@ -358,11 +359,11 @@ export default function PurchaseDialog({ isOpen, onClose, editing = null }) {
         {daySheetsOn && (
           <label className="block md:w-[460px]">
             <span className="block text-sm font-medium text-bb-text mb-1">Bought for (optional)</span>
-            <select value={boughtFor} onChange={e => setBoughtFor(e.target.value)} data-testid="purchase-boughtfor"
+            <Select value={boughtFor} onChange={e => setBoughtFor(e.target.value)} data-testid="purchase-boughtfor"
               className="w-full min-h-[44px] rounded-lg border border-bb-border bg-white px-3 text-sm cursor-pointer">
               <option value="">Not for one event</option>
               {eventChoices.map(e => <option key={e.id} value={e.id}>{e.label}{e.date ? ` · ${e.date.split('-').reverse().join('/')}` : ''}</option>)}
-            </select>
+            </Select>
             <span className="block text-xs text-bb-muted mt-1">Shows on that event as “new stock bought for it” — still not part of its costs, because you keep and reuse it.</span>
           </label>
         )}

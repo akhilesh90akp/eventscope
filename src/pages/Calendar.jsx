@@ -29,7 +29,7 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, AlertTriangle, Bell, CalendarDays, Users, SlidersHorizontal, Info, Phone, MessageSquare, Pencil, FileText, Receipt, FileSignature } from 'lucide-react';
 import { useIsPhone } from '../components/useIsPhone';
 import BottomSheet from '../components/BottomSheet';
-import { SegmentedTabs, IconButton } from '../components/PhoneUI';
+import { SegmentedTabs, IconButton, Select } from '../components/PhoneUI';
 import { PageHeader, Seg } from '../components/LaptopUI';
 import StickyBar from '../components/StickyBar';
 import { useApp } from '../context/AppContext';
@@ -452,10 +452,10 @@ export default function Calendar() {
           <button onClick={goToday} className="h-[32px] px-3 rounded-lg border border-gray-300 bg-white text-[13px] font-semibold cursor-pointer hover:bg-gray-50">Today</button>
         </div>
         <Seg label="Status" value={status} onChange={setStatus} testId="cal-status" options={STATUS_FILTERS.map(f => ({ value: f.id, label: f.label }))} />
-        <select aria-label="Event type" value={type} onChange={e => setType(e.target.value)} className="ml-auto h-[34px] bg-white border border-gray-300 rounded-lg px-3 text-[13px] font-semibold cursor-pointer">
+        <Select aria-label="Event type" value={type} onChange={e => setType(e.target.value)} className="ml-auto h-[34px] bg-white border border-gray-300 rounded-lg px-3 text-[13px] font-semibold cursor-pointer">
           <option value="">All event types</option>
           {usedTypes.map(t => <option key={t} value={t}>{t}</option>)}
-        </select>
+        </Select>
       </div>}
 
       {/* Colour key (laptop) */}
@@ -579,10 +579,10 @@ export default function Calendar() {
           </div>
           <label className="block">
             <span className="block text-[13px] font-semibold text-gray-700 mb-2">Event type</span>
-            <select value={type} onChange={e => setType(e.target.value)} className="w-full min-h-[48px] rounded-xl border border-bb-border bg-bb-input px-3.5 text-[16px]">
+            <Select value={type} onChange={e => setType(e.target.value)} className="w-full min-h-[48px] rounded-xl border border-bb-border bg-bb-input px-3.5 text-[16px]">
               <option value="">All event types</option>
               {usedTypes.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
+            </Select>
           </label>
         </BottomSheet>
       )}

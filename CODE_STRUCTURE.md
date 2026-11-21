@@ -31,7 +31,8 @@ src/
     JoinInvite (accept/decline an invite), Login,
     Legal (Terms / Privacy / Data protection — public)
   components/               Reusable UI pieces
-    Layout (desktop sidebar; mobile title bar + hamburger menu + bottom nav; task screens hide the bottom nav), Button, Card, Input, Modal, Toast,
+    Layout (desktop sidebar; mobile title bar + hamburger menu + bottom nav; task screens hide the bottom nav), Button, Card, Input, Modal,
+    Toast (showToast(msg) green · 'error' red · 'remove' orange 5 s with Undo — deletes call restoreDoc to put the record back),
     PHONE DESIGN (below 1024px — laptops keep their own layouts; pages pick one with useIsPhone):
       PhoneHeader + phoneScreens.js (the purple bar: main screens = title + ☰, task screens =
         ← back + title + sub-line; route table PHONE_SCREENS; pages add a sub-line / buttons
@@ -39,7 +40,9 @@ src/
       ActionBar (white bar pinned to the bottom of a task screen: total + main buttons),
       BottomSheet (slides up on phones, a dialog on laptops), DocFit (A4 document fitted to the
         phone width, "Actual size" switch), PhoneUI (IconButton, SectionLabel, SegmentedTabs,
-        MenuRow, SwitchRow, UnderlineTabs (tabs attached to the purple bar), NumberBox, DateField "Sat, 12 Sep 2026", TextField, DateBlock, FunctionRow),
+        MenuRow, SwitchRow, UnderlineTabs (tabs attached to the purple bar), NumberBox, DateField "Sat, 12 Sep 2026", TextField, DateBlock, FunctionRow,
+        Select (use instead of <select>: normal dropdown on laptops, options sheet on phones), Notice (amber warning box),
+        EmptyState (dashed "nothing here yet" box with one main button)),
       EventCardPhone (+ EventItemsSheet with Copy for WhatsApp, EventMoreSheet — Home/Drafts/Confirmed/Completed cards),
       QuotePhoneEditor (quote Details tab), AddItemsSheet (phone quote: pick an event, add many item names, save), AddItemPhoneSheet + SetPricesSheet (phone Add item / Set prices on Confirmed and Completed), FitBudgetSheet + QuoteRevisionsSheet (Fit to budget,
         versions — also on laptops), EventFormPhone (New/Edit event in 3 steps) + VenueInput

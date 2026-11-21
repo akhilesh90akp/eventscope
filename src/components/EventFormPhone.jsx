@@ -25,7 +25,7 @@ import { HeaderTextButton } from './PhoneHeader';
 import BottomSheet from './BottomSheet';
 import VenueInput from './VenueInput';
 import { useConfirm } from './useConfirm';
-import { FunctionRow, SectionLabel, SwitchRow, DateField, TextField, IconButton } from './PhoneUI';
+import { FunctionRow, SectionLabel, SwitchRow, DateField, TextField, IconButton, Select } from './PhoneUI';
 import { EVENT_TYPES } from '../constants/data';
 import { functionDatesProblem, functionDays, cleanGstin } from '../utils/helpers';
 
@@ -279,12 +279,12 @@ export default function EventFormPhone({ f }) {
         <div className="bg-white border border-bb-border rounded-2xl p-[18px] space-y-4">
           <label className="block">
             <span className="block text-[13.5px] font-semibold text-gray-700 mb-2">Event type <span className="text-red-500">*</span></span>
-            <select value={otherType || f.isCustomEventType ? 'Other' : f.eventTypeSelectValue} data-testid="event-type"
+            <Select value={otherType || f.isCustomEventType ? 'Other' : f.eventTypeSelectValue} data-testid="event-type"
               onChange={e => { setOtherType(e.target.value === 'Other'); f.handleEventTypeSelect(e.target.value); }}
               className={`w-full min-h-[48px] rounded-xl border bg-bb-input px-3.5 text-[16px] ${f.errors.eventType ? 'border-red-400' : 'border-bb-border'}`}>
               <option value="">Select…</option>
               {EVENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
+            </Select>
             {f.errors.eventType && !f.isCustomEventType && <span className="block text-[13px] text-red-600 mt-1">Pick the event type</span>}
           </label>
           {otherType || f.isCustomEventType ? (

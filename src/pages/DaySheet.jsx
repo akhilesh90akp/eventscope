@@ -29,7 +29,7 @@ import { useConfirm } from '../components/useConfirm';
 import { useIsPhone } from '../components/useIsPhone';
 import { usePhoneHeader } from '../components/phoneScreens';
 import { HeaderIconButton } from '../components/PhoneHeader';
-import { SectionLabel, TextField, SwitchRow, IconButton } from '../components/PhoneUI';
+import { SectionLabel, TextField, SwitchRow, IconButton, Select } from '../components/PhoneUI';
 import { PageHeader, HeaderText, StatRow } from '../components/LaptopUI';
 import { StepSwitcher, Pills, MoneyInput, HoursInput, PanelCard, LinkButton, SumRow, Tag, Notice, EmptyState } from '../components/StaffUI';
 import { rupees } from '../utils/staffFormat';
@@ -59,7 +59,7 @@ export default function DaySheet() {
   const {
     cfg, today, day, fnsByDate, teamOn, officeOn, isOwner, daySheets, daySheetsLoaded, saveDaySheet, deleteDaySheet,
     events, financials, jobLogColumns, allJobLogColumns, daySheetView, columnLabel, settings, updateSettings,
-    staffPayments, addStaffPayment, deleteStaffPayment, showToast, daySheetsOn, canFillDaySheets,
+    staffPayments, addStaffPayment, deleteStaffPayment, showToast, restoreDoc, daySheetsOn, canFillDaySheets,
   } = ds;
 
   // ------------------------------------------------------------
@@ -170,7 +170,7 @@ export default function DaySheet() {
 
   const togglePaid = async (p, row) => {
     const done = paidToday(p);
-    if (done) { if ((await deleteStaffPayment(done.id)).success) showToast(`${p.name}: payment removed`); return; }
+    if (done) { if ((await deleteStaffPayment(done.id)).success) showToast(`${p.name}: payment removed`, 'remove', { undo: () => restoreDoc('staffPayments', done.id, done) }); return; }
     await flush();
     const adv = advanceStatus(p.id, staffPayments);
     const back = Math.min(adv.owed, adv.recoverPerPay || 0, row.total);
@@ -182,7 +182,8 @@ export default function DaySheet() {
     const ok = await confirm({ title: 'Clear this Day sheet?', message: `${formatDateWithDay(date)} goes back to “not filled”. Monthly staff stay counted as running cost.`, confirmLabel: 'Clear', tone: 'danger' });
     if (!ok) return;
     clearTimeout(timer.current); pending.current = null; dirty.current = false;
-    if ((await deleteDaySheet(date)).success) { draftRef.current = null; setDraft(null); setStatus(''); showToast('Day sheet cleared'); }
+    const before = stored;
+    if ((await deleteDaySheet(date)).success) { draftRef.current = null; setDraft(null); setStatus(''); showToast('Day sheet cleared', 'remove', before ? { undo: () => restoreDoc('daySheets', date, before) } : {}); }
   };
 
   const exportDoc = () => dayDoc({ company: settings.companyName, d, sheet, fns, columnLabel });
@@ -500,10 +501,10 @@ function AddCostSheet({ open, onClose, onAdd, columns, defaultColumn, canKeep, s
         <MoneyInput label="Amount" required value={amount} onChange={setAmount} testId="cost-amount" />
         <label className="block">
           <span className="block text-[13.5px] font-semibold text-gray-700 mb-2">Goes to Job Log column</span>
-          <select value={column} onChange={e => setColumn(e.target.value)} data-testid="cost-column"
+          <Select value={column} onChange={e => setColumn(e.target.value)} data-testid="cost-column"
             className="w-full min-h-[48px] rounded-xl border border-bb-border bg-bb-input px-3.5 text-[16px] cursor-pointer">
             {columns.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
-          </select>
+          </Select>
           <span className="block text-[12.5px] text-gray-600 mt-1.5">Shared across today’s events in that column</span>
         </label>
         {canKeep && <SwitchRow title="Keep this row every day" sub="Shows on new Day sheets, empty" checked={keep} onChange={setKeep} testId="cost-keep" />}

@@ -19,8 +19,10 @@
 // ============================================================
 // IMPORTS
 // ============================================================
-import React from 'react';
-import { ChevronRight, CalendarDays } from 'lucide-react';
+import React, { useState } from 'react';
+import { ChevronRight, ChevronDown, CalendarDays, AlertCircle } from 'lucide-react';
+import BottomSheet from './BottomSheet';
+import { useIsPhone } from './useIsPhone';
 import { formatDateReadable, formatDateWithDay, functionDays } from '../utils/helpers';
 
 // ============================================================
@@ -224,5 +226,76 @@ export function FunctionRow({ fn, main = false, past = false, detail, right = nu
       </div>
       {right}
     </div>
+  );
+}
+
+// ============================================================
+// NOTICE & EMPTY STATE (design system)
+// ============================================================
+
+/** Amber notice: warnings and "not filled yet" */
+export function Notice({ children, testId }) {
+  return (
+    <div className="flex gap-2.5 items-start rounded-xl bg-amber-100 px-3.5 py-2.5 text-[13px] text-amber-800" data-testid={testId}>
+      <AlertCircle size={17} className="shrink-0 mt-px" />
+      <div className="min-w-0">{children}</div>
+    </div>
+  );
+}
+
+/** Dashed empty box: icon, title, one line, one main button */
+export function EmptyState({ icon: Icon, title, line, action, testId }) {
+  return (
+    <div className="border border-dashed border-gray-300 rounded-2xl px-4 py-6 text-center bg-white/60" data-testid={testId}>
+      {Icon && <span className="mx-auto mb-2.5 w-14 h-14 rounded-full bg-violet-50 text-bb-accent flex items-center justify-center"><Icon size={26} /></span>}
+      <p className="text-[16px] font-bold text-bb-text">{title}</p>
+      {line && <p className="text-[13.5px] text-gray-600 mt-1">{line}</p>}
+      {action && <div className="mt-3.5 flex justify-center">{action}</div>}
+    </div>
+  );
+}
+
+// ============================================================
+// SELECT — native list on laptops, an options sheet on phones
+// ============================================================
+
+/**
+ * Drop-in for <select>: same props and <option> children. Laptops get the
+ * normal dropdown; phones get a field that opens a bottom sheet with the
+ * choices (design system: never the phone's own menu). onChange receives
+ * { target: { value } } like a real select.
+ */
+export function Select({ value, onChange, children, className = '', disabled, title, 'aria-label': ariaLabel, ref, ...rest }) {
+  const isPhone = useIsPhone();
+  const [open, setOpen] = useState(false);
+  const options = React.Children.toArray(children).filter(c => c?.type === 'option')
+    .map(c => ({ value: String(c.props.value ?? c.props.children), label: c.props.children, disabled: c.props.disabled }));
+  if (!isPhone) {
+    return <select ref={ref} value={value} onChange={onChange} className={className} disabled={disabled} title={title} aria-label={ariaLabel} {...rest}>{children}</select>;
+  }
+  const current = options.find(o => o.value === String(value ?? ''));
+  const pick = (v) => { setOpen(false); onChange?.({ target: { value: v } }); };
+  return (
+    <>
+      <button type="button" ref={ref} disabled={disabled} title={title} aria-label={ariaLabel} aria-haspopup="listbox" onClick={() => setOpen(true)} {...rest}
+        className={`${className} inline-flex items-center justify-between gap-2 text-left cursor-pointer disabled:opacity-50`}>
+        <span className="truncate">{current ? current.label : ''}</span>
+        {!className.includes('appearance-none') && <ChevronDown size={16} className="shrink-0 text-gray-500" />}{/* those draw their own chevron */}
+      </button>
+      <BottomSheet open={open} onClose={() => setOpen(false)} title={ariaLabel || 'Choose'} testId="select-sheet">
+        <div role="listbox" className="divide-y divide-bb-border -mx-1">
+          {options.map(o => {
+            const on = o.value === String(value ?? '');
+            return (
+              <button key={o.value} type="button" role="option" aria-selected={on} disabled={o.disabled} onClick={() => pick(o.value)}
+                className={`w-full flex items-center gap-3 min-h-[52px] px-1 text-left text-[16px] cursor-pointer disabled:opacity-40 ${on ? 'font-bold text-bb-accent-hover' : 'text-bb-text'}`}>
+                <span className={`w-[18px] h-[18px] shrink-0 rounded-full border ${on ? 'border-[5px] border-bb-accent' : 'border-gray-300'}`} />
+                <span className="flex-1 min-w-0">{o.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </BottomSheet>
+    </>
   );
 }

@@ -36,7 +36,7 @@ import { ChevronLeft, ChevronRight, ChevronDown, BookOpen } from 'lucide-react';
 import { useIsPhone } from '../components/useIsPhone';
 import { usePhoneHeader } from '../components/phoneScreens';
 import StickyBar from '../components/StickyBar';
-import { SectionLabel, IconButton, DateField, UnderlineTabs } from '../components/PhoneUI';
+import { SectionLabel, IconButton, DateField, UnderlineTabs, EmptyState } from '../components/PhoneUI';
 import { HeaderIconButton } from '../components/PhoneHeader';
 import { PageHeader, HeaderIcon, HeaderText, StatRow, Seg, Switch } from '../components/LaptopUI';
 
@@ -464,7 +464,7 @@ export default function Reports() {
 
           {/* The events */}
           {filteredEvents.length === 0 ? (
-            <div className="bg-white border border-bb-border rounded-2xl text-center py-10 text-gray-600"><BarChart3 size={36} className="mx-auto mb-2 text-bb-muted" />No events in this period</div>
+            <EmptyState icon={BarChart3} title="No events in this period" line="Pick another month or year above." />
           ) : (
             <>
               <SectionLabel right={yearGroups && yearGroups.length > 1 && (

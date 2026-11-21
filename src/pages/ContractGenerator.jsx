@@ -27,7 +27,7 @@ import { usePhoneHeader } from '../components/phoneScreens';
 import ActionBar from '../components/ActionBar';
 import DocFit from '../components/DocFit';
 import StickyBar from '../components/StickyBar';
-import { SegmentedTabs, SwitchRow, DateField, TextField } from '../components/PhoneUI';
+import { SegmentedTabs, SwitchRow, DateField, TextField, Select } from '../components/PhoneUI';
 import { PageHeader, HeaderIcon, Field, FormCol, Switch } from '../components/LaptopUI';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
@@ -192,9 +192,9 @@ export default function ContractGenerator() {
               <Field label="Received on" type="date" value={form.advanceDate} onChange={set('advanceDate')} />
               <label className="block min-w-0">
                 <span className="block text-[12.5px] font-semibold text-gray-700 mb-1">Paid by</span>
-                <select value={form.advanceMode} onChange={set('advanceMode')} className="w-full rounded-xl border border-bb-border bg-bb-input px-3 text-[13.5px] text-bb-text focus:outline-none focus:ring-2 focus:ring-bb-accent/40 h-[38px]">
+                <Select value={form.advanceMode} onChange={set('advanceMode')} className="w-full rounded-xl border border-bb-border bg-bb-input px-3 text-[13.5px] text-bb-text focus:outline-none focus:ring-2 focus:ring-bb-accent/40 h-[38px]">
                   {PAYMENT_MODES.map(m => <option key={m} value={m}>{m}</option>)}
-                </select>
+                </Select>
               </label>
               <Field label="Reference (optional)" value={form.advanceRef} onChange={set('advanceRef')} />
             </div>
@@ -215,7 +215,7 @@ export default function ContractGenerator() {
             <Switch checked={!!form.stampSpace} onChange={set('stampSpace')} label="Space at the top for stamp paper" disabled={!canEditEvents} testId="stamp-switch" />
           </FormCol>
         </fieldset>
-        <p className="text-[12.5px] text-amber-800 bg-amber-50 rounded-xl px-3.5 py-2.5" data-testid="contract-note">
+        <p className="rounded-xl bg-amber-100 text-amber-800 text-[13px] px-3.5 py-2.5" data-testid="contract-note">
           {!c.terms.courtCity && 'Tip: set your court city, cancellation terms and setup hours once in Settings → Contract. '}
           This is a standard agreement; have your advocate read it once before first use. Stamp paper value depends on the contract amount — ask your stamp vendor.
         </p>
@@ -246,10 +246,10 @@ export default function ContractGenerator() {
                     </div>
                     <label className="block">
                       <span className="block text-[13.5px] font-semibold text-gray-700 mb-2">Paid by</span>
-                      <select value={form.advanceMode} onChange={set('advanceMode')} className="w-full min-h-[48px] rounded-xl border border-bb-border bg-bb-input px-3.5 text-[16px]">
+                      <Select value={form.advanceMode} onChange={set('advanceMode')} className="w-full min-h-[48px] rounded-xl border border-bb-border bg-bb-input px-3.5 text-[16px]">
                         <option value="">Select…</option>
                         {PAYMENT_MODES.map(m => <option key={m} value={m}>{m}</option>)}
-                      </select>
+                      </Select>
                     </label>
                     <TextField label="Payment reference (optional)" value={form.advanceRef} onChange={set('advanceRef')} />
                     <DateField label="Balance due by" id="bal-date" value={form.balanceDueDate || c.balanceDueDate} onChange={set('balanceDueDate')} />
@@ -266,7 +266,7 @@ export default function ContractGenerator() {
                 { id: 'stamp', title: 'Stamp paper', sum: form.stampSpace ? 'Space at the top of page 1 · on' : 'No space at the top',
                   body: <>
                     <SwitchRow title="Leave space at the top for stamp paper" sub="Page 1 starts lower so you can print on stamp paper." checked={form.stampSpace} onChange={v => setForm(f => ({ ...f, stampSpace: v }))} />
-                    {!c.terms.courtCity && <p className="text-[13px] text-amber-800 bg-amber-50 rounded-xl px-3 py-2.5">Tip: set your court city, cancellation terms and setup hours once in Settings → Contract.</p>}
+                    {!c.terms.courtCity && <p className="rounded-xl bg-amber-100 text-amber-800 text-[13px] px-3.5 py-2.5">Tip: set your court city, cancellation terms and setup hours once in Settings → Contract.</p>}
                     <p className="text-[13px] text-gray-600">This is a standard agreement. Have your advocate read it once before first use.</p>
                   </> },
               ].map(sec => (

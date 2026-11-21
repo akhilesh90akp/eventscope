@@ -237,7 +237,7 @@ function Checkout({ choice, onClose }) {
               </div>
 
               {!upiId ? (
-                <div className="mt-4 rounded-xl px-4 py-3 text-sm bg-amber-50 text-amber-900 border border-amber-200" data-testid="upi-missing">
+                <div className="mt-4 rounded-xl bg-amber-100 text-amber-800 text-[13px] px-3.5 py-2.5" data-testid="upi-missing">
                   Payment details are coming soon. Please contact EventScope to pay for your plan.
                 </div>
               ) : (

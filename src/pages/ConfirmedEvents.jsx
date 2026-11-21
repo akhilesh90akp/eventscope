@@ -19,7 +19,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import Card from '../components/Card';
+import { EmptyState } from '../components/PhoneUI';
 import StickyBar from '../components/StickyBar';
 import Button from '../components/Button';
 import Input from '../components/Input';
@@ -48,7 +48,7 @@ import SetPricesSheet from '../components/SetPricesSheet';
  * Handles pricing, item addition, and marking events completed.
  */
 export default function ConfirmedEvents({ status = 'confirmed' }) {
-  const { events, categories, updateEvent, deleteEvent, duplicateEvent, showToast, isOwner, isSuspended, askUnlock, canUse } = useApp();
+  const { events, categories, updateEvent, deleteEvent, duplicateEvent, showToast, restoreDoc, isOwner, isSuspended, askUnlock, canUse } = useApp();
   // Read-only (plan ended / paused): these buttons show a lock and explain why
   const guard = (fn) => (...args) => (isSuspended ? askUnlock() : fn(...args));
   const confirm = useConfirm();
@@ -248,12 +248,11 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
     const ok = await confirm({
       title: 'Delete this event?',
       message: <><b className="text-bb-text">{ev.clientName || 'This event'}</b> and its quote, bill, contract and Job Log costs will be deleted.</>,
-      note: 'This can’t be undone.',
       confirmLabel: 'Delete', tone: 'danger',
     });
     if (!ok) return;
     const result = await deleteEvent(ev.id);
-    if (result.success) showToast('Event deleted');
+    if (result.success) showToast('Event deleted', 'remove', { undo: () => restoreDoc('events', ev.id, ev) });
     // On failure, deleteEvent() already shows its own error toast.
   };
 
@@ -329,15 +328,8 @@ export default function ConfirmedEvents({ status = 'confirmed' }) {
       )}
 
       {confirmedEvents.length === 0 ? (
-        <Card>
-          <div className="text-center py-10">
-            <PackageOpen size={44} className="mx-auto text-bb-muted mb-3" />
-            <p className="text-bb-muted font-medium">No {status} events</p>
-            <p className="text-sm text-bb-muted/60 mt-1">
-              {status === 'completed' ? 'Mark a confirmed event as completed to see it here' : 'Confirm a draft to see it here'}
-            </p>
-          </div>
-        </Card>
+        <EmptyState icon={PackageOpen} title={`No ${status} events`}
+          line={status === 'completed' ? 'Mark a confirmed event as completed to see it here.' : 'Confirm a draft to see it here.'} />
       ) : (
         /* === LAPTOP: long cards, one per row === */
         !isPhone && <div className="space-y-3.5" data-testid="laptop-list">

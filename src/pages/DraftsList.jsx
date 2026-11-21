@@ -17,7 +17,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import Card from '../components/Card';
+import { EmptyState } from '../components/PhoneUI';
 import StickyBar from '../components/StickyBar';
 import Button from '../components/Button';
 import Input from '../components/Input';
@@ -48,7 +48,7 @@ function getEventLocation(ev) {
 
 /** Lists all draft events with search, expand/collapse, and actions */
 export default function DraftsList() {
-  const { events, settings, deleteEvent, updateEvent, duplicateEvent, showToast, isSuspended, askUnlock } = useApp();
+  const { events, settings, deleteEvent, updateEvent, duplicateEvent, showToast, isSuspended, askUnlock, restoreDoc } = useApp();
   // Read-only (plan ended / paused): these buttons show a lock and explain why
   const guard = (fn) => (...args) => (isSuspended ? askUnlock() : fn(...args));
   const confirm = useConfirm();
@@ -117,12 +117,11 @@ export default function DraftsList() {
     const ok = await confirm({
       title: 'Delete this draft?',
       message: <><b className="text-bb-text">{ev.clientName || 'This draft'}</b> and its quote will be deleted.</>,
-      note: 'This can’t be undone.',
       confirmLabel: 'Delete', tone: 'danger',
     });
     if (!ok) return;
     const result = await deleteEvent(ev.id);
-    if (result.success) showToast('Event deleted');
+    if (result.success) showToast('Event deleted', 'remove', { undo: () => restoreDoc('events', ev.id, ev) });
     // On failure, deleteEvent() already shows its own error toast.
   };
 
@@ -151,18 +150,9 @@ export default function DraftsList() {
 
       {/* Drafts List */}
       {drafts.length === 0 ? (
-        <Card>
-          <div className="text-center py-10">
-            <PackageOpen size={44} className="mx-auto text-bb-muted mb-3" />
-            <p className="text-bb-muted font-medium">No drafts found</p>
-            <p className="text-sm text-bb-muted/60 mt-1">
-              {search ? 'Try a different search' : 'Create a new draft to get started'}
-            </p>
-            {!search && (
-              <Button className="mt-4" onClick={() => navigate('/new')}>Create Draft</Button>
-            )}
-          </div>
-        </Card>
+        <EmptyState icon={PackageOpen} title={search ? 'No drafts match' : 'No drafts yet'}
+          line={search ? 'Try a different search.' : 'Create a new event to start a quote.'}
+          action={!search ? <Button onClick={() => navigate('/new')}>Create Draft</Button> : null} />
       ) : (
         isPhone ? (
         /* === PHONE: one card per draft === */

@@ -195,16 +195,21 @@ export function AppProvider({ children }) {
   // ------------------------------------------------------------
 
   /** Shows a toast message that auto-dismisses after 3 seconds */
-  const showToast = useCallback((message, type = 'success') => {
+  /**
+   * type: 'success' (green, 3 s) · 'error' (red, 3 s) · 'remove' (orange, 5 s — deletes, with
+   * an Undo button when opts.undo is given; design system).
+   */
+  const hideToast = useCallback(() => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast(t => ({ ...t, visible: false }));
+    setTimeout(() => setToast({ message: '', type: 'success', visible: false }), 300);   // after the fade-out
+  }, []);
+  const showToast = useCallback((message, type = 'success', opts = {}) => {
     if (message === READ_ONLY_MSG) return;   // the read-only pop-up already says it
     if (toastTimer.current) clearTimeout(toastTimer.current);
-    setToast({ message, type, visible: true });
-    toastTimer.current = setTimeout(() => {
-      setToast(t => ({ ...t, visible: false }));
-      // Clear message after fade-out animation
-      setTimeout(() => setToast({ message: '', type: 'success', visible: false }), 300);
-    }, 3000);
-  }, []);
+    setToast({ message, type, visible: true, undo: opts.undo || null });
+    toastTimer.current = setTimeout(hideToast, type === 'remove' ? 5000 : 3000);
+  }, [hideToast]);
 
   // ------------------------------------------------------------
   // AUTH STATE
@@ -804,6 +809,23 @@ export function AppProvider({ children }) {
     } catch (err) {
       console.error('Error deleting event:', err.code, err.message);
       const error = friendlyError(err, 'delete the event');
+      showToast(error, 'error');
+      return { success: false, error };
+    }
+  };
+
+  /** Undo for a delete: puts the document back exactly as it was. → { success } */
+  const restoreDoc = async (collectionName, id, data) => {
+    const blocked = writeBlockedReason();
+    if (blocked) { showToast(blocked, 'error'); return { success: false, error: blocked }; }
+    try {
+      const { id: _drop, ...rest } = data || {};
+      await setDoc(doc(db, 'tenants', tenantId, collectionName, id), rest);
+      showToast('Put back');
+      return { success: true };
+    } catch (err) {
+      console.error('Undo failed:', err.code, err.message);
+      const error = friendlyError(err, 'undo');
       showToast(error, 'error');
       return { success: false, error };
     }
@@ -1456,7 +1478,7 @@ export function AppProvider({ children }) {
       adminTenantAction, adminSetPilot, adminRecordPayment, adminRejectClaim, subscribeAllPayments,
       getTenantHistory, savePlatformBilling,
       // UI
-      toast, showToast,
+      toast, showToast, hideToast, restoreDoc,
     }}>
       {children}
     </Ctx.Provider>

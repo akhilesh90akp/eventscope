@@ -21,6 +21,7 @@
 // IMPORTS
 // ============================================================
 import React, { useMemo, useRef, useState } from 'react';
+import { Select } from './PhoneUI';
 import { ChevronRight, Edit2, Trash2, X, Plus, Search, Upload, Download } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useConfirm } from './useConfirm';
@@ -50,10 +51,10 @@ export function PriceInputs({ rate, unit, onRate, onUnit, big, testId = 'price' 
         <input value={groupDigits(rate)} onChange={e => onRate(e.target.value.replace(/\D/g, ''))} inputMode="numeric" placeholder="—"
           aria-label="Default price" data-testid={`${testId}-rate`} className="flex-1 min-w-0 bg-transparent outline-none text-right tabular-nums" />
       </label>
-      <select value={unit || DEFAULT_UNIT} onChange={e => onUnit(e.target.value)} aria-label="Price per" data-testid={`${testId}-unit`}
+      <Select value={unit || DEFAULT_UNIT} onChange={e => onUnit(e.target.value)} aria-label="Price per" data-testid={`${testId}-unit`}
         className={`flex-[1.3] min-w-0 rounded-xl border border-bb-border bg-white px-2.5 text-bb-text cursor-pointer focus:outline-none focus:ring-2 focus:ring-bb-accent/40 ${h}`}>
         {PRICE_UNITS.map(u => <option key={u.id} value={u.id}>{u.label}</option>)}
-      </select>
+      </Select>
     </div>
   );
 }
@@ -306,9 +307,9 @@ function ItemSheet({ isPhone, canEdit, categories, cat, item, onSave, onClose })
           <input value={name} onChange={e => setName(e.target.value)} data-testid="item-name" className={`${inputCls} ${h}`} />
         </label>
         <label className="block"><span className={lbl}>Category</span>
-          <select value={catId} onChange={e => setCatId(e.target.value)} data-testid="item-cat" className={`${inputCls} ${h} cursor-pointer`}>
+          <Select value={catId} onChange={e => setCatId(e.target.value)} data-testid="item-cat" className={`${inputCls} ${h} cursor-pointer`}>
             {categories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
-          </select>
+          </Select>
         </label>
         <div>
           <span className={lbl}>Default price <span className="font-medium text-gray-500">· optional</span></span>

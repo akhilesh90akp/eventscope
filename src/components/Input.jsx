@@ -28,7 +28,7 @@ export default function Input({
   const fieldId = props.id || autoId;
   // Base styling shared between input and textarea
   const baseClasses = `
-    w-full bg-bb-input border border-bb-border rounded-lg px-3 py-2.5
+    w-full bg-bb-input border border-bb-border rounded-xl px-3 py-2.5
     text-bb-text placeholder:text-bb-muted/60
     focus:outline-none focus:ring-2 focus:ring-bb-accent focus:border-transparent
     transition-all

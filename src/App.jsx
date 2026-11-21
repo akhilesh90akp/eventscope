@@ -121,7 +121,7 @@ function AccountErrorScreen() {
 // ============================================================
 
 function AppRoutes() {
-  const { user, authLoading, tenantStatus, isPlatformAdmin, toast, signingOut } = useApp();
+  const { user, authLoading, tenantStatus, isPlatformAdmin, toast, hideToast, signingOut } = useApp();
   const path = useHashPath();
 
   // ------------------------------------------------------------
@@ -151,7 +151,7 @@ function AppRoutes() {
             <Route path="*" element={<Admin />} />
           </Route>
         </Routes>
-        <Toast message={toast.message} type={toast.type} isVisible={toast.visible} />
+        <Toast message={toast.message} type={toast.type} isVisible={toast.visible} undo={toast.undo} onClose={hideToast} />
       </HashRouter>
     );
   }
@@ -197,7 +197,7 @@ function AppRoutes() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
-      <Toast message={toast.message} type={toast.type} isVisible={toast.visible} withSidebar={!path.startsWith('/job-log')} />
+      <Toast message={toast.message} type={toast.type} isVisible={toast.visible} undo={toast.undo} onClose={hideToast} withSidebar={!path.startsWith('/job-log')} />
     </HashRouter>
   );
 }

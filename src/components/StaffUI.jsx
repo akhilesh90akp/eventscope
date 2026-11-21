@@ -8,7 +8,7 @@
 // IMPORTS
 // ============================================================
 import React, { useState } from 'react';
-import { Check, ChevronLeft, ChevronRight, AlertCircle } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import { IconButton } from './PhoneUI';
 import { initials, parseRupees } from '../utils/staffFormat';
 
@@ -183,28 +183,5 @@ export function DefaultOt({ value, onSave }) {
   );
 }
 
-// ============================================================
-// NOTICE & EMPTY STATE (design system)
-// ============================================================
-
-/** Amber notice: warnings and "not filled yet" */
-export function Notice({ children, testId }) {
-  return (
-    <div className="flex gap-2.5 items-start rounded-xl bg-amber-100 px-3.5 py-2.5 text-[13px] text-amber-800" data-testid={testId}>
-      <AlertCircle size={17} className="shrink-0 mt-px" />
-      <div className="min-w-0">{children}</div>
-    </div>
-  );
-}
-
-/** Dashed empty box: icon, title, one line, one main button */
-export function EmptyState({ icon: Icon, title, line, action, testId }) {
-  return (
-    <div className="border border-dashed border-gray-300 rounded-2xl px-4 py-6 text-center bg-white/60" data-testid={testId}>
-      {Icon && <span className="mx-auto mb-2.5 w-14 h-14 rounded-full bg-violet-50 text-bb-accent flex items-center justify-center"><Icon size={26} /></span>}
-      <p className="text-[16px] font-bold text-bb-text">{title}</p>
-      {line && <p className="text-[13.5px] text-gray-600 mt-1">{line}</p>}
-      {action && <div className="mt-3.5 flex justify-center">{action}</div>}
-    </div>
-  );
-}
+// Notice and EmptyState live in PhoneUI (used across the app)
+export { Notice, EmptyState } from './PhoneUI';

@@ -11,6 +11,7 @@
 // IMPORTS
 // ============================================================
 import React, { useState, useEffect } from 'react';
+import { Select } from './PhoneUI';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import Button from './Button';
@@ -118,7 +119,7 @@ export default function JobLogColumnsEditor() {
               className="flex-1 min-w-0 text-sm font-semibold bg-transparent border border-transparent hover:border-bb-border focus:border-bb-accent rounded px-2 py-1.5 outline-none"
             />
             {fromDay.includes(c.id) && <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 whitespace-nowrap">From Day sheet</span>}
-            <select
+            <Select
               value={c.type}
               disabled={fromDay.includes(c.id)}
               title={fromDay.includes(c.id) ? 'Gets Day sheet costs, so it stays a cost column' : undefined}
@@ -128,7 +129,7 @@ export default function JobLogColumnsEditor() {
               <option value="cost">Cost</option>
               <option value="income">Income</option>
               <option value="text">Note (text)</option>
-            </select>
+            </Select>
             <button
               type="button"
               onClick={async () => {
@@ -156,11 +157,11 @@ export default function JobLogColumnsEditor() {
           placeholder="New column name, e.g. Generator fuel"
           className="flex-1 min-w-[180px] text-sm border border-bb-border rounded-lg px-3 py-2 bg-white outline-none focus:border-bb-accent"
         />
-        <select value={newType} onChange={e => setNewType(e.target.value)} className="text-sm border border-bb-border rounded-lg px-2 py-2 bg-white">
+        <Select value={newType} onChange={e => setNewType(e.target.value)} className="text-sm border border-bb-border rounded-lg px-2 py-2 bg-white">
           <option value="cost">Cost</option>
           <option value="income">Income</option>
           <option value="text">Note (text)</option>
-        </select>
+        </Select>
         <Button icon={Plus} variant="secondary" onClick={add}>Add column</Button>
       </div>
 

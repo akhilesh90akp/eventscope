@@ -41,7 +41,7 @@ export default function StaffPerson() {
   const navigate = useNavigate();
   const confirm = useConfirm();
   const isPhone = useIsPhone();
-  const { cfg, today, staff, staffPayments, daySheets, isOwner, deleteStaffPayment, deleteStaffPerson, showToast } = useDaySheets();
+  const { cfg, today, staff, staffPayments, daySheets, isOwner, deleteStaffPayment, deleteStaffPerson, showToast, restoreDoc } = useDaySheets();
   const person = staff.find(p => p.id === id);
   const [ym, setYm] = useState(() => params.get('m') || monthOf(today));
   const [edit, setEdit] = useState(false);
@@ -71,11 +71,11 @@ export default function StaffPerson() {
   // ------------------------------------------------------------
   const removePay = async (x) => {
     const ok = await confirm({ title: `Delete this ${TYPE_LABEL[x.type].toLowerCase()} entry?`, message: `${rupees(x.amount)} on ${dayMonth(x.date)}${x.advanceBack ? ` (and ${rupees(x.advanceBack)} advance taken back)` : ''}.`, note: 'The month’s numbers are worked out again.', confirmLabel: 'Delete', tone: 'danger' });
-    if (ok && (await deleteStaffPayment(x.id)).success) showToast('Payment deleted');
+    if (ok && (await deleteStaffPayment(x.id)).success) showToast('Payment deleted', 'remove', { undo: () => restoreDoc('staffPayments', x.id, x) });
   };
   const removePerson = async () => {
     const ok = await confirm({ title: `Remove ${person.name}?`, message: 'They have no days or payments yet, so nothing else changes.', confirmLabel: 'Remove', tone: 'danger' });
-    if (ok && (await deleteStaffPerson(person.id)).success) { showToast(`${person.name} removed`); navigate('/staff'); }
+    if (ok && (await deleteStaffPerson(person.id)).success) { showToast(`${person.name} removed`, 'remove'); navigate('/staff'); }
   };
 
   usePhoneHeader({

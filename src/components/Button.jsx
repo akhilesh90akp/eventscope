@@ -22,9 +22,9 @@ const variants = {
 
 /** Tailwind classes for each size option */
 const sizes = {
-  sm: 'px-3 py-1.5 lg:min-h-[34px] text-sm gap-1.5',
-  md: 'px-4 py-2 lg:min-h-[40px] text-sm gap-2',
-  lg: 'px-6 py-3 text-base gap-2.5',
+  sm: 'px-3 py-1.5 lg:min-h-[34px] text-sm gap-1.5 rounded-xl',
+  md: 'px-4 py-2 lg:min-h-[40px] text-sm gap-2 rounded-xl',
+  lg: 'px-6 py-3 text-base gap-2.5 rounded-[14px]',   // design system: main button radius 14, fields and smaller buttons 12
 };
 
 /** Renders a styled button with configurable appearance and behavior */
@@ -46,7 +46,7 @@ export default function Button({
       onClick={onClick}
       disabled={disabled}
       className={`
-        inline-flex items-center justify-center font-medium rounded-lg
+        inline-flex items-center justify-center font-medium
         cursor-pointer active:scale-95 transition-all duration-150
         ${variants[variant]}
         ${sizes[size]}
