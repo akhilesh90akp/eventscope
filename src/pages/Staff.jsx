@@ -155,7 +155,7 @@ export default function Staff() {
                 <tr key={x.p.id} className="border-b border-gray-100 hover:bg-bb-card-hover" data-testid={`staff-${x.p.id}`}>
                   <td className="py-2.5 px-3"><button onClick={() => navigate(`/staff/${x.p.id}?m=${ym}`)} className="font-bold hover:text-bb-accent-hover cursor-pointer text-left">{x.p.name}</button>{x.p.worksIn === 'office' && <> <Tag tone="blue">Office</Tag></>}</td>
                   <td className="py-2.5 px-3 whitespace-nowrap">{x.p.pay === 'monthly' ? 'Monthly' : 'Daily'} {rupees(x.p.amount)}</td>
-                  <td className="py-2.5 px-3 whitespace-nowrap">{x.s.leave ? `${x.s.days} + ${x.s.leave} leave` : `${x.s.days} ${x.p.pay === 'daily' ? 'days' : ''}`}</td>
+                  <td className="py-2.5 px-3 whitespace-nowrap">{x.s.leave ? `${x.s.days} + ${x.s.leave} leave` : x.p.pay === 'daily' ? `${x.s.days} ${x.s.days === 1 ? 'day' : 'days'}` : x.s.days}</td>
                   {['earned', 'ot', 'paidEarly', 'paid', 'advanceBack'].map(k => <td key={k} className="py-2.5 px-3 text-right tabular-nums">{x.s[k] ? rupees(x.s[k]) : '—'}</td>)}
                   <td className={`py-2.5 px-3 text-right tabular-nums font-bold ${x.due <= 0 && x.s.earned ? 'text-emerald-600' : ''}`} title={x.carried ? `Includes ${rupees(x.carried)} from earlier months` : undefined}>{x.due > 0 ? rupees(x.due) : x.due < 0 ? `${rupees(-x.due)} extra` : x.s.earned ? 'Paid' : '—'}</td>
                   <td className="py-2.5 px-3 text-right whitespace-nowrap"><button onClick={() => setPayFor(x.p)} className="text-[13px] font-semibold text-bb-accent-hover hover:underline cursor-pointer">Record payment</button></td>

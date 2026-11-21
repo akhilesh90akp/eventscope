@@ -436,7 +436,7 @@ export default function DaySheet() {
       {isOwner && (isPhone ? (
         <>
           <div className="grid grid-cols-3 gap-2 bg-white border border-bb-border rounded-2xl p-3 text-center" data-testid="day-cards">
-            <div><p className="text-[13px] text-gray-600">Revenue</p><b className="text-[16px] tabular-nums text-amber-600">{rupees(revenue)}</b></div>
+            <div><p className="text-[13px] text-gray-600">Revenue</p><b className="text-[16px] tabular-nums text-bb-gold">{rupees(revenue)}</b></div>
             <div><p className="text-[13px] text-gray-600">Day costs</p><b className="text-[16px] tabular-nums text-rose-600" data-testid="day-total">{rupees(d.total)}</b></div>
             <div><p className="text-[13px] text-gray-600">Profit</p><b className={`text-[16px] tabular-nums ${dayProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{fns.length ? rupees(dayProfit) : '—'}</b></div>
           </div>
