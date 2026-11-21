@@ -21,7 +21,7 @@
 // ============================================================
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, ClipboardCheck } from 'lucide-react';
 import { useIsPhone } from '../components/useIsPhone';
 import { usePhoneHeader } from '../components/phoneScreens';
 import { HeaderTextButton } from '../components/PhoneHeader';
@@ -32,6 +32,7 @@ import StickyBar from '../components/StickyBar';
 import Button from '../components/Button';
 import Input from '../components/Input';
 import JobLogColumnsEditor from '../components/JobLogColumnsEditor';
+import DaySheetSettings from '../components/DaySheetSettings';
 import ServicesSettings from '../components/ServicesSettings';
 import { resizeImageFile } from '../utils/helpers';
 import { lastStartupText } from '../utils/startupTiming';
@@ -60,6 +61,7 @@ const TAB_HELP = {
   team: 'Who can use EventScope for your company. Staff handle events; owners also see settings, reports and profit.',
   joblog: 'The cost and income columns in your Job Log. Add what you track, and each event’s profit is worked out for you.',
   backup: 'A copy of all your company’s data that you keep yourself, on top of the automatic daily backup.',
+  daysheets: 'Track who worked where each day, and share each day’s staff and running costs (food, fuel…) across that day’s events.',
 };
 
 // ============================================================
@@ -68,7 +70,7 @@ const TAB_HELP = {
 
 /** Multi-tab settings page for company, bank, invoice, and service configuration */
 export default function Settings() {
-  const { settings, updateSettings, logout, user, showToast, canEditSettings, isOwner, isSuspended, team, invites, inviteTeammate, cancelInvite, removeTeammate, promoteToOwner, downloadCompanyBackup, tenant, canUse } = useApp();
+  const { settings, updateSettings, logout, user, showToast, canEditSettings, isOwner, isSuspended, team, invites, inviteTeammate, cancelInvite, removeTeammate, promoteToOwner, downloadCompanyBackup, tenant, canUse, daySheetsOn, staffRoster, setDaySheetFillers } = useApp();
   const confirm = useConfirm();
   const navigate = useNavigate();
   const [backingUp, setBackingUp] = useState(false);
@@ -233,11 +235,12 @@ export default function Settings() {
     { key: 'services', label: 'Services', icon: Layers },
     { key: 'team', label: 'Team', icon: Users },
     { key: 'joblog', label: 'Job Log columns', icon: Table2 },
+    ...(isOwner ? [{ key: 'daysheets', label: 'Day sheets', icon: ClipboardCheck }] : []),
     ...(isOwner ? [{ key: 'backup', label: 'Backup', icon: DatabaseBackup }] : []),
   ];
 
   // Phones: the section's name in the title bar, Save on the right (editable sections)
-  const savable = canEditSettings && !['services', 'team', 'joblog', 'backup'].includes(tab);
+  const savable = canEditSettings && !['services', 'team', 'joblog', 'backup', 'daysheets'].includes(tab);
   const sectionLabel = tabs.find(t => t.key === tab)?.label || 'Settings';
   usePhoneHeader(isPhone && section ? {
     title: sectionLabel,
@@ -252,7 +255,7 @@ export default function Settings() {
     const subs = {
       company: 'Name, logo, GSTIN, address, colour', bank: 'Shown on bills', invoice: 'Numbering, GST, terms',
       contract: 'Court city, cancellation terms', calendar: 'Daily limit, phone reminders', services: 'Your categories & items',
-      team: `${team.length} ${team.length === 1 ? 'person' : 'people'}${invites.length ? ` · ${invites.length} invited` : ''}`, joblog: 'Cost columns', backup: 'Download everything',
+      team: `${team.length} ${team.length === 1 ? 'person' : 'people'}${invites.length ? ` · ${invites.length} invited` : ''}`, joblog: 'Cost columns', backup: 'Download everything', daysheets: settings.daySheets?.enabled ? 'On · staff, food, fuel per day' : 'Off',
     };
     return (
       <div className="space-y-5" data-testid="settings-list">
@@ -573,6 +576,14 @@ export default function Settings() {
                         <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${m.role === 'owner' ? 'bg-violet-100 text-violet-700' : 'bg-gray-100 text-gray-600'}`}>
                           {m.role === 'owner' ? 'Owner' : 'Staff'}
                         </span>
+                        {m.role !== 'owner' && daySheetsOn && (
+                          <label className="flex items-center gap-1.5 text-xs font-semibold text-bb-text whitespace-nowrap cursor-pointer" data-testid={`filler-${m.uid}`}>
+                            <input type="checkbox" className="w-4 h-4 accent-[var(--color-bb-accent,#7c3aed)]" disabled={!canEditSettings}
+                              checked={(staffRoster.fillers || []).includes(m.uid)}
+                              onChange={e => setDaySheetFillers(e.target.checked ? [...(staffRoster.fillers || []), m.uid] : (staffRoster.fillers || []).filter(u => u !== m.uid))} />
+                            Can fill Day sheets
+                          </label>
+                        )}
                         {m.role !== 'owner' && (
                           <>
                             <button
@@ -631,6 +642,8 @@ export default function Settings() {
           <JobLogColumnsEditor />
         </Card>
       )}
+
+      {tab === 'daysheets' && isOwner && <DaySheetSettings />}
 
       </fieldset>
 

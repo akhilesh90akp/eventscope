@@ -7,7 +7,9 @@
  * floating "new event" button. Task screens (quote, bill, new event…) hide the
  * bottom bar; their own ActionBar sits at the bottom edge instead.
  * Shows a banner when the company is suspended. Page content renders via React Router's Outlet.
- * Menu items marked ownerOnly / adminOnly are hidden from everyone else
+ * Menu items marked ownerOnly / adminOnly are hidden from everyone else;
+ * daySheets items show only when Settings → Day sheets is on (and, for
+ * 'fill', to owners and teammates ticked "Can fill Day sheets").
  * (firestore.rules still enforce access server-side).
  */
 
@@ -16,7 +18,7 @@
 // ============================================================
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
-import { LayoutDashboard, FilePlus, FileText, CheckCircle2, PartyPopper, Settings, Plus, BarChart3, LogOut, Shield, X, CalendarDays, ShoppingBag, CreditCard } from 'lucide-react';
+import { LayoutDashboard, FilePlus, FileText, CheckCircle2, PartyPopper, Settings, Plus, BarChart3, LogOut, Shield, X, CalendarDays, ShoppingBag, CreditCard, ClipboardCheck, Users } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useConfirm } from './useConfirm';
 import { PlanNotice } from './NoticeBar';
@@ -44,6 +46,8 @@ const sidebarNav = [
   { to: '/completed', icon: PartyPopper, label: 'Completed', group: 'events', count: 'completed' },
   { to: '/reports', icon: BarChart3, label: 'Reports', ownerOnly: true, group: 'business', feature: 'reports' },
   { to: '/purchases', icon: ShoppingBag, label: 'Purchases', ownerOnly: true, group: 'business', feature: 'purchases' },
+  { to: '/day-sheets', icon: ClipboardCheck, label: 'Day sheets', group: 'business', daySheets: 'fill' },
+  { to: '/staff', icon: Users, label: 'Staff & wages', ownerOnly: true, group: 'business', daySheets: 'owner' },
   { to: '/billing', icon: CreditCard, label: 'Plan & billing', ownerOnly: true, group: 'business' },
   { to: '/settings', icon: Settings, label: 'Settings', group: 'business' },
   { to: '/admin', icon: Shield, label: 'Admin', adminOnly: true, group: 'business' },
@@ -153,7 +157,7 @@ export default function Layout() {
 function LayoutShell() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { logout, user, tenant, tenantStatus, settings, role, isOwner, isPlatformAdmin, events, lockAsked, access, canUse } = useApp();
+  const { logout, user, tenant, tenantStatus, settings, role, isOwner, isPlatformAdmin, events, lockAsked, access, canUse, daySheetsOn, canFillDaySheets } = useApp();
   const confirm = useConfirm();
 
   // ------------------------------------------------------------
@@ -224,7 +228,8 @@ function LayoutShell() {
   const roleLabel = adminOnly ? (user?.email || '') : role === 'owner' ? 'Owner' : role === 'staff' ? 'Staff' : '';
   const visibleNav = sidebarNav.filter(item => (adminOnly
     ? item.adminOnly
-    : (!item.ownerOnly || isOwner) && (!item.adminOnly || isPlatformAdmin)));
+    : (!item.ownerOnly || isOwner) && (!item.adminOnly || isPlatformAdmin)
+      && (!item.daySheets || (daySheetsOn && (item.daySheets === 'owner' ? isOwner : canFillDaySheets)))));
   const counts = useMemo(() => countByStatus(events), [events]);
   // Phones: which kind of screen this is (main or task) and its title
   const phoneScreen = adminOnly ? { title: 'EventScope Admin' } : phoneScreenFor(location.pathname);

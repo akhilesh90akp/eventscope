@@ -185,6 +185,7 @@ function JobLogGrid() {
         ...bill,
         values,
         formulas: financials[e.id]?.formulas || {},
+        fromDay: financials[e.id]?.fromDaySheet || [],   // worked out from Day sheets — read only
         calc: computeEventFinancials(bill.revenue, values, jobLogColumns),
       };
     }), [completed, period, typeFilter, financials, jobLogColumns]);
@@ -438,6 +439,16 @@ function JobLogGrid() {
     const formula = isText ? null : row.formulas[col.id] || null;
     const shown = key in drafts ? drafts[key] : (isText ? (stored || '') : rupees(stored));
     const bg = col.type === 'income' ? 'bg-emerald-50/60' : isText ? 'bg-slate-50/60' : 'bg-white';
+    if (row.fromDay.includes(col.id)) {
+      return (
+        <td key={col.id} title="From Day sheets — this event’s share of each day’s staff and shared costs. Change it on the Day sheet."
+          className={lap ? 'border-b border-bb-border/60 px-2 py-2.5 align-top bg-white' : 'border-b border-r border-gray-100 p-0 bg-violet-50/50'} data-testid="cell-daysheet">
+          <span data-r={r} data-c={c} tabIndex={-1} className={`flex items-center justify-end h-9 px-2.5 tabular-nums text-gray-700 ${lap ? 'min-w-[104px] rounded-lg border border-dashed border-violet-300 bg-violet-50/60' : 'min-w-[96px]'}`}>
+            {stored === null || stored === undefined ? '—' : rupees(stored)}
+          </span>
+        </td>
+      );
+    }
     if (lap) {
       const err = errors[key];
       const box = err ? 'border-red-400 bg-red-50 text-red-700'

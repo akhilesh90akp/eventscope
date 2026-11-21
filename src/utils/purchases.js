@@ -116,8 +116,10 @@ export const cleanPurchase = (raw, mode) => {
   const amount = Math.round((Number(String(raw.amount ?? '').replace(/[₹,\s]/g, '')) || 0) * 100) / 100;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(raw.date || ''))) return { error: 'Pick a date.' };
   if (!(amount > 0)) return { error: 'Enter an amount more than ₹0.' };
+  // "Bought for: <event>" (Day sheets) — shown on that event, never in its costs
+  const forEvent = raw.boughtFor !== undefined ? { boughtFor: String(raw.boughtFor || '') } : {};
   if (mode === 'total') {
-    return { mode: 'total', date: raw.date, name: '', qty: 1, category: '', amount, note: String(raw.note || '').trim() };
+    return { mode: 'total', date: raw.date, name: '', qty: 1, category: '', amount, note: String(raw.note || '').trim(), ...forEvent };
   }
   const name = String(raw.name || '').trim();
   if (!name) return { error: 'Say what you bought.' };
@@ -125,7 +127,7 @@ export const cleanPurchase = (raw, mode) => {
     mode: 'item', date: raw.date, name,
     qty: Math.max(1, Math.round(Number(raw.qty) || 1)),
     category: String(raw.category || '').trim() || 'Other',
-    amount, note: String(raw.note || '').trim(),
+    amount, note: String(raw.note || '').trim(), ...forEvent,
   };
 };
 

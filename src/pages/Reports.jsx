@@ -27,6 +27,8 @@ import Badge from '../components/Badge';
 import PdfButton from '../components/PdfButton';
 import { formatCurrency, formatRupees, formatDateReadable, formatDateRange, functionEnd, getActiveDate, getEventRevenue, computeEventFinancials, openJobLog } from '../utils/helpers';
 import { fyStart, fyLabel, purchasesBetween, purchaseTotal } from '../utils/purchases';
+import { periodStaffCosts } from '../utils/daySheetView';
+import { isoDate } from '../utils/calendar';
 import { Printer, BarChart3, Lock, Table2 } from 'lucide-react';
 import UpgradeCard from '../components/UpgradeCard';
 import { useNavigate } from 'react-router-dom';
@@ -54,6 +56,32 @@ const periodRange = (filter, month, year, dateFrom, dateTo) => {
   if (filter === 'custom') return [dateFrom, dateTo];
   return ['', ''];
 };
+
+/**
+ * RealProfitBreakdown — "How it adds up" when Day sheets are on: Job Log
+ * profit, then the costs that belong to no event, then purchases.
+ */
+function RealProfitBreakdown({ stats }) {
+  const line = (label, value, sub, strong) => (
+    <div className={`flex items-start gap-3 py-2.5 border-b border-bb-border last:border-b-0 ${strong ? 'font-bold' : ''}`}>
+      <span className="flex-1 min-w-0"><span className="block text-[14.5px]">{label}</span>{sub && <span className="block text-[12.5px] text-gray-600 font-normal">{sub}</span>}</span>
+      <span className="tabular-nums text-[14.5px] whitespace-nowrap">{value}</span>
+    </div>
+  );
+  const minus = (n) => (n ? `− ${formatRupees(n)}` : formatRupees(0));
+  return (
+    <section className="bg-white border border-bb-border rounded-2xl px-4 lg:px-5 py-1" data-testid="real-breakdown">
+      <h2 className="text-[15px] font-bold pt-3 pb-1">How it adds up</h2>
+      {line('Job Log profit', formatRupees(stats.profit), `Completed events with costs (${stats.profitEvents} of ${stats.completed}) — includes their Day sheet shares`)}
+      {line('Running cost', minus(stats.day.running), 'Warehouse, leave, days with no events or not filled')}
+      {line('Office salaries', minus(stats.day.office), 'Never shared into events')}
+      {stats.day.bonus > 0 && line('Bonuses', minus(stats.day.bonus))}
+      {line('Purchases', minus(stats.spent), 'Things bought to keep and reuse')}
+      {line(stats.enoughCosts ? 'Real profit' : 'Real profit (once most events have costs)', stats.enoughCosts ? formatRupees(stats.afterPurchases) : '—', '', true)}
+      <p className="text-[12px] text-gray-600 py-2">Advances are loans, so they never change profit. Day sheet shares of events not completed yet show here once they’re completed.</p>
+    </section>
+  );
+}
 
 // ============================================================
 // Reports — MAIN COMPONENT
@@ -88,7 +116,7 @@ function FoldGroup({ g, showHeader, profitText, groupProfit, open, onToggle, chi
 
 /** Displays event reports with date-based filtering and summary stats */
 export default function Reports() {
-  const { events, settings, financials, jobLogColumns, isOwner, purchases, canUse } = useApp();
+  const { events, settings, financials, jobLogColumns, allJobLogColumns, isOwner, purchases, canUse, daySheetCfg, staff, daySheets, staffPayments } = useApp();
 
   // ------------------------------------------------------------
   // STATE
@@ -175,8 +203,14 @@ export default function Reports() {
     // with a whole period's purchases, so we hide it.
     const missingCosts = Math.max(0, completed - profitEvents);
     const enoughCosts = completed > 0 && profitEvents / completed >= 0.8;
-    return { total, drafts, completed, revenue, profit, profitEvents, missingCosts, enoughCosts, spent, afterPurchases: profit - spent };
-  }, [filteredEvents, financials, jobLogColumns, purchases, filter, month, year, dateFrom, dateTo]);
+    // Day sheets on: running cost, office salaries and bonuses belong to no event — they come off too ("Real profit")
+    const day = periodStaffCosts({ cfg: daySheetCfg, staff, sheets: daySheets, events, payments: staffPayments, columnOrder: (allJobLogColumns || jobLogColumns).map(c => c.id),
+      from: periodRange(filter, month, year, dateFrom, dateTo)[0], to: periodRange(filter, month, year, dateFrom, dateTo)[1], today: isoDate(new Date()) });
+    const real = daySheetCfg.enabled && isOwner;
+    const afterPurchases = profit - spent - (real ? day.running + day.office + day.bonus : 0);
+    return { total, drafts, completed, revenue, profit, profitEvents, missingCosts, enoughCosts, spent, afterPurchases, real, day };
+  }, [filteredEvents, financials, jobLogColumns, allJobLogColumns, purchases, filter, month, year, dateFrom, dateTo, daySheetCfg, staff, daySheets, staffPayments, events, isOwner]);
+  const afterLabel = stats.real ? 'Real profit' : 'Profit after purchases';
 
   // All time: events by financial year, newest year first
   const yearGroups = useMemo(() => {
@@ -292,7 +326,8 @@ export default function Reports() {
                 <span style={{fontSize: '11px', fontWeight: 'bold', color: '#652D90'}}>Revenue: {formatCurrency(stats.revenue)}</span><br/>
                 <span style={{fontSize: '11px'}}>Profit without purchases: {formatCurrency(stats.profit)}{stats.missingCosts ? ` (expenses added for ${stats.profitEvents} of ${stats.completed} events)` : ''}</span> &nbsp;|&nbsp;
                 <span style={{fontSize: '11px'}}>Spent on purchases: {formatCurrency(stats.spent)}</span>
-                {stats.enoughCosts && <> &nbsp;|&nbsp; <span style={{fontSize: '11px', fontWeight: 'bold'}}>Profit after purchases: {formatCurrency(stats.afterPurchases)}</span></>}
+                {stats.real && <> &nbsp;|&nbsp; <span style={{fontSize: '11px'}}>Running cost: {formatCurrency(stats.day.running)} · Office salaries: {formatCurrency(stats.day.office)}{stats.day.bonus ? ` · Bonuses: ${formatCurrency(stats.day.bonus)}` : ''}</span></>}
+                {stats.enoughCosts && <> &nbsp;|&nbsp; <span style={{fontSize: '11px', fontWeight: 'bold'}}>{afterLabel}: {formatCurrency(stats.afterPurchases)}</span></>}
               </td>
             </tr>
             {/* Table Header */}
@@ -409,9 +444,9 @@ export default function Reports() {
               </p>
             </div>
             <div className={numCard}>
-              <p className="text-[13.5px] text-gray-600">After purchases</p>
+              <p className="text-[13.5px] text-gray-600">{stats.real ? 'Real profit' : 'After purchases'}</p>
               {stats.enoughCosts
-                ? <><p className={`text-[21px] font-extrabold tabular-nums ${stats.afterPurchases >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{formatRupees(stats.afterPurchases)}</p><p className="text-[12.5px] text-gray-600">Profit – purchases</p></>
+                ? <><p className={`text-[21px] font-extrabold tabular-nums ${stats.afterPurchases >= 0 ? 'text-emerald-600' : 'text-red-600'}`} data-testid="real-profit">{formatRupees(stats.afterPurchases)}</p><p className="text-[12.5px] text-gray-600">{stats.real ? 'After running cost, office, purchases' : 'Profit – purchases'}</p></>
                 : <><p className="text-[21px] font-extrabold text-bb-muted" data-testid="after-hidden">—</p><p className="text-[12.5px] text-gray-600">Shows once most events have costs</p></>}
             </div>
             <div className={numCard}>
@@ -425,6 +460,7 @@ export default function Reports() {
               <p className="text-[12.5px] text-gray-600">{filter === 'all' ? 'All time' : 'This period'}</p>
             </div>
           </div>
+          {stats.real && <RealProfitBreakdown stats={stats} />}
 
           {/* The events */}
           {filteredEvents.length === 0 ? (
@@ -536,12 +572,14 @@ export default function Reports() {
               ? <span data-testid="missing-costs">Based on {stats.profitEvents} of {stats.completed} events · <button onClick={() => navigate('/completed')} className="font-semibold text-bb-accent-hover hover:underline cursor-pointer">add expenses</button></span>
               : `Expenses added for all ${stats.completed} events`,
             hintTone: stats.missingCosts > 0 ? 'amber' : '', info: 'Revenue minus the expenses you entered in the Job Log, without purchases' },
-          { label: 'Profit after purchases', value: stats.enoughCosts ? formatRupees(stats.afterPurchases) : <span data-testid="after-hidden">—</span>,
+          { label: afterLabel, value: stats.enoughCosts ? formatRupees(stats.afterPurchases) : <span data-testid="after-hidden">—</span>, testId: 'real-profit',
             tone: !stats.enoughCosts ? 'muted' : stats.afterPurchases >= 0 ? 'green' : 'red',
-            hint: stats.enoughCosts ? 'Profit − purchases' : 'Shows once most events have expenses', info: 'Profit, minus what you spent on purchases in this period' },
+            hint: stats.enoughCosts ? (stats.real ? 'Profit − running cost − office − purchases' : 'Profit − purchases') : 'Shows once most events have expenses',
+            info: stats.real ? 'Job Log profit, minus Day sheet costs that belong to no event (warehouse, leave, no-event days, office salaries, bonuses) and purchases in this period' : 'Profit, minus what you spent on purchases in this period' },
           { label: 'Events', value: stats.total, hint: statusFilter === 'all' ? `${stats.completed} completed` : 'Completed', testId: 'rep-events' },
           { label: 'Spent on purchases', value: `${stats.spent ? '− ' : ''}${formatRupees(stats.spent)}`, tone: 'red', hint: filter === 'all' ? 'All time' : filter === 'monthly' ? 'This month' : filter === 'yearly' ? 'This year' : 'This period', info: 'Things you bought for the business — chairs, lights, equipment' },
         ]} />
+        {stats.real && <RealProfitBreakdown stats={stats} />}
 
         {/* The events */}
         <div className="bg-white border border-bb-border rounded-2xl" data-testid="report-table">

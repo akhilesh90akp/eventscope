@@ -149,3 +149,25 @@ test('advanceStatus: never owes less than zero; latest recovery amount used', ()
   const p = [{ staffId: 'x', date: '2026-01-01', type: 'advance', amount: 1000, recoverPerPay: 500 }, { staffId: 'x', date: '2026-02-01', type: 'pay', amount: 0, advanceBack: 1500 }];
   assert.equal(advanceStatus('x', p).owed, 0);
 });
+
+test('start date mid-month: only days from the start count; what was left carries into the next month', async () => {
+  const { staffMonth, carriedIn } = await import('../src/utils/staffCosts.js');
+  const p = { id: 'b', pay: 'monthly', amount: 30000, worksIn: 'events' };
+  const nov = staffMonth(p, '2026-11', {}, [], '2026-11-21');
+  assert.equal(nov.earned, 10000);                         // 21–30 Nov = 10 days × 1,000
+  const pays = [{ staffId: 'b', type: 'pay', date: '2026-11-30', amount: 9000 }, { staffId: 'b', type: 'pay', date: '2026-11-10', amount: 5000 }]; // the 10 Nov one is before the start → ignored
+  assert.equal(staffMonth(p, '2026-11', {}, pays, '2026-11-21').toPay, 1000);
+  assert.equal(carriedIn(p, '2026-12', {}, pays, '2026-11-21'), 1000);
+  assert.equal(carriedIn(p, '2026-11', {}, pays, '2026-11-21'), 0);
+  const over = [{ staffId: 'b', type: 'pay', date: '2026-11-30', amount: 12000 }];
+  assert.equal(carriedIn(p, '2026-12', {}, over, '2026-11-21'), -2000);       // paid 2,000 too much
+  assert.equal(carriedIn(p, '2027-01', {}, over, '2026-11-21'), 28000);       // + all of December unpaid (31 days = 30,000)
+});
+
+test('a pay made in early December for November counts in November', async () => {
+  const { staffMonth } = await import('../src/utils/staffCosts.js');
+  const p = { id: 'b', pay: 'monthly', amount: 30000, worksIn: 'events' };
+  const pays = [{ staffId: 'b', type: 'pay', date: '2026-12-02', forMonth: '2026-11', amount: 30000 }];
+  assert.equal(staffMonth(p, '2026-11', {}, pays).toPay, 0);
+  assert.equal(staffMonth(p, '2026-12', {}, pays).toPay, 30000); // Dec: full salary, nothing paid
+});

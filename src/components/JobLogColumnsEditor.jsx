@@ -11,6 +11,7 @@
 // IMPORTS
 // ============================================================
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import Button from './Button';
 import { genId } from '../utils/helpers';
@@ -22,7 +23,9 @@ import { useConfirm } from './useConfirm';
 // ============================================================
 
 export default function JobLogColumnsEditor() {
-  const { allJobLogColumns, saveJobLogColumns, canEditSettings, showToast } = useApp();
+  const { allJobLogColumns, saveJobLogColumns, canEditSettings, showToast, daySheetCfg, daySheetView } = useApp();
+  const navigate = useNavigate();
+  const fromDay = daySheetCfg?.enabled ? (daySheetView?.colIds || []) : [];
   const confirm = useConfirm();
 
   // ------------------------------------------------------------
@@ -89,6 +92,14 @@ export default function JobLogColumnsEditor() {
   // ------------------------------------------------------------
   return (
     <div className="space-y-4">
+      {fromDay.length > 0 && (
+        <div className="rounded-xl border border-violet-200 bg-violet-50/50 px-4 py-3 text-[13.5px]" data-testid="joblog-daysheet-box">
+          <div className="flex items-center gap-2 mb-1"><b className="flex-1 text-bb-text">Day sheet costs go to</b>
+            <button type="button" onClick={() => navigate('/settings/daysheets', { state: { tab: 'daysheets' } })} className="text-[13px] font-semibold text-bb-accent-hover hover:underline cursor-pointer">Change</button></div>
+          <p className="text-gray-700">{fromDay.map(id => allJobLogColumns.find(c => c.id === id)?.label || id).join(' · ')}</p>
+          <p className="text-[12.5px] text-gray-600 mt-1">Each day’s total is split equally across that day’s events. On those events these columns can’t be typed, so nothing is counted twice.</p>
+        </div>
+      )}
       <p className="text-sm text-bb-muted">
         These are the columns in your Job Log and the Costs section of each completed event.
         Costs reduce profit; income adds to it; notes are free text (vendor names, remarks). Removing a column hides it — its past values are kept.
@@ -106,6 +117,7 @@ export default function JobLogColumnsEditor() {
               onChange={e => update(c.id, { label: e.target.value })}
               className="flex-1 min-w-0 text-sm font-semibold bg-transparent border border-transparent hover:border-bb-border focus:border-bb-accent rounded px-2 py-1.5 outline-none"
             />
+            {fromDay.includes(c.id) && <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 whitespace-nowrap">From Day sheet</span>}
             <select
               value={c.type}
               onChange={e => update(c.id, { type: e.target.value })}

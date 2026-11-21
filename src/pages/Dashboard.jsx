@@ -25,6 +25,7 @@ import { PageHeader } from '../components/LaptopUI';
 import EventCardPhone, { EventItemsSheet, EventMoreSheet } from '../components/EventCardPhone';
 import { PlanTag } from '../components/UpgradeCard';
 import InstallButton from '../components/InstallButton';
+import TodayDaySheetCard from '../components/TodayDaySheetCard';
 import { SectionLabel } from '../components/PhoneUI';
 import { useIsPhone } from '../components/useIsPhone';
 import { sortByActiveDate, formatRupees } from '../utils/helpers';
@@ -128,6 +129,8 @@ export default function Dashboard() {
         ))}
       </div>
       )}
+
+      <TodayDaySheetCard />
 
       {/* Confirmed Events */}
       <div>

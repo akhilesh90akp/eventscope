@@ -37,6 +37,8 @@ import UpgradeCard from '../components/UpgradeCard';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useIsPhone } from '../components/useIsPhone';
+import { periodStaffCosts } from '../utils/daySheetView';
+import { isoDate } from '../utils/calendar';
 import { usePhoneHeader } from '../components/phoneScreens';
 import { HeaderIconButton } from '../components/PhoneHeader';
 import { IconButton } from '../components/PhoneUI';
@@ -59,7 +61,7 @@ function CategoryTag({ p }) {
 // Purchases — MAIN COMPONENT
 // ============================================================
 export default function Purchases() {
-  const { purchases, purchasesLoaded, deletePurchase, events, financials, jobLogColumns, isOwner, settings, showToast, canUse } = useApp();
+  const { purchases, purchasesLoaded, deletePurchase, events, financials, jobLogColumns, allJobLogColumns, isOwner, settings, showToast, canUse, daySheetCfg, staff, daySheets, staffPayments } = useApp();
   const confirm = useConfirm();
   const navigate = useNavigate();
 
@@ -87,7 +89,14 @@ export default function Purchases() {
   const shown = useMemo(() => (!category ? list : list.filter(p => (category === 'Total only' ? p.mode === 'total' : p.mode !== 'total' && (p.category || 'Other') === category))), [list, category]);
   const shownTotal = shown.reduce((n, p) => n + (Number(p.amount) || 0), 0);
   const fyGroups = useMemo(() => (allTime ? groupByFinancialYear(shown) : null), [allTime, shown]);
-  const afterPurchases = profit.profit - sum.total;
+  // Day sheets on → "Real profit": also minus running cost, office salaries and bonuses (they belong to no event)
+  const real = daySheetCfg.enabled;
+  const day = useMemo(() => periodStaffCosts({ cfg: daySheetCfg, staff, sheets: daySheets, events, payments: staffPayments, columnOrder: (allJobLogColumns || jobLogColumns).map(c => c.id),
+    from: allTime ? '' : from, to: allTime ? '' : to, today: isoDate(new Date()) }), [daySheetCfg, staff, daySheets, events, staffPayments, allJobLogColumns, jobLogColumns, from, to, allTime]);
+  const afterPurchases = profit.profit - sum.total - (real ? day.running + day.office + day.bonus : 0);
+  const afterLabel = real ? 'Real profit' : 'Profit after purchases';
+  const afterHint = real ? `Event profit ${rupees(profit.profit)} − running cost, office, purchases` : `Event profit ${rupees(profit.profit)} − purchases`;
+  const eventName = (id) => { const e = events.find(x => x.id === id); return e ? [e.clientName, e.mainEvent?.name || e.eventType].filter(Boolean).join(' · ') : ''; };
   const enoughCosts = profit.completed > 0 && profit.profitEvents / profit.completed >= 0.8;
   const thisMonth = useMemo(() => {
     const ym = new Date().toISOString().slice(0, 7);
@@ -206,8 +215,8 @@ export default function Purchases() {
         {stat('Entries', sum.count)}
         {stat('Biggest category', sum.biggestCategory ? sum.biggestCategory.name : '—', 'text-bb-text', sum.biggestCategory ? rupees(sum.biggestCategory.amount) : '')}
         {enoughCosts
-          ? stat('Profit after purchases', formatRupees(afterPurchases), afterPurchases >= 0 ? 'text-emerald-500' : 'text-rose-600', `Event profit ${rupees(profit.profit)} − purchases`)
-          : stat('Profit after purchases', '—', 'text-bb-muted', `Shows once most events have expenses added (${profit.profitEvents} of ${profit.completed} now)`)}
+          ? stat(afterLabel, formatRupees(afterPurchases), afterPurchases >= 0 ? 'text-emerald-500' : 'text-rose-600', afterHint)
+          : stat(afterLabel, '—', 'text-bb-muted', `Shows once most events have expenses added (${profit.profitEvents} of ${profit.completed} now)`)}
       </div>
       ) : (
         <StatRow items={[
@@ -216,8 +225,8 @@ export default function Purchases() {
             hint: sum.biggestCategory ? `${formatRupees(sum.biggestCategory.amount)} · ${Math.round((sum.biggestCategory.amount / (sum.total || 1)) * 100)}% of spend`
               : sum.count ? 'Entries are “Total only” — add items by category to fill this' : 'Nothing yet' },
           enoughCosts
-            ? { label: 'Profit after purchases', value: formatRupees(afterPurchases), tone: afterPurchases >= 0 ? 'green' : 'red', hint: `Event profit ${formatRupees(profit.profit)} − purchases` }
-            : { label: 'Profit after purchases', value: '—', tone: 'muted', hint: <span>Shows once most events have expenses ({profit.profitEvents} of {profit.completed} now) · <button onClick={() => navigate('/completed')} className="font-semibold text-bb-accent-hover hover:underline cursor-pointer">add costs</button></span> },
+            ? { label: afterLabel, value: formatRupees(afterPurchases), tone: afterPurchases >= 0 ? 'green' : 'red', hint: afterHint, testId: 'purchases-real' }
+            : { label: afterLabel, value: '—', tone: 'muted', hint: <span>Shows once most events have expenses ({profit.profitEvents} of {profit.completed} now) · <button onClick={() => navigate('/completed')} className="font-semibold text-bb-accent-hover hover:underline cursor-pointer">add costs</button></span> },
           { label: 'This month', value: formatRupees(thisMonth), hint: new Date().toLocaleDateString('en-IN', { month: 'long' }) },
         ]} />
       )}
@@ -245,6 +254,7 @@ export default function Purchases() {
                     <span className="flex-1 min-w-0">
                       <span className="block text-[15px] font-semibold text-bb-text truncate">{titleOf(p)}</span>
                       <span className="block text-[13px] text-gray-600 mt-0.5">{formatDateReadable(p.date)}{p.mode !== 'total' && p.category ? ` · ${p.category}` : ''}</span>
+                      {p.boughtFor && eventName(p.boughtFor) && <span className="block text-[12.5px] text-violet-700 truncate">For {eventName(p.boughtFor)}</span>}
                     </span>
                     <b className="text-[15px] tabular-nums">{rupees(p.amount)}</b>
                     {on ? <ChevronUp size={18} className="text-bb-accent" /> : <ChevronDown size={18} className="text-bb-muted" />}
@@ -341,6 +351,7 @@ export default function Purchases() {
                           <td className="py-2.5 px-3">
                             <b className="block text-bb-text">{titleOf(p)}</b>
                             <span className="block text-[12px] text-bb-muted">{p.mode === 'total' ? 'Total only · no item list' : p.note}</span>
+                            {p.boughtFor && eventName(p.boughtFor) && <span className="block text-[12px] text-violet-700">Bought for {eventName(p.boughtFor)}</span>}
                           </td>
                           <td className="py-2.5 px-3"><CategoryTag p={p} /></td>
                           <td className="py-2.5 px-3 text-right tabular-nums">{p.mode === 'total' ? '—' : p.qty || 1}</td>

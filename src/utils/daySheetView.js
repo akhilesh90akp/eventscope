@@ -44,6 +44,13 @@ export const daySheetColumnIds = (cfg, sheets = {}) => {
   return [...ids];
 };
 
+/** A new, empty sheet: monthly staff pre-ticked (Events if there are events, else Warehouse), the "every day" cost rows empty */
+export const blankSheet = (team, hasEvents, costRows = []) => ({
+  staff: Object.fromEntries(team.filter(p => p.pay === 'monthly' && p.worksIn !== 'office').map(p => [p.id, { where: hasEvents ? 'events' : 'warehouse', otHours: '' }])),
+  costs: costRows.map((r, i) => ({ id: `row${i + 1}`, label: r.label, column: r.column, amount: '' })),
+  notes: '',
+});
+
 // ============================================================
 // EVENTS PER DAY
 // ============================================================
@@ -144,5 +151,30 @@ export const mergeDaySheetShares = (financials = {}, { onSheets, shares = {}, co
     });
     out[id] = { ...raw, values, formulas, fromDaySheet: colIds };
   });
+  return out;
+};
+
+// ============================================================
+// REPORTS — costs that belong to no event
+// ============================================================
+
+/**
+ * Day sheet costs in a period (dates from..to, '' = open), counted only from
+ * the start date up to today: running cost (warehouse, leave, no-event or
+ * unfilled days), office salaries, bonuses paid, and what was shared into events.
+ * → { running, office, bonus, eventDay, days }
+ */
+export const periodStaffCosts = ({ cfg, staff = [], sheets = {}, events = [], payments = [], columnOrder, from = '', to = '', today }) => {
+  const out = { running: 0, office: 0, bonus: 0, eventDay: 0, days: 0 };
+  if (!cfg.enabled || !cfg.startDate) return out;
+  const start = from && from > cfg.startDate ? from : cfg.startDate;
+  const end = to && to < today ? to : today;
+  if (end < start) return out;
+  const byDate = eventsByDate(events, cfg.startDate);
+  monthsBetween(start, end).forEach(month => {
+    const m = computeMonth({ month, staff, sheets, eventsByDate: byDate, upTo: end, from: start, staffColumn: cfg.staffColumn, columnOrder });
+    out.running += m.running; out.office += m.office; out.eventDay += m.eventDay; out.days += m.days.length;
+  });
+  out.bonus = payments.filter(p => p.type === 'bonus' && p.date >= start && p.date <= end).reduce((t, p) => t + Math.round(Number(p.amount) || 0), 0);
   return out;
 };

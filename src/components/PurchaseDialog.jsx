@@ -97,7 +97,7 @@ function ModeTabs({ mode, setMode }) {
  * @param {object|null} editing  a saved purchase to edit, or null to add
  */
 export default function PurchaseDialog({ isOpen, onClose, editing = null }) {
-  const { purchases, addPurchases, updatePurchase } = useApp();
+  const { purchases, addPurchases, updatePurchase, daySheetsOn, events } = useApp();
   const wide = useWide();
 
   // ------------------------------------------------------------
@@ -110,6 +110,7 @@ export default function PurchaseDialog({ isOpen, onClose, editing = null }) {
   const [openIdx, setOpenIdx] = useState(0);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [boughtFor, setBoughtFor] = useState('');   // Day sheets on: optional event this was bought for
 
   // Fresh form each time it opens (or the saved entry when editing)
   useEffect(() => {
@@ -127,8 +128,16 @@ export default function PurchaseDialog({ isOpen, onClose, editing = null }) {
       setTotal({ amount: '', note: '' });
       setItems([blankItem()]);
     }
+    setBoughtFor(editing?.boughtFor || '');
     setOpenIdx(0);
   }, [isOpen, editing]);
+
+  // Events to pick for "Bought for" — confirmed/completed, newest first
+  const eventChoices = useMemo(() => (daySheetsOn ? events
+    .filter(e => e.status === 'confirmed' || e.status === 'completed')
+    .map(e => ({ id: e.id, date: e.mainEvent?.date || e.date || '', label: [e.clientName, e.mainEvent?.name || e.eventType].filter(Boolean).join(' · ') }))
+    .sort((a, b) => b.date.localeCompare(a.date)) : []), [daySheetsOn, events]);
+  const forEvent = daySheetsOn ? { boughtFor } : {};
 
   // Usual categories + any of your own already used
   const categories = useMemo(() => {
@@ -186,7 +195,7 @@ export default function PurchaseDialog({ isOpen, onClose, editing = null }) {
   const handleSave = async () => {
     let list;
     if (mode === 'total') {
-      const r = cleanPurchase({ date, ...total }, 'total');
+      const r = cleanPurchase({ date, ...total, ...forEvent }, 'total');
       if (r.error) { setError(r.error); return; }
       list = [r];
     } else {
@@ -194,7 +203,7 @@ export default function PurchaseDialog({ isOpen, onClose, editing = null }) {
       list = [];
       for (let i = 0; i < items.length; i++) {
         if (isBlank(items[i])) continue;
-        const r = cleanPurchase({ ...items[i], date }, 'item');
+        const r = cleanPurchase({ ...items[i], date, ...forEvent }, 'item');
         if (r.error) { setError(`Item ${i + 1}: ${r.error}`); setOpenIdx(i); return; }
         list.push(r);
       }
@@ -344,6 +353,18 @@ export default function PurchaseDialog({ isOpen, onClose, editing = null }) {
               </div>
             )}
           </>
+        )}
+
+        {daySheetsOn && (
+          <label className="block md:w-[460px]">
+            <span className="block text-sm font-medium text-bb-text mb-1">Bought for (optional)</span>
+            <select value={boughtFor} onChange={e => setBoughtFor(e.target.value)} data-testid="purchase-boughtfor"
+              className="w-full min-h-[44px] rounded-lg border border-bb-border bg-white px-3 text-sm cursor-pointer">
+              <option value="">Not for one event</option>
+              {eventChoices.map(e => <option key={e.id} value={e.id}>{e.label}{e.date ? ` · ${e.date.split('-').reverse().join('/')}` : ''}</option>)}
+            </select>
+            <span className="block text-xs text-bb-muted mt-1">Shows on that event as “new stock bought for it” — still not part of its costs, because you keep and reuse it.</span>
+          </label>
         )}
 
         {error && <p className="text-sm text-red-600" role="alert">{error}</p>}

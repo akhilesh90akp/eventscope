@@ -42,6 +42,7 @@ export default function JobEventLaptop({ event, onClose }) {
   const calc = computeEventFinancials(bill.revenue, values, jobLogColumns);
   const money = jobLogColumns.filter(c => c.type !== 'text');
   const texts = jobLogColumns.filter(c => c.type === 'text');
+  const fromDay = fin.fromDaySheet || [];   // columns filled from Day sheets — read only
   const costShare = bill.revenue > 0 ? Math.min(100, Math.round((calc.totalCost / bill.revenue) * 100)) : 0;
   const isLoss = calc.hasAny && calc.profit < 0;
 
@@ -135,6 +136,12 @@ export default function JobEventLaptop({ event, onClose }) {
                 {money.map(col => {
                   const err = errors[col.id];
                   const formula = !(col.id in drafts) && formulas[col.id];
+                  if (fromDay.includes(col.id)) return (
+                    <div key={col.id} className="flex items-center gap-3 py-2.5 border-b border-bb-border/60 last:border-b-0" data-testid={`job-${col.id}`}>
+                      <span className="flex-1 text-[14px] font-semibold">{col.label} <span className="ml-1 text-[11px] font-bold px-2 py-px rounded-full bg-violet-100 text-violet-700">From Day sheet</span></span>
+                      <b className="tabular-nums text-gray-700">{values[col.id] === null || values[col.id] === undefined ? (isOwner ? '—' : 'Owner only') : formatRupees(values[col.id])}</b>
+                    </div>
+                  );
                   return (
                     <div key={col.id} className="py-2 border-b border-bb-border/60 last:border-b-0">
                       <label className="flex items-center gap-3">

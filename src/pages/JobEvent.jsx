@@ -25,7 +25,7 @@ import { SectionLabel } from '../components/PhoneUI';
 import { usePhoneHeader } from '../components/phoneScreens';
 import { useIsPhone } from '../components/useIsPhone';
 import JobEventLaptop from '../components/JobEventLaptop';
-import { getEventBill, computeEventFinancials, parseMoneyExpr, formatRupees, formatDateReadable } from '../utils/helpers';
+import { getAllEventDates, getEventBill, computeEventFinancials, parseMoneyExpr, formatRupees, formatDateReadable } from '../utils/helpers';
 
 // ============================================================
 // JobEvent — MAIN COMPONENT
@@ -34,7 +34,7 @@ import { getEventBill, computeEventFinancials, parseMoneyExpr, formatRupees, for
 export default function JobEvent() {
   const { eventId } = useParams();
   const navigate = useNavigate();
-  const { events, jobLogColumns, financials, saveFinancials, isOwner, canEditEvents, showToast, canUse } = useApp();
+  const { events, jobLogColumns, financials, saveFinancials, isOwner, canEditEvents, showToast, canUse, purchases } = useApp();
   const event = events.find(e => e.id === eventId);
 
   // ------------------------------------------------------------
@@ -69,6 +69,9 @@ export default function JobEvent() {
   const calc = computeEventFinancials(bill.revenue, values, jobLogColumns);
   const money = jobLogColumns.filter(c => c.type !== 'text');
   const texts = jobLogColumns.filter(c => c.type === 'text');
+  const fromDay = fin.fromDaySheet || [];
+  const fnDates = fromDay.length ? getAllEventDates(event).map(d => d.date) : [];   // columns filled from Day sheets — read only here
+  const boughtFor = isOwner ? purchases.filter(p => p.boughtFor === event.id) : [];
   const costShare = bill.revenue > 0 ? Math.min(100, Math.round((calc.totalCost / bill.revenue) * 100)) : 0;
 
   // ------------------------------------------------------------
@@ -143,6 +146,15 @@ export default function JobEvent() {
         {money.length === 0 && <p className="py-4 text-[14px] text-gray-600">No cost columns yet — add them in Settings → Job Log columns.</p>}
         {money.map(col => {
           const formula = !(col.id in drafts) && formulas[col.id];
+          if (fromDay.includes(col.id)) return (
+            <div key={col.id} className="flex items-center gap-3 py-3 border-b border-bb-border last:border-b-0" data-testid={`job-${col.id}`}>
+              <span className="flex-1 min-w-0">
+                <span className="block text-[15px] font-semibold">{col.label}</span>
+                <span className="inline-block mt-1 text-[11.5px] font-bold px-2 py-px rounded-full bg-violet-100 text-violet-700">From Day sheet</span>
+              </span>
+              <b className="text-[16px] tabular-nums text-gray-700">{values[col.id] === null || values[col.id] === undefined ? (isOwner ? '—' : 'Owner only') : formatRupees(values[col.id])}</b>
+            </div>
+          );
           return (
             <label key={col.id} className="block py-3 border-b border-bb-border last:border-b-0">
               <span className="flex items-center gap-3">
@@ -158,6 +170,16 @@ export default function JobEvent() {
         })}
         {money.length > 0 && <Row label={<b>Total costs</b>} value={formatRupees(calc.totalCost)} className="border-t-2 border-bb-border mt-1" />}
       </div>
+
+      {fromDay.length > 0 && <p className="text-[13px] text-gray-600 -mt-2">“From Day sheet” amounts are this event’s equal share of each day’s staff and shared costs. Change them on the Day sheet{fnDates.length ? <> — <button className="font-semibold text-bb-accent-hover hover:underline cursor-pointer" onClick={() => navigate(`/day-sheets/${fnDates[0]}`)}>open {fnDates.length === 1 ? 'the day' : 'the first day'}</button></> : ''}.</p>}
+
+      {boughtFor.length > 0 && <>
+        <SectionLabel right={<span className="text-[12.5px] text-gray-600 normal-case tracking-normal font-medium">not in this event’s costs</span>}>New stock bought for it</SectionLabel>
+        <div className="bg-white border border-bb-border rounded-2xl px-[18px] py-1.5" data-testid="bought-for">
+          {boughtFor.map(p => <Row key={p.id} label={p.mode === 'total' ? (p.note || 'Purchases') : p.name} value={formatRupees(p.amount)} />)}
+          <p className="text-[12.5px] text-gray-600 pb-2">Kept and used again, so it’s counted in Purchases, not here.</p>
+        </div>
+      </>}
 
       {texts.map(col => (
         <div key={col.id} className="space-y-2.5">

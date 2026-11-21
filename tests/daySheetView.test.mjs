@@ -54,3 +54,19 @@ test('14 Nov sample end to end: shares merged over typed values, typed values ke
   assert.deepEqual(allShares({ cfg: { ...cfg, enabled: false }, staff, sheets, events, today: '2026-11-20' }), {});
   assert.equal(mergeDaySheetShares(typed, { onSheets: new Set(), shares, colIds: ['labour'] }), typed);
 });
+
+test('period costs for Reports: running, office, bonus — clipped to start date and today', async () => {
+  const { periodStaffCosts } = await import('../src/utils/daySheetView.js');
+  const cfg = daySheetConfig({ daySheets: { enabled: true, startDate: '2026-11-10' } });
+  const staff = [
+    { id: 'm', name: 'M', pay: 'monthly', amount: 30000, worksIn: 'events' },     // 1,000/day in Nov
+    { id: 'o', name: 'O', pay: 'monthly', amount: 18000, worksIn: 'office' },     // 600/day in Nov
+  ];
+  const sheets = { '2026-11-14': { date: '2026-11-14', staff: { m: { where: 'events' } }, costs: [{ amount: 500, column: 'other' }] } };
+  const events = [ev('e', '2026-11-14')];
+  const payments = [{ type: 'bonus', date: '2026-11-15', amount: 700 }, { type: 'bonus', date: '2026-11-01', amount: 999 }];
+  const r = periodStaffCosts({ cfg, staff, sheets, events, payments, from: '2026-11-01', to: '2026-11-30', today: '2026-11-20' });
+  // 10–20 Nov = 11 days: 10 days running (1,000) + 14 Nov at the event (1,000 + 500 shared)
+  assert.deepEqual(r, { running: 10000, office: 6600, bonus: 700, eventDay: 1500, days: 11 });
+  assert.equal(periodStaffCosts({ cfg, staff, sheets, events, payments, from: '2026-10-01', to: '2026-10-31', today: '2026-11-20' }).days, 0);
+});

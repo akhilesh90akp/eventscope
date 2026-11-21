@@ -33,6 +33,10 @@ import ContractGenerator from './pages/ContractGenerator';
 import Calendar from './pages/Calendar';
 import Reports from './pages/Reports';
 import Purchases from './pages/Purchases';
+import DaySheets from './pages/DaySheets';
+import DaySheet from './pages/DaySheet';
+import Staff from './pages/Staff';
+import StaffPerson from './pages/StaffPerson';
 import Billing from './pages/Billing';
 import Settings from './pages/Settings';
 import JobLog, { JobLogLoader } from './pages/JobLog';
@@ -181,6 +185,10 @@ function AppRoutes() {
           <Route path="/job/:eventId" element={<PerEvent page={JobEvent} />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/purchases" element={<Purchases />} />
+          <Route path="/day-sheets" element={<DaySheets />} />
+          <Route path="/day-sheets/:date" element={<DaySheet />} />
+          <Route path="/staff" element={<Staff />} />
+          <Route path="/staff/:id" element={<StaffPerson />} />
           <Route path="/billing" element={<Billing />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/settings/:section" element={<Settings />} />

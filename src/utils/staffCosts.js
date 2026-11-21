@@ -22,7 +22,8 @@
  *   sheet   { date, staff: { [id]: { where: 'events'|'warehouse'|'leave', otHours } },
  *             costs: [{ id, label, amount, column }], notes, tasks }
  *   payment { id, staffId, date, type: 'early'|'advance'|'bonus'|'pay', amount,
- *             advanceBack?, recoverPerPay?, method?, note? }
+ *             advanceBack?, recoverPerPay?, method?, note?, forMonth? ('YYYY-MM' a pay is for),
+ *             daySheet? (date of a "Paid today" tick) }
  */
 
 // ============================================================
@@ -141,10 +142,10 @@ export const computeDay = ({ date, staff = [], sheet = null, eventIds = [], staf
  * → { days, leave, earned, ot, bonus, paidEarly, paid, advanceBack, advanceOwed, plannedBack, toPay }
  *   toPay = earned + ot − paid early − paid − advance taken back (bonuses are paid on the spot)
  */
-export const staffMonth = (p, month, sheets = {}, payments = []) => {
+export const staffMonth = (p, month, sheets = {}, payments = [], from = '') => {
   let earned = 0, ot = 0, days = 0, leave = 0;
   datesOfMonth(month).forEach(date => {
-    if (!isActiveOn(p, date)) return;
+    if (!isActiveOn(p, date) || (from && date < from)) return;
     const entry = sheets[date]?.staff?.[p.id];
     if (p.pay === 'monthly') {
       earned += monthlyDayCost(p.amount, date);
@@ -155,8 +156,8 @@ export const staffMonth = (p, month, sheets = {}, payments = []) => {
       ot += overtimePay(p, entry.otHours);
     }
   });
-  const mine = payments.filter(x => x.staffId === p.id);
-  const inMonth = mine.filter(x => monthOf(x.date) === month);
+  const mine = payments.filter(x => x.staffId === p.id && (!from || x.date >= from));
+  const inMonth = mine.filter(x => (x.forMonth || monthOf(x.date)) === month);   // a pay made on 2 Dec for November counts in November
   const sum = (arr, k = 'amount') => arr.reduce((t, x) => t + Math.round(Number(x[k]) || 0), 0);
   const paidEarly = sum(inMonth.filter(x => x.type === 'early'));
   const paid = sum(inMonth.filter(x => x.type === 'pay'));
@@ -166,6 +167,23 @@ export const staffMonth = (p, month, sheets = {}, payments = []) => {
   const plannedBack = Math.min(advanceOwed, advanceStatus(p.id, payments).recoverPerPay || advanceOwed);
   const toPay = earned + ot - paidEarly - paid - advanceBack;
   return { days, leave, earned, ot, bonus, paidEarly, paid, advanceBack, advanceOwed, plannedBack, toPay };
+};
+
+/**
+ * What's left from earlier months (paid less → positive, paid more → negative),
+ * counting from the Day sheets start date. → rupees
+ */
+export const carriedIn = (p, month, sheets = {}, payments = [], from = '') => {
+  if (!from || monthOf(from) >= month) return 0;
+  let total = 0;
+  let [y, m] = monthOf(from).split('-').map(Number);
+  for (;;) {
+    const ym = `${y}-${String(m).padStart(2, '0')}`;
+    if (ym >= month) break;
+    total += staffMonth(p, ym, sheets, payments, from).toPay;
+    m++; if (m > 12) { m = 1; y++; }
+  }
+  return total;
 };
 
 /** Advances given minus what has been taken back, for one person (all time) */
