@@ -462,7 +462,8 @@ export function AppProvider({ children }) {
 
   // Day sheets: roster (everyone), staff + payments (owners), sheets (owners + fillers).
   // Nothing is listened to until the owner switches Day sheets on.
-  const daySheetsOn = !!settings?.daySheets?.enabled;
+  // Premium plan (and the free pilot). On a lower plan the Job Log shows typed values again; nothing is deleted.
+  const daySheetsOn = !!settings?.daySheets?.enabled && hasFeature(tenant?.plan, 'daySheets');
   const canFillDaySheets = role === 'owner' || (!!user && (staffRoster.fillers || []).includes(user.uid));
   useEffect(() => {
     if (!tenantId || !daySheetsOn) { setStaffRoster({ people: [], fillers: [] }); return undefined; }
@@ -499,7 +500,7 @@ export function AppProvider({ children }) {
   // Job Log as every page sees it: typed values, with Day sheet shares laid
   // over the Day sheet columns of events on Day sheets (read time only —
   // financials/ in Firestore is never changed by Day sheets).
-  const daySheetCfg = useMemo(() => daySheetConfig(settings), [settings]);
+  const daySheetCfg = useMemo(() => ({ ...daySheetConfig(settings), enabled: daySheetsOn }), [settings, daySheetsOn]);
   const todayIso = isoDate(new Date());
   const daySheetView = useMemo(() => {
     if (!daySheetCfg.enabled || !daySheetCfg.startDate) return { colIds: [], onSheets: new Set(), shares: {} };

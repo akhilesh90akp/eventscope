@@ -36,6 +36,7 @@ export const FEATURES = {
   excel: 'Excel download',
   contracts: 'Contracts',
   branding: 'Your brand colour on PDFs',
+  daySheets: 'Day sheets & staff wages',
 };
 
 /** Paid plans. Prices in rupees; yearly = 10 months (2 months free). No GST for now. */
@@ -54,9 +55,9 @@ export const PAID_PLANS = [
   },
   {
     id: 'premium', name: 'Premium', tag: 'For growing companies', monthly: 2599, team: Infinity, teamLabel: 'Unlimited team', premium: true,
-    features: ['jobLog', 'reports', 'purchases', 'excel', 'contracts', 'branding'],
+    features: ['jobLog', 'reports', 'purchases', 'excel', 'contracts', 'branding', 'daySheets'],
     lead: 'Everything in Standard, plus',
-    items: ['Contracts (service agreements)', 'Your brand colour on PDFs, no EventScope mark', 'Priority help on WhatsApp', 'New features first'],
+    items: ['Day sheets & staff wages', 'Contracts (service agreements)', 'Your brand colour on PDFs, no EventScope mark', 'Priority help on WhatsApp', 'New features first'],
   },
 ];
 

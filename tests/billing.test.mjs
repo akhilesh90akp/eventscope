@@ -42,6 +42,9 @@ test('features and team limits per plan', () => {
   assert.equal(hasFeature('standard', 'jobLog'), true);
   assert.equal(hasFeature('standard', 'contracts'), false);
   assert.equal(hasFeature('premium', 'contracts'), true);
+  assert.equal(hasFeature('premium', 'daySheets'), true);
+  assert.equal(hasFeature('standard', 'daySheets'), false);
+  assert.equal(hasFeature('trial', 'daySheets'), true);   // the free pilot has everything
   assert.equal(planFor('reports'), 'Standard');
   assert.equal(planFor('contracts'), 'Premium');
   assert.equal(teamLimit('basic'), 2);

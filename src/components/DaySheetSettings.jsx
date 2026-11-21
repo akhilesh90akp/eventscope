@@ -14,6 +14,7 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import Button from './Button';
+import UpgradeCard from './UpgradeCard';
 import { useApp } from '../context/AppContext';
 import { useConfirm } from './useConfirm';
 import { SwitchRow, DateField, TextField, Select } from './PhoneUI';
@@ -28,7 +29,7 @@ const selectCls = 'min-h-[44px] rounded-xl border border-bb-border bg-bb-input p
 // DaySheetSettings — MAIN COMPONENT
 // ============================================================
 export default function DaySheetSettings() {
-  const { settings, updateSettings, daySheetCfg: cfg, allJobLogColumns, daySheets, showToast, isOwner } = useApp();
+  const { settings, updateSettings, daySheetCfg: cfg, allJobLogColumns, daySheets, showToast, isOwner, canUse } = useApp();
   const confirm = useConfirm();
   const [newRow, setNewRow] = useState({ label: '', column: 'other' });
   const cols = allJobLogColumns.filter(c => !c.hidden && c.type !== 'income' && c.type !== 'text');
@@ -36,6 +37,7 @@ export default function DaySheetSettings() {
   const save = (patch) => updateSettings({ daySheets: { ...(settings.daySheets || {}), ...patch } });
 
   if (!isOwner) return <p className="text-sm text-bb-muted">Only the account owner can change Day sheets.</p>;
+  if (!canUse('daySheets')) return <UpgradeCard feature="daySheets" text="Fill one sheet a day — who worked where, food and fuel — and share it across that day’s events. Staff wages and advances worked out for you." />;
 
   const toggle = async (on) => {
     if (on) {

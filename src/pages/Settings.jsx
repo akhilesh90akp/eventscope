@@ -256,7 +256,7 @@ export default function Settings() {
     const subs = {
       company: 'Name, logo, GSTIN, address, colour', bank: 'Shown on bills', invoice: 'Numbering, GST, terms',
       contract: 'Court city, cancellation terms', calendar: 'Daily limit, phone reminders', services: 'Your categories & items',
-      team: `${team.length} ${team.length === 1 ? 'person' : 'people'}${invites.length ? ` · ${invites.length} invited` : ''}`, joblog: 'Cost columns', backup: 'Download everything', daysheets: settings.daySheets?.enabled ? 'On · staff, food, fuel per day' : 'Off',
+      team: `${team.length} ${team.length === 1 ? 'person' : 'people'}${invites.length ? ` · ${invites.length} invited` : ''}`, joblog: 'Cost columns', backup: 'Download everything', daysheets: !canUse('daySheets') ? 'Premium plan' : settings.daySheets?.enabled ? 'On · staff, food, fuel per day' : 'Off',
     };
     return (
       <div className="space-y-5" data-testid="settings-list">
@@ -279,6 +279,7 @@ export default function Settings() {
                 <span className="block text-[13px] text-gray-600 truncate">{subs[t.key]}</span>
               </span>
               {t.key === 'joblog' && !canUse('jobLog') && <PlanTag feature="jobLog" />}
+              {t.key === 'daysheets' && !canUse('daySheets') && <PlanTag feature="daySheets" />}
               <ChevronRight size={18} className="text-gray-400" />
             </button>
           ))}
