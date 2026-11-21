@@ -21,8 +21,7 @@
 // ============================================================
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Download, Printer, Trash2 } from 'lucide-react';
-import Card from '../components/Card';
+import { Download, Printer, Trash2, ClipboardCheck } from 'lucide-react';
 import Button from '../components/Button';
 import ActionBar, { ActionBarSpacer } from '../components/ActionBar';
 import BottomSheet from '../components/BottomSheet';
@@ -32,7 +31,7 @@ import { usePhoneHeader } from '../components/phoneScreens';
 import { HeaderIconButton } from '../components/PhoneHeader';
 import { SectionLabel, TextField, SwitchRow, IconButton } from '../components/PhoneUI';
 import { PageHeader, HeaderText, StatRow } from '../components/LaptopUI';
-import { StepSwitcher, Pills, MoneyInput, HoursInput, PanelCard, LinkButton, SumRow, Tag, Notice } from '../components/StaffUI';
+import { StepSwitcher, Pills, MoneyInput, HoursInput, PanelCard, LinkButton, SumRow, Tag, Notice, EmptyState } from '../components/StaffUI';
 import { rupees } from '../utils/staffFormat';
 import { useDaySheets } from '../components/useDaySheets';
 import { addDays } from '../utils/calendar';
@@ -204,7 +203,7 @@ export default function DaySheet() {
   // RENDER
   // ------------------------------------------------------------
   if (!daySheetsOn || !canFillDaySheets || !/^\d{4}-\d{2}-\d{2}$/.test(date || '')) {
-    return <Card><p className="text-center py-10 text-bb-muted">This Day sheet isn’t available.</p></Card>;
+    return <EmptyState icon={ClipboardCheck} title="This Day sheet isn’t available" line="Day sheets may be switched off, or the owner hasn’t given you access." action={<Button onClick={() => navigate('/day-sheets')}>Back to Day sheets</Button>} />;
   }
   if (!daySheetsLoaded) return <p className="text-sm text-bb-muted">Loading…</p>;
 

@@ -13,8 +13,7 @@
 // ============================================================
 import React, { useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Edit3, Phone, MessageCircle, Plus, Check, Trash2 } from 'lucide-react';
-import Card from '../components/Card';
+import { Edit3, Phone, MessageCircle, Plus, Check, Trash2, Users } from 'lucide-react';
 import Button from '../components/Button';
 import ActionBar, { ActionBarSpacer } from '../components/ActionBar';
 import { useConfirm } from '../components/useConfirm';
@@ -23,7 +22,7 @@ import { usePhoneHeader } from '../components/phoneScreens';
 import { HeaderIconButton } from '../components/PhoneHeader';
 import { IconButton } from '../components/PhoneUI';
 import { PageHeader, HeaderText } from '../components/LaptopUI';
-import { StepSwitcher, Avatar, Tag, PanelCard, LinkButton, SumRow } from '../components/StaffUI';
+import { StepSwitcher, Avatar, Tag, PanelCard, LinkButton, SumRow, EmptyState } from '../components/StaffUI';
 import { StaffFormSheet, RecordPaymentSheet, MarkPaidSheet } from '../components/StaffSheets';
 import { useDaySheets } from '../components/useDaySheets';
 import { staffMonth, carriedIn, advanceStatus, monthOf, datesOfMonth } from '../utils/staffCosts';
@@ -88,7 +87,7 @@ export default function StaffPerson() {
   // ------------------------------------------------------------
   // RENDER
   // ------------------------------------------------------------
-  if (!isOwner || !person) return <Card><p className="text-center py-10 text-bb-muted">{!isOwner ? 'Only the account owner can see this.' : 'This person isn’t in your staff list.'}</p></Card>;
+  if (!isOwner || !person) return <EmptyState icon={Users} title={!isOwner ? 'Only the account owner can see this' : 'This person isn’t in your staff list'} action={isOwner ? <Button onClick={() => navigate('/staff')}>Back to Staff & wages</Button> : null} />;
 
   const nameCard = (
     <div className="bg-white border border-bb-border rounded-2xl p-4 flex items-center gap-3">
