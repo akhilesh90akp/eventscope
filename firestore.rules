@@ -65,6 +65,11 @@ service cloud.firestore {
     function isOwner(tenantId) {
       return isMember(tenantId) && me().role == 'owner';
     }
+    // Owners, or a teammate the owner ticked "Can fill Day sheets" (Team page)
+    function canFillDaySheets(tenantId) {
+      return isOwner(tenantId) || (isMember(tenantId)
+        && request.auth.uid in get(docPath('tenants/' + tenantId + '/config/staffRoster')).data.get('fillers', []));
+    }
     // Active = not suspended by EventScope, and its access date (pilot end or
     // paid-until, plus grace days → blockAfterMs) hasn't passed — unless the
     // owner has told us they've paid (payments/pending), which keeps it working
@@ -278,6 +283,27 @@ service cloud.firestore {
       match /purchases/{purchaseId} {
         allow read: if isOwner(tenantId) || isPlatformAdmin();
         allow write: if (isOwner(tenantId) && tenantActive(tenantId)) || isPlatformAdmin();
+      }
+
+      // ---------- Day sheets & Staff wages ----------
+      // Pay lives ONLY in staff/ and staffPayments/ — owners only.
+      // config/staffRoster (names + who may fill Day sheets) is a normal
+      // config doc: members read it, owners write it.
+      // daySheets/{YYYY-MM-DD}: owners, and teammates the owner listed in
+      // config/staffRoster.fillers, read and write them. A sheet holds who
+      // worked where, overtime hours and the day's costs — never pay rates.
+      match /staff/{personId} {
+        allow read: if isOwner(tenantId) || isPlatformAdmin();
+        allow write: if (isOwner(tenantId) && tenantActive(tenantId)) || isPlatformAdmin();
+      }
+      match /staffPayments/{paymentId} {
+        allow read: if isOwner(tenantId) || isPlatformAdmin();
+        allow write: if (isOwner(tenantId) && tenantActive(tenantId)) || isPlatformAdmin();
+      }
+      match /daySheets/{date} {
+        allow read: if canFillDaySheets(tenantId) || isPlatformAdmin();
+        allow write: if (canFillDaySheets(tenantId) && tenantActive(tenantId)
+            && date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')) || isPlatformAdmin();
       }
 
       // Plan payments. The owner can file one "I've paid" claim (id 'pending')

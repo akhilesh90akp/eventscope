@@ -102,6 +102,16 @@ export function parseBackup(json) {
     purchases.push({ id: p.id, data: unwrapDates(p.data) });
   }
 
+  // Day sheets & Staff wages (v2, under other.staff / staffPayments / daySheets)
+  const dayData = {};
+  for (const name of ['staff', 'staffPayments', 'daySheets']) {
+    dayData[name] = [];
+    for (const r of Array.isArray(data.other?.[name]) ? data.other[name] : []) {
+      if (!okId(r?.id) || !r.data) return { ok: false, error: 'The backup has a damaged staff or Day sheet record — please use another backup.' };
+      dayData[name].push({ id: r.id, data: unwrapDates(r.data) });
+    }
+  }
+
   // Who was in the company (v2 only) — used to pre-fill the owner/staff boxes
   const people = [...(Array.isArray(data.members) ? data.members : []), ...(Array.isArray(data.invites) ? data.invites : [])]
     .filter(m => m && EMAIL_RE.test(String(m.email || '').trim()))
@@ -142,6 +152,7 @@ export function parseBackup(json) {
     events,
     financials,
     purchases,
+    dayData,
     owners,
     staff,
     contact,
@@ -151,6 +162,8 @@ export function parseBackup(json) {
       categories: categories?.length || 0,
       costs: financials.length,
       purchases: purchases.length,
+      staff: dayData.staff.length,
+      daySheets: dayData.daySheets.length,
       byStatus,
     },
   };

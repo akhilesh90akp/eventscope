@@ -439,3 +439,52 @@ test('sign-up may set the standard 60-day pilot (or the older 3-month one), not 
   await assertFails(signupBatch(as('p3', 'p3@gmail.com'), 'p3', 'p3co', { ...ok, blockAfterMs: Date.now() + 400 * 86400000 }));
   await assertFails(signupBatch(as('p4', 'p4@gmail.com'), 'p4', 'p4co', { ...ok, autoSuspend: false }));
 });
+
+// ============================================================
+// DAY SHEETS & STAFF WAGES — pay stays with owners
+// ============================================================
+const seedDaySheets = (fillers = []) => env.withSecurityRulesDisabled(async (ctx) => {
+  const db = ctx.firestore();
+  await setDoc(doc(db, 'users/fill'), { tenantId: 'acme', role: 'staff' });
+  await setDoc(doc(db, 'tenants/acme/config/staffRoster'), { people: [{ id: 's1', name: 'Biju' }], fillers });
+  await setDoc(doc(db, 'tenants/acme/staff/s1'), { name: 'Biju', pay: 'monthly', amount: 30000 });
+  await setDoc(doc(db, 'tenants/acme/staffPayments/x1'), { staffId: 's1', type: 'advance', amount: 2000 });
+  await setDoc(doc(db, 'tenants/acme/daySheets/2026-11-14'), { staff: { s1: { where: 'events' } }, costs: [] });
+});
+
+test('staff pay and payments: owner only', async () => {
+  await seedDaySheets(['fill']);
+  await assertSucceeds(getDoc(doc(as('alice'), 'tenants/acme/staff/s1')));
+  await assertSucceeds(setDoc(doc(as('alice'), 'tenants/acme/staff/s2'), { name: 'Anu', pay: 'daily', amount: 900 }));
+  await assertSucceeds(getDocs(collection(as('alice'), 'tenants/acme/staffPayments')));
+  for (const who of ['sam', 'fill', 'zara']) {
+    await assertFails(getDoc(doc(as(who), 'tenants/acme/staff/s1')));
+    await assertFails(getDocs(collection(as(who), 'tenants/acme/staff')));
+    await assertFails(getDoc(doc(as(who), 'tenants/acme/staffPayments/x1')));
+    await assertFails(setDoc(doc(as(who), 'tenants/acme/staff/s1'), { amount: 99999 }));
+    await assertFails(setDoc(doc(as(who), 'tenants/acme/staffPayments/x2'), { staffId: 's1', type: 'bonus', amount: 500 }));
+  }
+});
+
+test('day sheets: owner and listed fillers only; roster names readable by members', async () => {
+  await seedDaySheets(['fill']);
+  await assertSucceeds(getDoc(doc(as('fill'), 'tenants/acme/daySheets/2026-11-14')));
+  await assertSucceeds(setDoc(doc(as('fill'), 'tenants/acme/daySheets/2026-11-15'), { staff: {}, costs: [{ label: 'Fuel', amount: 800 }] }));
+  await assertSucceeds(setDoc(doc(as('alice'), 'tenants/acme/daySheets/2026-11-16'), { staff: {}, costs: [] }));
+  await assertFails(setDoc(doc(as('fill'), 'tenants/acme/daySheets/not-a-date'), { staff: {} }));
+  await assertFails(getDoc(doc(as('sam'), 'tenants/acme/daySheets/2026-11-14')));   // not ticked
+  await assertFails(setDoc(doc(as('sam'), 'tenants/acme/daySheets/2026-11-15'), { staff: {} }));
+  await assertFails(getDoc(doc(as('zara'), 'tenants/acme/daySheets/2026-11-14')));  // other company
+  await assertSucceeds(getDoc(doc(as('sam'), 'tenants/acme/config/staffRoster')));
+  await assertFails(setDoc(doc(as('fill'), 'tenants/acme/config/staffRoster'), { fillers: ['fill', 'sam'] })); // can't add themselves
+});
+
+test('day sheets: nobody but owners when no roster exists', async () => {
+  await assertFails(getDoc(doc(as('sam'), 'tenants/acme/daySheets/2026-11-14')));
+  await assertSucceeds(setDoc(doc(as('alice'), 'tenants/acme/daySheets/2026-11-14'), { staff: {} }));
+});
+
+test('day sheets: suspended company is read-only', async () => {
+  await assertFails(setDoc(doc(as('fred'), 'tenants/frozen/daySheets/2026-11-14'), { staff: {} }));
+  await assertFails(setDoc(doc(as('fred'), 'tenants/frozen/staff/s1'), { name: 'X' }));
+});

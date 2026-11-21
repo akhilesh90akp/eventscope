@@ -20,6 +20,11 @@
  *   tenants/{tenantId}/history/{id}           what EventScope changed for the company (admins only)
  *   platform/billing                          EventScope's UPI ID / payee / QR for the Plan & billing page
  *   tenants/{tenantId}/pushTokens/{tokenId}   { uid, token, device, createdAt } — an owner device for reminders (own only)
+ *   tenants/{tenantId}/staff/{id}             a person and their pay (owners only, see utils/staffCosts.js)
+ *   tenants/{tenantId}/staffPayments/{id}     paid early / advance / bonus / pay (owners only)
+ *   tenants/{tenantId}/daySheets/{YYYY-MM-DD} who worked where + the day's costs (owners + Day sheet fillers)
+ *   tenants/{tenantId}/config/staffRoster     { people: [{ id, name, pay, worksIn, startDate, endDate }], fillers: [uid] }
+ *                                             names only (no pay) so fillers can tick people
  *
  * firestore.rules enforces the same boundaries server-side; the permission
  * flags exposed here (isOwner, canEditSettings, …) only drive the UI.
@@ -31,7 +36,7 @@
 // ============================================================
 // IMPORTS
 // ============================================================
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import {
   collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, getDoc, getDocs, query, where,
@@ -41,6 +46,8 @@ import { auth, db } from '../firebase';
 import { DEFAULT_SETTINGS, DEFAULT_CATEGORIES, DEFAULT_JOBLOG_COLUMNS } from '../constants/data';
 import { genId, inviteKey } from '../utils/helpers';
 import { buildCompanyBackup, backupFileName } from '../utils/companyBackup';
+import { daySheetConfig, daySheetColumnIds, daySheetEventIds, allShares, mergeDaySheetShares } from '../utils/daySheetView';
+import { isoDate } from '../utils/calendar';
 import { markStartup } from '../utils/startupTiming';
 import { requestPushToken, dropPushToken, rememberTokenId, savedTokenId, deviceLabel } from '../utils/push';
 import { useConfirm } from '../components/useConfirm';
@@ -167,6 +174,13 @@ export function AppProvider({ children }) {
   const [payments, setPayments] = useState([]);              // confirmed payments (owners: Plan & billing history)
   const [platformBilling, setPlatformBilling] = useState(null); // { upiId, payeeName, qr } from platform/billing
   const [lockAsked, setLockAsked] = useState(0);             // bump → Layout shows the "plan has ended" pop-up
+
+  // Day sheets & Staff wages (only listened to when Settings → Day sheets is on)
+  const [staffRoster, setStaffRoster] = useState({ people: [], fillers: [] }); // names only, all members
+  const [staff, setStaff] = useState([]);                  // people with pay — owners only
+  const [staffPayments, setStaffPayments] = useState([]);  // owners only
+  const [daySheets, setDaySheets] = useState({});          // { [YYYY-MM-DD]: sheet } — owners + fillers
+  const [daySheetsLoaded, setDaySheetsLoaded] = useState(false);
 
   // Team (owner only)
   const [team, setTeam] = useState([]);
@@ -441,8 +455,58 @@ export function AppProvider({ children }) {
     });
   }, [tenantId, role, loadAttempt]);
 
+  // Day sheets: roster (everyone), staff + payments (owners), sheets (owners + fillers).
+  // Nothing is listened to until the owner switches Day sheets on.
+  const daySheetsOn = !!settings?.daySheets?.enabled;
+  const canFillDaySheets = role === 'owner' || (!!user && (staffRoster.fillers || []).includes(user.uid));
+  useEffect(() => {
+    if (!tenantId || !daySheetsOn) { setStaffRoster({ people: [], fillers: [] }); return undefined; }
+    return onSnapshot(doc(db, 'tenants', tenantId, 'config', 'staffRoster'),
+      (snap) => setStaffRoster({ people: [], fillers: [], ...(snap.exists() ? snap.data() : {}) }),
+      (err) => console.error('Staff roster listener error:', err.code, err.message));
+  }, [tenantId, daySheetsOn, loadAttempt]);
+  useEffect(() => {
+    if (!tenantId || !daySheetsOn || role !== 'owner') { setStaff([]); setStaffPayments([]); return undefined; }
+    const u1 = onSnapshot(collection(db, 'tenants', tenantId, 'staff'),
+      (snap) => setStaff(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+      (err) => console.error('Staff listener error:', err.code, err.message));
+    const u2 = onSnapshot(collection(db, 'tenants', tenantId, 'staffPayments'),
+      (snap) => setStaffPayments(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+      (err) => console.error('Staff payments listener error:', err.code, err.message));
+    return () => { u1(); u2(); };
+  }, [tenantId, daySheetsOn, role, loadAttempt]);
+  useEffect(() => {
+    if (!tenantId || !daySheetsOn || !canFillDaySheets) { setDaySheets({}); setDaySheetsLoaded(false); return undefined; }
+    return onSnapshot(collection(db, 'tenants', tenantId, 'daySheets'), (snap) => {
+      const all = {};
+      snap.docs.forEach(d => { all[d.id] = { ...d.data(), date: d.id }; });
+      setDaySheets(all);
+      setDaySheetsLoaded(true);
+    }, (err) => {
+      console.error('Day sheets listener error:', err.code, err.message);
+      setDaySheetsLoaded(true);
+    });
+  }, [tenantId, daySheetsOn, canFillDaySheets, loadAttempt]);
+
   /** Job Log columns the owner hasn't removed (removed ones keep their values) */
   const activeJobLogColumns = jobLogColumns.filter(c => !c.hidden);
+
+  // Job Log as every page sees it: typed values, with Day sheet shares laid
+  // over the Day sheet columns of events on Day sheets (read time only —
+  // financials/ in Firestore is never changed by Day sheets).
+  const daySheetCfg = useMemo(() => daySheetConfig(settings), [settings]);
+  const todayIso = isoDate(new Date());
+  const daySheetView = useMemo(() => {
+    if (!daySheetCfg.enabled || !daySheetCfg.startDate) return { colIds: [], onSheets: new Set(), shares: {} };
+    const colIds = daySheetColumnIds(daySheetCfg, daySheets);
+    const onSheets = daySheetEventIds(events, daySheetCfg.startDate);
+    const shares = allShares({ cfg: daySheetCfg, staff, sheets: daySheets, events, columnOrder: jobLogColumns.map(c => c.id), today: todayIso });
+    return { colIds, onSheets, shares };
+  }, [daySheetCfg, daySheets, events, staff, jobLogColumns, todayIso]);
+  const viewFinancials = useMemo(() => mergeDaySheetShares(financials, {
+    ...daySheetView,
+    hideCols: role === 'owner' ? [] : [daySheetCfg.staffColumn],   // staff pay is owners-only
+  }), [financials, daySheetView, role, daySheetCfg.staffColumn]);
 
   /** Shared guard for writes. Returns an error string, or null if the write may proceed. */
   const writeBlockedReason = ({ ownerOnly = false } = {}) => {
@@ -798,6 +862,84 @@ export function AppProvider({ children }) {
   };
 
   // ------------------------------------------------------------
+  // DAY SHEETS & STAFF WAGES
+  // ------------------------------------------------------------
+
+  /** Shared try/catch for the small writes below → { success } or { success: false, error } */
+  const runWrite = async (what, fn, { ownerOnly = true } = {}) => {
+    const blocked = writeBlockedReason({ ownerOnly });
+    if (blocked) { showToast(blocked, 'error'); return { success: false, error: blocked }; }
+    try {
+      const extra = await fn();
+      return { success: true, ...(extra || {}) };
+    } catch (err) {
+      console.error(`Error (${what}):`, err.code, err.message);
+      const error = friendlyError(err, what);
+      showToast(error, 'error');
+      return { success: false, error };
+    }
+  };
+
+  /** Names-only copy of the staff list for Day sheet fillers (no pay) */
+  const rosterPeople = (list) => list.map(p => ({
+    id: p.id, name: p.name || '', pay: p.pay || 'monthly', worksIn: p.worksIn || 'events',
+    startDate: p.startDate || '', endDate: p.endDate || '',
+  }));
+
+  /** Adds or updates a person (pay stays in staff/, the name list in config/staffRoster). → { success, id } */
+  const saveStaffPerson = (person) => runWrite('save the person', async () => {
+    const id = person.id || genId();
+    const now = new Date().toISOString();
+    const { id: _drop, ...data } = person;
+    const next = [...staff.filter(p => p.id !== id), { id, ...data }];
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'tenants', tenantId, 'staff', id), { ...data, updatedAt: now, ...(person.id ? {} : { createdAt: now }) }, { merge: true });
+    batch.set(doc(db, 'tenants', tenantId, 'config', 'staffRoster'), { people: rosterPeople(next), fillers: staffRoster.fillers || [] });
+    await batch.commit();
+    return { id };
+  });
+
+  /** Removes a person (the page only offers this when they have no days or payments yet) */
+  const deleteStaffPerson = (id) => runWrite('remove the person', async () => {
+    const batch = writeBatch(db);
+    batch.delete(doc(db, 'tenants', tenantId, 'staff', id));
+    batch.set(doc(db, 'tenants', tenantId, 'config', 'staffRoster'), { people: rosterPeople(staff.filter(p => p.id !== id)), fillers: staffRoster.fillers || [] });
+    await batch.commit();
+  });
+
+  /** Who may fill Day sheets besides owners (Team page tick) */
+  const setDaySheetFillers = (uids) => runWrite('save the Day sheet access', async () => {
+    await setDoc(doc(db, 'tenants', tenantId, 'config', 'staffRoster'), { people: staffRoster.people || [], fillers: [...new Set(uids)] });
+  });
+
+  /** Saves one day's sheet (whole doc). Owners and fillers. */
+  const saveDaySheet = (date, sheet) => runWrite('save the Day sheet', async () => {
+    const { date: _d, ...data } = sheet;
+    await setDoc(doc(db, 'tenants', tenantId, 'daySheets', date), {
+      ...data, updatedAt: new Date().toISOString(), updatedBy: user?.uid || '', updatedByName: user?.displayName || user?.email || '',
+    });
+  }, { ownerOnly: false });
+
+  const deleteDaySheet = (date) => runWrite('clear the Day sheet', async () => {
+    await deleteDoc(doc(db, 'tenants', tenantId, 'daySheets', date));
+  });
+
+  /** Paid early / advance / bonus / pay. → { success, id } */
+  const addStaffPayment = (payment) => runWrite('save the payment', async () => {
+    const id = genId();
+    await setDoc(doc(db, 'tenants', tenantId, 'staffPayments', id), { ...payment, createdAt: new Date().toISOString(), createdBy: user?.uid || '' });
+    return { id };
+  });
+
+  const updateStaffPayment = (id, data) => runWrite('save the payment', async () => {
+    await updateDoc(doc(db, 'tenants', tenantId, 'staffPayments', id), { ...data, updatedAt: new Date().toISOString() });
+  });
+
+  const deleteStaffPayment = (id) => runWrite('delete the payment', async () => {
+    await deleteDoc(doc(db, 'tenants', tenantId, 'staffPayments', id));
+  });
+
+  // ------------------------------------------------------------
   // SETTINGS OPERATIONS (owner only)
   // ------------------------------------------------------------
 
@@ -883,6 +1025,9 @@ export function AppProvider({ children }) {
       showToast(blocked, 'error');
       return { success: false, error: blocked };
     }
+    // Day sheet columns of events on Day sheets are worked out, never typed —
+    // drop any such change so the typed value underneath stays as it was
+    changes = changes.filter(ch => !(daySheetView.onSheets.has(ch.eventId) && daySheetView.colIds.includes(ch.columnId)));
     if (!changes.length) return { success: true };
 
     // a money cell typed as a sum ("12000+3500") also keeps that sum in
@@ -961,13 +1106,15 @@ export function AppProvider({ children }) {
     if (!isOwner || !tenantId) return { success: false, error: 'Only owners can download a backup.' };
     try {
       const sub = async (name) => (await getDocs(collection(db, 'tenants', tenantId, name))).docs.map(d => ({ id: d.id, data: d.data() }));
-      const [tSnap, evs, cfg, fin, priv, pur, mem, inv] = await Promise.all([
+      const [tSnap, evs, cfg, fin, priv, pur, mem, inv, stf, sp, ds] = await Promise.all([
         getDoc(doc(db, 'tenants', tenantId)),
         sub('events'), sub('config'), sub('financials'), sub('private'), sub('purchases'),
         getDocs(query(collection(db, 'users'), where('tenantId', '==', tenantId))),
         getDocs(query(collection(db, 'invites'), where('tenantId', '==', tenantId))),
+        sub('staff'), sub('staffPayments'), sub('daySheets'),
       ]);
       const backup = buildCompanyBackup({
+        staff: stf, staffPayments: sp, daySheets: ds,
         tenantId,
         tenant: tSnap.exists() ? tSnap.data() : {},
         events: evs, config: cfg, financials: fin, private: priv, purchases: pur,
@@ -1218,6 +1365,8 @@ export function AppProvider({ children }) {
         ...backup.events.map(e => [doc(db, 'tenants', newId, 'events', e.id), e.data]),
         ...(backup.financials || []).map(f => [doc(db, 'tenants', newId, 'financials', f.id), f.data]),
         ...(backup.purchases || []).map(p => [doc(db, 'tenants', newId, 'purchases', p.id), p.data]),
+        ...['staff', 'staffPayments', 'daySheets'].flatMap(name =>
+          (backup.dayData?.[name] || []).map(r => [doc(db, 'tenants', newId, name, r.id), r.data])),
       ];
       for (let i = 0; i < rows.length; i += BATCH_LIMIT) {
         const batch = writeBatch(db);
@@ -1279,9 +1428,14 @@ export function AppProvider({ children }) {
       team, invites, inviteTeammate, cancelInvite, removeTeammate, promoteToOwner,
       // Job Log
       jobLogColumns: activeJobLogColumns, allJobLogColumns: jobLogColumns,
-      financials, financialsLoaded, saveFinancials, saveJobLogColumns,
+      financials: viewFinancials, typedFinancials: financials, financialsLoaded, saveFinancials, saveJobLogColumns,
+      daySheetCfg, daySheetView,
       // Purchases (owner only)
       purchases, purchasesLoaded, addPurchases, updatePurchase, deletePurchase,
+      // Day sheets & Staff wages
+      daySheetsOn, canFillDaySheets, staffRoster, staff, staffPayments, daySheets, daySheetsLoaded,
+      saveStaffPerson, deleteStaffPerson, setDaySheetFillers, saveDaySheet, deleteDaySheet,
+      addStaffPayment, updateStaffPayment, deleteStaffPayment,
       // Backup
       downloadCompanyBackup,
       // Reminders (push notifications)

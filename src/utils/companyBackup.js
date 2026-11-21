@@ -28,11 +28,12 @@ export function backupFileName(companyName, now = new Date()) {
  * @param {object} p
  * @param {string} p.tenantId
  * @param {object} p.tenant      tenants/{id} doc
- * @param {Array<{id,data}>} p.events, p.config, p.financials, p.private, p.purchases
+ * @param {Array<{id,data}>} p.events, p.config, p.financials, p.private, p.purchases,
+ *                           p.staff, p.staffPayments, p.daySheets (Day sheets & Staff wages)
  * @param {Array<{uid,email,role,name}>} p.members
  * @param {Array<{email,role}>} p.invites
  */
-export function buildCompanyBackup({ tenantId, tenant, events, config, financials, private: priv, purchases, members, invites, exportedAt = new Date().toISOString(), sourceProject = '' }) {
+export function buildCompanyBackup({ tenantId, tenant, events, config, financials, private: priv, purchases, staff, staffPayments, daySheets, members, invites, exportedAt = new Date().toISOString(), sourceProject = '' }) {
   return {
     format: 'eventscope-backup',
     version: 2,
@@ -49,6 +50,9 @@ export function buildCompanyBackup({ tenantId, tenant, events, config, financial
     other: {
       ...(priv && priv.length ? { private: priv } : {}),
       ...(purchases && purchases.length ? { purchases } : {}),
+      ...(staff && staff.length ? { staff } : {}),
+      ...(staffPayments && staffPayments.length ? { staffPayments } : {}),
+      ...(daySheets && daySheets.length ? { daySheets } : {}),
     },
   };
 }

@@ -40,7 +40,7 @@ test('parseBackup cleans old-app fields and counts what will be imported', () =>
   assert.equal(r.events[0].data.sheetSyncedAt, undefined);
   assert.equal(r.events[0].data.totalAmount, 100);
   assert.equal(r.events[0].data.createdAt, '2026-01-01T00:00:00.000Z');
-  assert.deepEqual(r.counts, { events: 2, bills: 1, categories: 1, costs: 0, purchases: 0, byStatus: { completed: 1, draft: 1 } });
+  assert.deepEqual(r.counts, { events: 2, bills: 1, categories: 1, costs: 0, purchases: 0, staff: 0, daySheets: 0, byStatus: { completed: 1, draft: 1 } });
   assert.deepEqual([r.owners, r.staff, r.financials, r.jobLogColumns, r.tenantId], [[], [], [], null, '']); // v1 has none of these
 });
 
@@ -55,9 +55,17 @@ test('parseBackup reads a full EventScope backup (v2): Job Log, team and contact
     other: {
       private: [{ id: 'contact', data: { recoveryEmail: 'r@gmail.com' } }],
       purchases: [{ id: 'p1', data: { mode: 'total', date: '2026-09-30', amount: 70000 } }],
+      staff: [{ id: 's1', data: { name: 'Biju', pay: 'monthly', amount: 30000 } }],
+      staffPayments: [{ id: 'x1', data: { staffId: 's1', type: 'advance', amount: 2000 } }],
+      daySheets: [{ id: '2026-11-14', data: { staff: { s1: { where: 'events' } }, costs: [] } }],
     },
   };
   const r = parseBackup(v2);
+  assert.deepEqual(r.dayData.staff, [{ id: 's1', data: { name: 'Biju', pay: 'monthly', amount: 30000 } }]);
+  assert.equal(r.dayData.staffPayments.length, 1);
+  assert.equal(r.dayData.daySheets[0].id, '2026-11-14');
+  assert.equal(r.counts.staff, 1);
+  assert.equal(parseBackup({ ...v2, other: { ...v2.other, daySheets: [{ id: 'a/b', data: {} }] } }).ok, false);
   assert.equal(r.ok, true);
   assert.deepEqual([r.tenantId, r.tenantName, r.plan], ['test-co', 'Test Co', 'pilot']);
   assert.deepEqual(r.jobLogColumns, [{ id: 'labour', label: 'Labour', type: 'cost' }]);
@@ -105,9 +113,12 @@ test('an owner backup restores everything through parseBackup', () => {
     events: BACKUP.events, config: [...BACKUP.config, { id: 'jobLog', data: { columns: [{ id: 'c', label: 'C', type: 'cost' }] } }],
     financials: [{ id: 'e1', data: { values: { c: 5 } } }], private: [{ id: 'contact', data: { phone: '1' } }],
     members: [{ uid: 'u1', email: 'o@x.com', role: 'owner', name: 'O', tenantId: 'test-co' }], invites: [{ email: 's@x.com', role: 'staff', tenantId: 'test-co' }],
+    staff: [{ id: 's1', data: { name: 'Biju', amount: 30000 } }], staffPayments: [{ id: 'x1', data: { type: 'bonus', amount: 500 } }],
+    daySheets: [{ id: '2026-11-14', data: { costs: [{ amount: 800 }] } }],
     exportedAt: '2026-10-09T00:00:00.000Z',
   });
   const r = parseBackup(JSON.parse(JSON.stringify(file)));
+  assert.deepEqual([r.dayData.staff.length, r.dayData.staffPayments.length, r.dayData.daySheets.length], [1, 1, 1]);
   assert.equal(r.ok, true);
   assert.deepEqual([r.tenantId, r.tenantName, r.plan, r.owners, r.staff], ['test-co', 'Test Co', 'pilot', ['o@x.com'], ['s@x.com']]);
   assert.equal(r.events.length, 2);
